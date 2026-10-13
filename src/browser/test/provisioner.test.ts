@@ -96,6 +96,7 @@ describe("DefaultPwaProvisioner - profile and slug", () => {
       const provisioner = new DefaultPwaProvisioner({
         iconService: mockIconService,
         shortcutService: mockShortcutService,
+        env: { PWA_NAV_FIREFOX_BINARY: "/x/firefox" },
       });
 
       const res = await provisioner.provision("https://linkedin.com", { cacheDir: dir });

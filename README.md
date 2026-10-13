@@ -393,7 +393,7 @@ If any intermediate step fails or the destination URL does not match `expectScre
 | `PWA_NAV_SCREENS_DIR` | `<cache-dir>/screens` | Directory where screen map JSON files are stored. |
 | `PWA_NAV_DRY_RUN` | `0` | Set to `1` to force dry-run mode in MCP server. |
 | `PWA_NAV_KILL_SWITCH` | — | Path to emergency kill-switch file (or set to `1`). |
-| `PWA_NAV_RUNTIME_DIR` | Auto | Override standalone runtime directory. |
+| `PWA_NAV_FIREFOX_BINARY` | Auto | Full path to the Firefox executable (default: stock Firefox install location). |
 
 ---
 
@@ -444,7 +444,7 @@ pnpm lint && pnpm build && pnpm test && pnpm smoke
 
 ## 📄 Documentation Index
 
-- [`docs/firefox-pwa.md`](docs/firefox-pwa.md) — Detailed guide to setting up Firefox PWA on Windows, Linux, and macOS.
+- [`docs/firefox-runtime.md`](docs/firefox-runtime.md) — Firefox discovery, launch flags and troubleshooting on Windows, Linux, and macOS.
 - [`docs/screen-map.md`](docs/screen-map.md) — Screen map specification, compact views, and authoring user journeys.
 - [`docs/mcp.md`](docs/mcp.md) — Setting up the MCP server with Claude Desktop, Cursor, and other tools.
 - [`SKILL.md`](SKILL.md) — One-page agent manual for coding assistants driving `pwa-nav`.

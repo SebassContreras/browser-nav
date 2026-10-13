@@ -115,7 +115,7 @@ async function withEnv(fn: (env: Env) => Promise<void>): Promise<void> {
     if (value !== undefined && key !== "PWA_NAV_ARMED" && key !== "PWA_NAV_SCREENS_DIR") childEnv[key] = value;
   }
   childEnv["PWA_NAV_KILL_SWITCH"] = join(dir, "kill-file");
-  childEnv["PWA_NAV_FIREFOXPWA_DIR"] = join(dir, "nopwa");
+  childEnv["PWA_NAV_FIREFOX_BINARY"] = join(dir, "nofirefox");
   try {
     await fn({ dir, agentDir: join(dir, ".agent"), screensDir, server, childEnv });
   } finally {

@@ -21,7 +21,7 @@ This file is the single agent-instructions entrypoint; there is no `CLAUDE.md`. 
 - `planning/styles.md` — Formatting, style, and code guidelines.
 - `planning/roadmap.md` — Master specification index with status, dependencies, and priority.
 - `planning/handoff.md` — Current execution state, live testing log, safety notes, and next priorities.
-- `docs/firefox-pwa.md` — Firefox PWA installation, runtime discovery, launch flags, and troubleshooting.
+- `docs/firefox-runtime.md` — Firefox discovery, launch flags, and troubleshooting.
 - `docs/screen-map.md` — Screen map schema, route matching, compact view, and User Journeys.
 - `docs/mcp.md` — MCP stdio server setup, tool registry, resources, and client configuration.
 - `planning/specs/NNN-name/{requirements,design,tasks}.md` — Spec-driven implementation packages.

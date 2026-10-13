@@ -90,7 +90,7 @@ async function withEnv(
     return ok(true);
   });
   const killFile = join(dir, "kill");
-  const env: NodeJS.ProcessEnv = { PWA_NAV_KILL_SWITCH: killFile, PWA_NAV_FIREFOXPWA_DIR: join(dir, "nopwa") };
+  const env: NodeJS.ProcessEnv = { PWA_NAV_KILL_SWITCH: killFile, PWA_NAV_FIREFOX_BINARY: join(dir, "nofirefox") };
   const backend = new BidiBackend({ port: server.port, agentDir: dir, env, platform: "linux", ...extra });
   try {
     await fn({ dir, server, page, backend, env, killFile });
@@ -177,7 +177,7 @@ test("open: no_browser carries a launch hint with standalone args", async () => 
   const { port } = probe;
   await probe.close();
   try {
-    const env = { PWA_NAV_RUNTIME_DIR: dir };
+    const env = { PWA_NAV_FIREFOX_BINARY: join(dir, "firefox") };
     const backend = new BidiBackend({
       port,
       agentDir: dir,
@@ -189,6 +189,7 @@ test("open: no_browser carries a launch hint with standalone args", async () => 
     assert.match(error.hint ?? "", /app-test/);
     assert.match(error.hint ?? "", new RegExp(`--remote-debugging-port.+${String(port)}`));
     assert.match(error.hint ?? "", /--profile/);
+    assert.doesNotMatch(error.hint ?? "", /--pwa/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

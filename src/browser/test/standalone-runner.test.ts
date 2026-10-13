@@ -18,10 +18,9 @@ function fakeChild(pid = 9999): ChildProcess {
   return emitter;
 }
 
-test("buildStandaloneLaunchArgs formats standalone flags with profile, pwa, debugging port and target url", () => {
+test("buildStandaloneLaunchArgs formats profile, debugging port and target url without --pwa", () => {
   const args = buildStandaloneLaunchArgs({
     profileDir: "C:\\profiles\\linkedin",
-    appSlug: "linkedin",
     port: 9222,
     url: "https://www.linkedin.com",
     headless: true,
@@ -30,8 +29,6 @@ test("buildStandaloneLaunchArgs formats standalone flags with profile, pwa, debu
   assert.deepEqual(args, [
     "--profile",
     "C:\\profiles\\linkedin",
-    "--pwa",
-    "linkedin",
     "--remote-debugging-port",
     "9222",
     "--headless",
@@ -46,6 +43,7 @@ test("launchStandaloneApp rejects if port is already listening", async () => {
         url: "https://example.com",
         appSlug: "example-com",
         port: 9222,
+        env: { PWA_NAV_FIREFOX_BINARY: "/x/firefox" },
         probe: () => Promise.resolve(true),
       });
     },
@@ -60,8 +58,7 @@ test("launchStandaloneApp rejects if port is already listening", async () => {
 
 test("launchStandaloneApp initializes isolated profile and spawns runtime without extension messaging", async () => {
   const tempDir = await mkdtemp(join(tmpdir(), "pwa-nav-standalone-test-"));
-  const fakePwaDir = join(tempDir, "pwa-home");
-  const runtimeDir = join(fakePwaDir, "runtime");
+  const runtimeDir = join(tempDir, "firefox");
   await mkdir(runtimeDir, { recursive: true });
 
   const dummyExe = join(runtimeDir, process.platform === "win32" ? "firefox.exe" : "firefox");
@@ -88,7 +85,7 @@ test("launchStandaloneApp initializes isolated profile and spawns runtime withou
       appSlug: "linkedin",
       port: 9222,
       platform: process.platform,
-      env: { PWA_NAV_FIREFOXPWA_DIR: fakePwaDir },
+      env: { PWA_NAV_FIREFOX_BINARY: dummyExe },
       cacheDir: tempDir,
       probe,
       intervalMs: 10,
@@ -101,8 +98,7 @@ test("launchStandaloneApp initializes isolated profile and spawns runtime withou
     assert.equal(result.port, 9222);
     assert.equal(result.pid, 4242);
     assert.equal(spawnedBinary, dummyExe);
-    assert.ok(spawnedArgs.includes("--pwa"));
-    assert.ok(spawnedArgs.includes("linkedin"));
+    assert.ok(!spawnedArgs.includes("--pwa"));
     assert.ok(spawnedArgs.includes("--remote-debugging-port"));
     assert.ok(spawnedArgs.includes("9222"));
     assert.ok(spawnedArgs.includes("https://www.linkedin.com"));

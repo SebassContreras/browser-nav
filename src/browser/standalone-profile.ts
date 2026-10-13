@@ -16,6 +16,8 @@ export const DEFAULT_STANDALONE_USER_PREFS: Readonly<Record<string, boolean | nu
   "toolkit.legacyUserProfileCustomizations.stylesheets": true,
   // Restore native OS window titlebar (disables CSD to preserve native min/max/close controls and window dragging)
   "browser.tabs.inTitlebar": 0,
+  // Windows: group each profile under its own taskbar entry instead of regular Firefox
+  "taskbar.grouping.useprofile": true,
 };
 
 export const STANDALONE_USER_CHROME_CSS = `/* Hide Firefox tabs toolbar and navigation/URL bar for clean standalone app window with native OS titlebar */

@@ -30,9 +30,8 @@ import type { RawElement } from "./collector.js";
 import { buildLiveSnapshot, type LiveExtras } from "./live-snapshot.js";
 import { assertFresh } from "./locate.js";
 import {
-  firefoxPwaDir,
   launchCommandHint,
-  runtimePath,
+  resolveFirefoxBinary,
   tcpProbe,
   type PortProbe,
 } from "./pwa-runtime.js";
@@ -143,14 +142,13 @@ export class BidiBackend implements Backend {
 
   // Best effort: exact launch command for the matching site, else a generic hint.
   private withLaunchHint(error: PwaNavError, originUrl: string | undefined): PwaNavError {
-    let hint = `start the PWA runtime with --remote-debugging-port ${String(this.port)} (or: open <url> --launch)`;
+    let hint = `start Firefox with --remote-debugging-port ${String(this.port)} (or: open <url> --launch)`;
     try {
       if (originUrl === undefined) throw new Error("no origin");
-      const dir = firefoxPwaDir(this.platform, this.env);
       const appSlug = appSlugFromUrl(originUrl);
       const profileDir = join(this.agentDir, "apps", appSlug, "profile");
-      const args = buildStandaloneLaunchArgs({ profileDir, appSlug, port: this.port, url: originUrl });
-      hint = `launch the PWA: ${launchCommandHint(runtimePath(dir, this.platform), args, this.platform)}`;
+      const args = buildStandaloneLaunchArgs({ profileDir, port: this.port, url: originUrl });
+      hint = `launch the PWA: ${launchCommandHint(resolveFirefoxBinary(this.platform, this.env), args, this.platform)}`;
     } catch {
       // keep the generic hint
     }

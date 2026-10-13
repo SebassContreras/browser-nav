@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { PwaNavError } from "../../core/errors.js";
 import {
-  firefoxPwaDir,
+  firefoxCandidates,
   isLoginBarrier,
   launchCommandHint,
-  runtimePath,
+  resolveFirefoxBinary,
   validatePort,
   waitForPort,
 } from "../pwa-runtime.js";
@@ -22,70 +20,32 @@ function expectCode(fn: () => unknown, expected: string, re?: RegExp): void {
   });
 }
 
-test("firefoxPwaDir per platform, XDG, Flatpak, and override", () => {
-  assert.equal(firefoxPwaDir("win32", { APPDATA: "C:\\A" }), join("C:\\A", "FirefoxPWA"));
-  assert.equal(firefoxPwaDir("linux", { HOME: "/h" }), join("/h", ".local", "share", "firefoxpwa"));
-  assert.equal(firefoxPwaDir("linux", { XDG_DATA_HOME: "/xdg" }), join("/xdg", "firefoxpwa"));
-  assert.equal(firefoxPwaDir("darwin", { HOME: "/h" }), join("/h", "Library", "Application Support", "firefoxpwa"));
-  assert.equal(firefoxPwaDir("win32", { PWA_NAV_RUNTIME_DIR: "/x" }), "/x");
-  assert.equal(firefoxPwaDir("linux", { PWA_NAV_RUNTIME_DIR: "/x" }), "/x");
-  assert.equal(firefoxPwaDir("darwin", { PWA_NAV_RUNTIME_DIR: "/x" }), "/x");
-  assert.equal(firefoxPwaDir("win32", { PWA_NAV_FIREFOXPWA_DIR: "/x" }), "/x");
-  expectCode(() => firefoxPwaDir("win32", {}), "invalid_args");
-  expectCode(() => firefoxPwaDir("linux", {}), "invalid_args");
-  expectCode(() => firefoxPwaDir("darwin", {}), "invalid_args");
-  expectCode(() => firefoxPwaDir("freebsd", {}), "invalid_args");
+test("firefoxCandidates lists stock Firefox install locations per platform", () => {
+  const winEnv = { ProgramFiles: "/pf", "ProgramFiles(x86)": "/pf86", LOCALAPPDATA: "/local" };
+  assert.deepEqual(firefoxCandidates("win32", winEnv), [
+    join("/pf", "Mozilla Firefox", "firefox.exe"),
+    join("/pf86", "Mozilla Firefox", "firefox.exe"),
+    join("/local", "Mozilla Firefox", "firefox.exe"),
+  ]);
+  assert.deepEqual(firefoxCandidates("win32", {}), []);
+  assert.equal(firefoxCandidates("linux", {})[0], "/usr/bin/firefox");
+  assert.deepEqual(firefoxCandidates("darwin", { HOME: "/h" }), [
+    "/Applications/Firefox.app/Contents/MacOS/firefox",
+    join("/h", "Applications", "Firefox.app", "Contents", "MacOS", "firefox"),
+  ]);
+  assert.deepEqual(firefoxCandidates("freebsd", {}), []);
 });
 
-test("firefoxPwaDir resolves Flatpak data directory when present on Linux", async () => {
-  const tmp = await mkdtemp(join(tmpdir(), "pwa-flatpak-"));
-  try {
-    const flatpakDir = join(tmp, ".var", "app", "org.filips.FirefoxPWA", "data", "firefoxpwa");
-    await mkdir(flatpakDir, { recursive: true });
-    assert.equal(firefoxPwaDir("linux", { HOME: tmp }), flatpakDir);
-  } finally {
-    await rm(tmp, { recursive: true, force: true });
-  }
-});
-
-test("runtimePath per platform with fallback and checkExists", () => {
-  assert.equal(runtimePath("/d", "win32"), join("/d", "runtime", "firefox.exe"));
-  // Linux defaults to local runtime/firefox
-  assert.equal(runtimePath("/d", "linux"), join("/d", "runtime", "firefox"));
-  // Linux uses local if exists
-  assert.equal(
-    runtimePath("/d", "linux", (p) => p === join("/d", "runtime", "firefox")),
-    join("/d", "runtime", "firefox"),
-  );
-  // Linux falls back to /usr/lib/firefoxpwa/runtime/firefox if local does not exist
-  assert.equal(
-    runtimePath("/d", "linux", (p) => p === "/usr/lib/firefoxpwa/runtime/firefox"),
-    "/usr/lib/firefoxpwa/runtime/firefox",
-  );
-  // Linux falls back to /usr/lib64/firefoxpwa/runtime/firefox
-  assert.equal(
-    runtimePath("/d", "linux", (p) => p === "/usr/lib64/firefoxpwa/runtime/firefox"),
-    "/usr/lib64/firefoxpwa/runtime/firefox",
-  );
-
-  // macOS defaults to Firefox.app bundle
-  assert.equal(
-    runtimePath("/d", "darwin"),
-    join("/d", "runtime", "Firefox.app", "Contents", "MacOS", "firefox"),
-  );
-  // macOS returns Firefox.app bundle if exists
-  assert.equal(
-    runtimePath("/d", "darwin", (p) => p === join("/d", "runtime", "Firefox.app", "Contents", "MacOS", "firefox")),
-    join("/d", "runtime", "Firefox.app", "Contents", "MacOS", "firefox"),
-  );
-  // macOS returns symlink/binary if it exists and app bundle does not
-  assert.equal(
-    runtimePath("/d", "darwin", (p) => p === join("/d", "runtime", "firefox")),
-    join("/d", "runtime", "firefox"),
-  );
-
-  // Unsupported platform
-  expectCode(() => runtimePath("/d", "freebsd"), "invalid_args", /cannot locate runtime binary/);
+test("resolveFirefoxBinary honors override, picks first existing candidate, and hints when missing", () => {
+  assert.equal(resolveFirefoxBinary("win32", { PWA_NAV_FIREFOX_BINARY: "/x/firefox" }), "/x/firefox");
+  assert.equal(resolveFirefoxBinary("freebsd", { PWA_NAV_FIREFOX_BINARY: "/x/firefox" }), "/x/firefox");
+  const env = { ProgramFiles: "/pf", LOCALAPPDATA: "/local" };
+  const user = join("/local", "Mozilla Firefox", "firefox.exe");
+  assert.equal(resolveFirefoxBinary("win32", env, (p) => p === user), user);
+  assert.equal(resolveFirefoxBinary("linux", {}, () => true), "/usr/bin/firefox");
+  expectCode(() => resolveFirefoxBinary("win32", env, () => false), "invalid_args", /winget install Mozilla\.Firefox/);
+  expectCode(() => resolveFirefoxBinary("darwin", {}, () => false), "invalid_args", /PWA_NAV_FIREFOX_BINARY/);
+  expectCode(() => resolveFirefoxBinary("freebsd", {}), "invalid_args", /^(?!.*--pwa).*--remote-debugging-port/);
 });
 
 test("validatePort integer bounds checking", () => {
@@ -98,7 +58,7 @@ test("validatePort integer bounds checking", () => {
 });
 
 test("launchCommandHint formats command per shell platform", () => {
-  const args = ["--profile", "C:\\p q", "--pwa", "app-slug", "--remote-debugging-port", "9222"];
+  const args = ["--profile", "C:\\p q","--remote-debugging-port", "9222"];
   const ps = launchCommandHint("C:\\r\\firefox.exe", args, "win32");
   assert.match(ps, /^Start-Process -FilePath 'C:\\r\\firefox\.exe'/);
   assert.match(ps, /'--remote-debugging-port', '9222'/);

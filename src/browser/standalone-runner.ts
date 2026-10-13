@@ -2,9 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { PwaNavError } from "../core/errors.js";
 import {
   DEFAULT_LAUNCH_TIMEOUT_MS,
-  firefoxPwaDir,
   launchCommandHint,
-  runtimePath,
+  resolveFirefoxBinary,
   tcpProbe,
   validatePort,
   waitForPort,
@@ -43,7 +42,6 @@ export interface StandaloneLaunchResult {
 
 export function buildStandaloneLaunchArgs(options: {
   profileDir: string;
-  appSlug: string;
   port: number;
   url: string;
   headless?: boolean;
@@ -52,8 +50,6 @@ export function buildStandaloneLaunchArgs(options: {
   const args = [
     "--profile",
     options.profileDir,
-    "--pwa",
-    options.appSlug,
     "--remote-debugging-port",
     String(options.port),
   ];
@@ -66,15 +62,12 @@ export function buildStandaloneLaunchArgs(options: {
 
 export function buildCleanStandaloneLaunchArgs(options: {
   profileDir: string;
-  appSlug: string;
   url: string;
   headless?: boolean;
 }): string[] {
   const args = [
     "--profile",
     options.profileDir,
-    "--pwa",
-    options.appSlug,
   ];
   if (options.headless === true) {
     args.push("--headless");
@@ -109,13 +102,11 @@ export async function launchStandaloneAppClean(
   const url = options.url;
   const appSlug = options.appSlug;
 
-  const dir = firefoxPwaDir(platform, env);
-  const binary = runtimePath(dir, platform);
+  const binary = resolveFirefoxBinary(platform, env);
   const profileDir = await ensureStandaloneProfile(appSlug, { cacheDir: options.cacheDir });
 
   const args = buildCleanStandaloneLaunchArgs({
     profileDir,
-    appSlug,
     url,
     ...(options.headless === undefined ? {} : { headless: options.headless }),
   });
@@ -157,13 +148,11 @@ export async function launchStandaloneApp(options: StandaloneLaunchOptions): Pro
     validatePort(port);
   }
 
-  const dir = firefoxPwaDir(platform, env);
-  const binary = runtimePath(dir, platform);
+  const binary = resolveFirefoxBinary(platform, env);
   const profileDir = await ensureStandaloneProfile(appSlug, { cacheDir: options.cacheDir });
 
   const args = buildStandaloneLaunchArgs({
     profileDir,
-    appSlug,
     port,
     url,
     ...(options.headless === undefined ? {} : { headless: options.headless }),

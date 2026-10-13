@@ -1,7 +1,7 @@
 // Opt-in E2E (spec 004, T012): the real compiled CLI against a REAL headless Firefox.
 // Run with PWA_NAV_E2E=1 (after `pnpm build`). Skipped by default, so `pnpm test` stays fast.
 // Safety: own temp profile, own free port, own child process (only that PID tree is killed).
-// It never uses port 9222, %APPDATA%\FirefoxPWA\profiles\* or `--pwa`.
+// It never uses port 9222 or another Firefox profile.
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -14,7 +14,7 @@ import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { withTopLevelContext } from "../bidi/session.js";
 import { endpointFor } from "../browser/bidi-backend.js";
-import { tcpProbe, waitForPort } from "../browser/pwa-runtime.js";
+import { firefoxCandidates, tcpProbe, waitForPort } from "../browser/pwa-runtime.js";
 import type { Snapshot } from "../core/snapshot.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -24,7 +24,8 @@ const CLI = existsSync(join(HERE, "cli.js"))
 const FIXTURES = join(HERE, "..", "..", "checks", "fixtures", "e2e");
 const FIREFOX =
   process.env["PWA_NAV_E2E_FIREFOX"] ??
-  join(process.env["APPDATA"] ?? "", "FirefoxPWA", "runtime", process.platform === "win32" ? "firefox.exe" : "firefox");
+  firefoxCandidates(process.platform, process.env).find((path) => existsSync(path)) ??
+  "firefox";
 
 function skipReason(): string | undefined {
   if (process.env["PWA_NAV_E2E"] !== "1") return "set PWA_NAV_E2E=1 to run the real-Firefox E2E";

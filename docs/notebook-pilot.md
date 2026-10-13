@@ -66,7 +66,7 @@ Evidence layout per run: `step-<n>-<op>-snapshot.json` per step + `result.json` 
 
 ## Live variant
 
-`open` needs `--allow-origin` the first time (consent to navigate to that origin; later runs use `.agent/allow.json`). With the notebook open in your own Firefox PWA started with `--remote-debugging-port` (see `docs/firefox-pwa.md`), drop `--backend offline` and `--input`:
+`open` needs `--allow-origin` the first time (consent to navigate to that origin; later runs use `.agent/allow.json`). With the notebook open in a Firefox app window started with `--remote-debugging-port` (see `docs/firefox-runtime.md`), drop `--backend offline` and `--input`:
 
 ```sh
 pwa-nav open <notebook-url> --allow-origin

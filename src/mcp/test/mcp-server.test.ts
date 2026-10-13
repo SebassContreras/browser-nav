@@ -128,7 +128,7 @@ async function withMcp(opts: McpOpts, fn: (env: Env) => Promise<void>): Promise<
   const env = {
     ...process.env,
     PWA_NAV_KILL_SWITCH: join(dir, "kill-file"),
-    PWA_NAV_FIREFOXPWA_DIR: join(dir, "nopwa"),
+    PWA_NAV_FIREFOX_BINARY: join(dir, "nofirefox"),
   };
   const mcp = createMcpServer({
     mode: "bidi",

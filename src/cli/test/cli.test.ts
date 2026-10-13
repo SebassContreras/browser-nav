@@ -42,7 +42,7 @@ function baseEnv(dir: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv 
     ...env,
     PWA_NAV_PORT: String(CLOSED_PORT),
     PWA_NAV_KILL_SWITCH: join(dir, "kill-file"),
-    PWA_NAV_FIREFOXPWA_DIR: join(dir, "nopwa"),
+    PWA_NAV_FIREFOX_BINARY: join(dir, "nofirefox"),
     // The temp cwd has no project markers: pin the cache dir so nothing leaks into ~/.pwa-nav.
     PWA_NAV_CACHE_DIR: join(dir, ".agent"),
     ...extra,

@@ -10,8 +10,8 @@ import {
 test("buildWindowsShortcutScript formats PowerShell COM script correctly", () => {
   const options: ShortcutOptions = {
     name: "linkedin",
-    targetBinary: "C:\\Program Files\\FirefoxPWA\\firefox.exe",
-    args: ["--profile", "C:\\Users\\user\\profile dir", "--pwa", "linkedin"],
+    targetBinary: "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
+    args: ["--profile", "C:\\Users\\user\\profile dir", "https://www.linkedin.com"],
     iconPath: "C:\\Users\\user\\icon.ico",
     destinationDir: "C:\\Users\\user\\apps",
   };
@@ -19,7 +19,7 @@ test("buildWindowsShortcutScript formats PowerShell COM script correctly", () =>
   const script = buildWindowsShortcutScript(options, "C:\\Users\\user\\apps\\linkedin.lnk");
   assert.match(script, /New-Object -ComObject WScript\.Shell/);
   assert.match(script, /C:\\Users\\user\\apps\\linkedin\.lnk/);
-  assert.match(script, /TargetPath = 'C:\\Program Files\\FirefoxPWA\\firefox\.exe'/);
+  assert.match(script, /TargetPath = 'C:\\Program Files\\Mozilla Firefox\\firefox\.exe'/);
   // Arguments with spaces should be escaped
   assert.match(script, /`"C:\\Users\\user\\profile dir`"/);
   assert.match(script, /IconLocation = 'C:\\Users\\user\\icon\.ico,0'/);
@@ -51,7 +51,7 @@ test("WindowsShortcutService delegates to execFn", async () => {
   const result = await service.createShortcut({
     name: "demo",
     targetBinary: "firefox.exe",
-    args: ["--pwa", "demo"],
+    args: ["https://demo.test"],
     iconPath: "C:\\app\\icon.ico",
     destinationDir: "C:\\app",
   });

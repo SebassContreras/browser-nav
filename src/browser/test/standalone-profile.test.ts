@@ -31,6 +31,7 @@ test("ensureStandaloneProfile creates profile directory with seeded user.js cont
     assert.match(userJs, /user_pref\("browser\.shell\.checkDefaultBrowser", false\);/);
     assert.match(userJs, /user_pref\("toolkit\.legacyUserProfileCustomizations\.stylesheets", true\);/);
     assert.match(userJs, /user_pref\("browser\.tabs\.inTitlebar", 0\);/);
+    assert.match(userJs, /user_pref\("taskbar\.grouping\.useprofile", true\);/);
 
     const userChrome = await readFile(join(profileDir, "chrome", "userChrome.css"), "utf8");
     assert.match(userChrome, /#TabsToolbar/);

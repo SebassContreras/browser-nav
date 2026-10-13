@@ -1,11 +1,9 @@
 import { join } from "node:path";
 import { appSlugFromUrl } from "../backend/backend.js";
 import { ensureStandaloneProfile } from "./standalone-profile.js";
+import { type Env, resolveFirefoxBinary } from "./pwa-runtime.js";
 import {
-  firefoxPwaDir,
-  runtimePath,
-} from "./pwa-runtime.js";
-import {
+  buildStandaloneLaunchArgs,
   launchStandaloneApp,
   type StandaloneLaunchOptions,
   type StandaloneLaunchResult,
@@ -69,17 +67,20 @@ export class DefaultPwaProvisioner implements PwaProvisioner {
   private readonly launchFn: typeof launchStandaloneApp;
   private readonly iconService: AppIconService;
   private readonly shortcutService: AppShortcutService;
+  private readonly env: Env;
 
   constructor(
     options: {
       launchFn?: typeof launchStandaloneApp;
       iconService?: AppIconService;
       shortcutService?: AppShortcutService;
+      env?: Env;
     } = {},
   ) {
     this.launchFn = options.launchFn ?? launchStandaloneApp;
     this.iconService = options.iconService ?? new DefaultAppIconService();
     this.shortcutService = options.shortcutService ?? new WindowsShortcutService();
+    this.env = options.env ?? process.env;
   }
 
   resolveSlug(url: string): string {
@@ -101,19 +102,8 @@ export class DefaultPwaProvisioner implements PwaProvisioner {
       iconPath = await this.iconService.resolveIcon(url, iconPathTarget);
       if (iconPath) {
         const platform = process.platform;
-        const dir = firefoxPwaDir(platform, process.env);
-        const targetBinary = runtimePath(dir, platform);
-        const port = options.port ?? 9222;
-
-        const args = [
-          "--profile",
-          profileDir,
-          "--pwa",
-          appSlug,
-          "--remote-debugging-port",
-          String(port),
-          url,
-        ];
+        const targetBinary = resolveFirefoxBinary(platform, this.env);
+        const args = buildStandaloneLaunchArgs({ profileDir, port: options.port ?? 9222, url });
 
         shortcutPath = await this.shortcutService.createShortcut({
           name: appSlug,

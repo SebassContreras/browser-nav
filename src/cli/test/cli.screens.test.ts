@@ -45,7 +45,7 @@ function run(dir: string, args: string[]): Promise<Result> {
         ...env,
         PWA_NAV_PORT: String(CLOSED_PORT),
         PWA_NAV_KILL_SWITCH: join(dir, "kill-file"),
-        PWA_NAV_FIREFOXPWA_DIR: join(dir, "nopwa"),
+        PWA_NAV_FIREFOX_BINARY: join(dir, "nofirefox"),
         PWA_NAV_CACHE_DIR: join(dir, ".agent"),
       },
       stdio: ["ignore", "pipe", "pipe"],

@@ -1,13 +1,11 @@
-// pwa-runtime: Standalone Firefox runtime discovery and socket probing.
-// Directly spawns the standalone Firefox PWA runtime binary with BiDi enabled.
-// Zero dependencies on external PWAsForFirefox extension configurations or config.json.
+// pwa-runtime: Firefox binary discovery and socket probing.
+// Spawns a stock Firefox install with WebDriver BiDi enabled.
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 import { PwaNavError } from "../core/errors.js";
 
-export const DIR_ENV = "PWA_NAV_RUNTIME_DIR";
-export const LEGACY_DIR_ENV = "PWA_NAV_FIREFOXPWA_DIR";
+export const BINARY_ENV = "PWA_NAV_FIREFOX_BINARY";
 export const MIN_PORT = 1024;
 export const MAX_PORT = 65535;
 export const POLL_INTERVAL_MS = 200;
@@ -15,67 +13,55 @@ export const DEFAULT_LAUNCH_TIMEOUT_MS = 30_000;
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
-// Standard standalone runtime directory conventions per platform.
-// win32: %APPDATA%\FirefoxPWA
-// linux: $XDG_DATA_HOME/firefoxpwa (or Flatpak ~/.var/app/org.filips.FirefoxPWA/data/firefoxpwa, or ~/.local/share/firefoxpwa)
-// darwin: ~/Library/Application Support/firefoxpwa
-const DATA_DIR_TABLE: Readonly<Record<string, (env: Env) => string | undefined>> = {
-  win32: (env) => (env["APPDATA"] === undefined ? undefined : join(env["APPDATA"], "FirefoxPWA")),
-  linux: (env) => {
-    const xdg = env["XDG_DATA_HOME"];
-    if (xdg !== undefined && xdg !== "") return join(xdg, "firefoxpwa");
-    const home = env["HOME"];
-    if (home === undefined) return undefined;
-    const flatpakData = join(home, ".var", "app", "org.filips.FirefoxPWA", "data", "firefoxpwa");
-    const standardData = join(home, ".local", "share", "firefoxpwa");
-    if (existsSync(flatpakData) && !existsSync(standardData)) {
-      return flatpakData;
-    }
-    return standardData;
-  },
-  darwin: (env) =>
-    env["HOME"] === undefined ? undefined : join(env["HOME"], "Library", "Application Support", "firefoxpwa"),
+const INSTALL_HINTS: Readonly<Record<string, string>> = {
+  win32: "winget install Mozilla.Firefox",
+  linux: "install the firefox package from your distribution",
+  darwin: "brew install --cask firefox",
 };
 
-export function firefoxPwaDir(platform: string, env: Env): string {
-  const override = env[DIR_ENV] ?? env[LEGACY_DIR_ENV];
-  if (override !== undefined && override !== "") return override;
-  const dir = DATA_DIR_TABLE[platform]?.(env);
-  if (dir === undefined) {
-    throw new PwaNavError("invalid_args", `cannot locate the runtime data dir on platform "${platform}"`, {
-      hint: `set ${DIR_ENV} to the directory containing runtime/firefox`,
-    });
+// Mozilla's default install locations per platform, in lookup order.
+export function firefoxCandidates(platform: string, env: Env): string[] {
+  const under = (base: string | undefined, ...parts: string[]): string[] =>
+    base === undefined || base === "" ? [] : [join(base, ...parts)];
+  switch (platform) {
+    case "win32":
+      return [
+        ...under(env["ProgramFiles"], "Mozilla Firefox", "firefox.exe"),
+        ...under(env["ProgramFiles(x86)"], "Mozilla Firefox", "firefox.exe"),
+        ...under(env["LOCALAPPDATA"], "Mozilla Firefox", "firefox.exe"),
+      ];
+    case "linux":
+      return ["/usr/bin/firefox", "/usr/lib/firefox/firefox", "/usr/lib64/firefox/firefox", "/snap/bin/firefox"];
+    case "darwin":
+      return [
+        "/Applications/Firefox.app/Contents/MacOS/firefox",
+        ...under(env["HOME"], "Applications", "Firefox.app", "Contents", "MacOS", "firefox"),
+      ];
+    default:
+      return [];
   }
-  return dir;
 }
 
-export function runtimePath(
-  dir: string,
+export function resolveFirefoxBinary(
   platform: string,
+  env: Env,
   checkExists: (path: string) => boolean = existsSync,
 ): string {
-  if (platform === "win32") {
-    return join(dir, "runtime", "firefox.exe");
+  const override = env[BINARY_ENV];
+  if (override !== undefined && override !== "") return override;
+  const install = INSTALL_HINTS[platform];
+  if (install === undefined) {
+    throw new PwaNavError("invalid_args", `cannot locate Firefox on platform "${platform}"`, {
+      hint: `set ${BINARY_ENV}, or launch Firefox manually with --profile <dir> --remote-debugging-port <port> <url>`,
+    });
   }
-  if (platform === "linux") {
-    const local = join(dir, "runtime", "firefox");
-    if (checkExists(local)) return local;
-    const sysPath = "/usr/lib/firefoxpwa/runtime/firefox";
-    if (checkExists(sysPath)) return sysPath;
-    const sysPath64 = "/usr/lib64/firefoxpwa/runtime/firefox";
-    if (checkExists(sysPath64)) return sysPath64;
-    return local;
+  const found = firefoxCandidates(platform, env).find((path) => checkExists(path));
+  if (found === undefined) {
+    throw new PwaNavError("invalid_args", "Firefox is not installed in a default location", {
+      hint: `${install}, or set ${BINARY_ENV} to the firefox executable`,
+    });
   }
-  if (platform === "darwin") {
-    const appBundle = join(dir, "runtime", "Firefox.app", "Contents", "MacOS", "firefox");
-    if (checkExists(appBundle)) return appBundle;
-    const symlinkOrBinary = join(dir, "runtime", "firefox");
-    if (checkExists(symlinkOrBinary)) return symlinkOrBinary;
-    return appBundle;
-  }
-  throw new PwaNavError("invalid_args", `cannot locate runtime binary on platform "${platform}"`, {
-    hint: "launch the runtime manually with --profile <dir> --pwa <slug> --remote-debugging-port <port>",
-  });
+  return found;
 }
 
 export function validatePort(port: number): number {

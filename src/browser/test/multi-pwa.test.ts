@@ -35,6 +35,7 @@ test("concurrent isolated PWA launches allocate independent ports and register p
       cacheDir: dir,
       probe: fakeProbe,
       spawnFn: fakeSpawn,
+      env: { PWA_NAV_FIREFOX_BINARY: "/x/firefox" },
       registry,
       timeoutMs: 1000,
     });
@@ -49,6 +50,7 @@ test("concurrent isolated PWA launches allocate independent ports and register p
       cacheDir: dir,
       probe: fakeProbe,
       spawnFn: fakeSpawn,
+      env: { PWA_NAV_FIREFOX_BINARY: "/x/firefox" },
       registry,
       timeoutMs: 1000,
     });
