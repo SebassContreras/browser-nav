@@ -72,4 +72,41 @@ describe("DefaultPwaProvisioner - profile and slug", () => {
       cacheDir: "test-cache",
     });
   });
+
+  it("triggers icon resolution and shortcut creation during provisioning", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pwa-provision-icon-"));
+    try {
+      let iconTarget: string | null = null;
+      let shortcutOpts: unknown = null;
+
+      const mockIconService = {
+        resolveIcon: async (_url: string, targetPath: string) => {
+          iconTarget = targetPath;
+          return targetPath;
+        },
+      };
+
+      const mockShortcutService = {
+        createShortcut: async (options: any) => {
+          shortcutOpts = options;
+          return `${options.destinationDir}/${options.name}.lnk`;
+        },
+      };
+
+      const provisioner = new DefaultPwaProvisioner({
+        iconService: mockIconService,
+        shortcutService: mockShortcutService,
+      });
+
+      const res = await provisioner.provision("https://linkedin.com", { cacheDir: dir });
+      assert.equal(res.appSlug, "linkedin-com");
+      assert.ok(iconTarget);
+      assert.match(iconTarget, /icon\.ico$/);
+      assert.equal(res.iconPath, iconTarget);
+      assert.ok(res.shortcutPath);
+      assert.match(res.shortcutPath, /linkedin-com\.lnk$/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

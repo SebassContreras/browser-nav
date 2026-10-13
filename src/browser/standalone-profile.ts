@@ -14,9 +14,11 @@ export const DEFAULT_STANDALONE_USER_PREFS: Readonly<Record<string, boolean | nu
   "toolkit.telemetry.enabled": false,
   // Enable userChrome.css customizations for standalone window chrome
   "toolkit.legacyUserProfileCustomizations.stylesheets": true,
+  // Restore native OS window titlebar (disables CSD to preserve native min/max/close controls and window dragging)
+  "browser.tabs.inTitlebar": 0,
 };
 
-export const STANDALONE_USER_CHROME_CSS = `/* Hide Firefox tabs toolbar and navigation/URL bar for clean standalone app window */
+export const STANDALONE_USER_CHROME_CSS = `/* Hide Firefox tabs toolbar and navigation/URL bar for clean standalone app window with native OS titlebar */
 #TabsToolbar {
   visibility: collapse !important;
 }

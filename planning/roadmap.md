@@ -15,3 +15,5 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 009 | user-js-performance-tuning | draft       | 004 | ready | 9 |
 | 010 | profile-backup-restore | draft       | 002 | ready | 10 |
 | 011 | screen-map-history-discovery | draft       | 001, 002 | ready | 11 |
+| 012 | native-app-window-chrome | done        | 004 | —     | 12 |
+| 013 | app-icon-and-desktop-shortcut | done        | 005 | —     | 13 |
