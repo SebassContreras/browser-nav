@@ -41,7 +41,7 @@ import { learnScreen, slugify } from "../screens/screen-learn.js";
 import { learnIntoFile } from "../screens/screen-store.js";
 import { collectAllTargets } from "../screens/screen-resolve.js";
 import { PwaNavError } from "../core/errors.js";
-import { appSlugFromUrl } from "../backend/backend.js";
+import { resolveAppTarget } from "../backend/backend.js";
 import {
   launchStandaloneApp,
   launchStandaloneAppClean,
@@ -781,8 +781,7 @@ export interface AuthRelayResult {
 
 export async function performAuthRelay(options: AuthRelayOptions): Promise<AuthRelayResult> {
   const target = options.appOrUrl ?? "https://accounts.google.com";
-  const appSlug = appSlugFromUrl(target);
-  const url = isHttpUrl(target) ? target : `https://${target}`;
+  const { slug: appSlug, url } = resolveAppTarget(target);
 
   if (options.action === "clean") {
     const res = await launchStandaloneAppClean({ url, appSlug });

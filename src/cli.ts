@@ -16,6 +16,7 @@ import { createBackend, DEFAULT_PORT } from "./backend/backend-factory.js";
 import type { Backend } from "./backend/backend.js";
 import { exitCodeOf, PwaNavError } from "./core/errors.js";
 import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
+import { statusTool } from "./tools/status.js";
 import { resolveAgentDir, resolveScreensDir } from "./core/storage.js";
 import {
 
@@ -72,6 +73,7 @@ function usage(): string {
     "  pwa-nav act --snapshot <id> [--dry-run] <op>...   |   act [--dry-run] <semantic-op>...",
     "  pwa-nav journey <name> [key=value...] [--dry-run] [--screen-map <file>] [--screens-dir <dir>]",
     "  pwa-nav auth [<app-or-url>] [--clean] [--debug] [--port <n>]",
+    "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
     "  pwa-nav qa run <check-file>",
     "",
     "Global options (open, snapshot, click, fill, upload, screenshot, act, journey, wait):",
@@ -86,6 +88,8 @@ function usage(): string {
     "  open <url>      Live: navigate the PWA window. Offline: persist URL to .agent/session.json.",
     "  auth            Assisted login for login-walled PWAs (Google accounts, anti-bot walls).",
     "                  Launches clean PWA, prompts for login, then restarts in debug mode.",
+    "  status          Session health from the app profile's stored cookies: authenticated | expired |",
+    "                  unauthenticated | no_profile. Exit 0 whatever the verdict; --json for structured output.",
     "  snapshot        Live (no --input, no piped stdin): collect the DOM, write .agent/snapshot.json.",
     "                  With --input <file> or piped stdin: normalize an ARIA tree offline.",
     "  click           Live: dry-run unless --armed. Offline: log intent, supersede snapshot.",
@@ -870,6 +874,26 @@ async function cmdAuth(rest: string[]): Promise<void> {
   await performAuthRelay({ appOrUrl: target, action: "debug", port });
 }
 
+async function cmdStatus(rest: string[]): Promise<void> {
+  const { values, positionals } = strictParse("status", rest, {
+    cookie: { type: "string", multiple: true },
+    json: { type: "boolean" },
+    "cache-dir": { type: "string" },
+    help: { type: "boolean", short: "h" },
+  });
+  printHelpAndExit(values.help);
+  const [app, extra] = positionals;
+  if (app === undefined || extra !== undefined) {
+    throw invalid("usage: status <app-or-url> [--cookie <name>]...");
+  }
+  const cacheDir = values["cache-dir"] ?? process.env["PWA_NAV_CACHE_DIR"];
+  const result = await statusTool(
+    { app, ...(values.cookie === undefined ? {} : { cookies: values.cookie }) },
+    cacheDir === undefined ? {} : { cacheDir },
+  );
+  console.log(values.json === true ? JSON.stringify(result.structured, null, 2) : (result.text ?? ""));
+}
+
 async function cmdRuntime(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("runtime", rest, { help: { type: "boolean", short: "h" } });
   printHelpAndExit(values.help);
@@ -911,6 +935,8 @@ async function main(): Promise<void> {
       return cmdAuth(rest);
     case "runtime":
       return cmdRuntime(rest);
+    case "status":
+      return cmdStatus(rest);
     case "snapshot":
       return cmdSnapshot(rest);
     case "click":

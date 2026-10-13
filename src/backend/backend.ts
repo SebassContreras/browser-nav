@@ -132,6 +132,24 @@ export function appSlugFromUrl(urlOrOrigin: string): string {
   }
 }
 
+export interface AppTarget {
+  slug: string;
+  url: string;
+  host: string;
+}
+
+// "notebooklm.google.com" or "https://notebooklm.google.com/x" -> same slug and profile.
+export function resolveAppTarget(appOrUrl: string): AppTarget {
+  const url = isHttpUrl(appOrUrl) ? appOrUrl : `https://${appOrUrl}`;
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    // invalid input: slug falls back to "default"
+  }
+  return { slug: appSlugFromUrl(url), url, host };
+}
+
 export async function writeSession(agentDir: string, session: Session): Promise<void> {
   inMemorySession = session;
   const path = agentPath(agentDir, "session.json");

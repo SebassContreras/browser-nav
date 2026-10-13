@@ -10,12 +10,12 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 004 | standalone-pwa-no-extension | done        | - | —      | 4 |
 | 005 | automatic-pwa-provisioning | done        | 004 | —      | 5 |
 | 006 | retire-pwasforfirefox | done        | 004, 005 | —      | 6 |
-| 007 | session-health-check | draft       | 002 | ready | 7 |
-| 008 | profile-lock-diagnostics | draft       | 002 | ready | 8 |
-| 009 | user-js-performance-tuning | draft       | 004 | ready | 9 |
-| 010 | profile-backup-restore | draft       | 002 | ready | 10 |
-| 011 | screen-map-history-discovery | draft       | 001, 002 | ready | 11 |
-| 012 | native-app-window-chrome | done        | 004 | —     | 12 |
+| 007 | session-health-check | in_progress | 002 | build | 7 |
+| 008 | profile-lock-diagnostics | todo        | 002 | build | 8 |
+| 009 | user-js-performance-tuning | todo        | 004 | build | 9 |
+| 010 | profile-backup-restore | todo        | 002 | build | 10 |
+| 011 | screen-map-history-discovery | todo        | 001, 002 | build | 11 |
+| 012 | native-app-window-chrome | in_progress | 004 | build | 12 |
 | 013 | app-icon-and-desktop-shortcut | done        | 005 | —     | 13 |
 | 014 | remove-pwasforfirefox-leftovers | done        | 006, 012, 013 | —     | 14 |
 | 015 | managed-firefox-runtime | done        | 014 | —     | 15 |

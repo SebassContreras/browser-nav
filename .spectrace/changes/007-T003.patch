@@ -1,0 +1,248 @@
+diff --git a/src/backend/backend.ts b/src/backend/backend.ts
+index d2e1040..725c816 100644
+--- a/src/backend/backend.ts
++++ b/src/backend/backend.ts
+@@ -132,6 +132,24 @@ export function appSlugFromUrl(urlOrOrigin: string): string {
+   }
+ }
+ 
++export interface AppTarget {
++  slug: string;
++  url: string;
++  host: string;
++}
++
++// "notebooklm.google.com" or "https://notebooklm.google.com/x" -> same slug and profile.
++export function resolveAppTarget(appOrUrl: string): AppTarget {
++  const url = isHttpUrl(appOrUrl) ? appOrUrl : `https://${appOrUrl}`;
++  let host = "";
++  try {
++    host = new URL(url).hostname;
++  } catch {
++    // invalid input: slug falls back to "default"
++  }
++  return { slug: appSlugFromUrl(url), url, host };
++}
++
+ export async function writeSession(agentDir: string, session: Session): Promise<void> {
+   inMemorySession = session;
+   const path = agentPath(agentDir, "session.json");
+diff --git a/src/browser/profile-db.ts b/src/browser/profile-db.ts
+index 518afbb..69347a7 100644
+--- a/src/browser/profile-db.ts
++++ b/src/browser/profile-db.ts
+@@ -27,7 +27,7 @@ export async function withProfileDb<T>(dbPath: string, fn: (db: ProfileDb) => T)
+     const { DatabaseSync } = await import("node:sqlite");
+     const db = new DatabaseSync(copy);
+     try {
+-      return fn({ all: (sql, ...params) => db.prepare(sql).all(...params) as Row[] });
++      return fn({ all: (sql, ...params) => db.prepare(sql).all(...params) });
+     } finally {
+       db.close();
+     }
+diff --git a/src/cli.ts b/src/cli.ts
+index c989372..519ee91 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -16,6 +16,7 @@ import { createBackend, DEFAULT_PORT } from "./backend/backend-factory.js";
+ import type { Backend } from "./backend/backend.js";
+ import { exitCodeOf, PwaNavError } from "./core/errors.js";
+ import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
++import { statusTool } from "./tools/status.js";
+ import { resolveAgentDir, resolveScreensDir } from "./core/storage.js";
+ import {
+ 
+@@ -72,6 +73,7 @@ function usage(): string {
+     "  pwa-nav act --snapshot <id> [--dry-run] <op>...   |   act [--dry-run] <semantic-op>...",
+     "  pwa-nav journey <name> [key=value...] [--dry-run] [--screen-map <file>] [--screens-dir <dir>]",
+     "  pwa-nav auth [<app-or-url>] [--clean] [--debug] [--port <n>]",
++    "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
+     "  pwa-nav qa run <check-file>",
+     "",
+     "Global options (open, snapshot, click, fill, upload, screenshot, act, journey, wait):",
+@@ -86,6 +88,8 @@ function usage(): string {
+     "  open <url>      Live: navigate the PWA window. Offline: persist URL to .agent/session.json.",
+     "  auth            Assisted login for login-walled PWAs (Google accounts, anti-bot walls).",
+     "                  Launches clean PWA, prompts for login, then restarts in debug mode.",
++    "  status          Session health from the app profile's stored cookies: authenticated | expired |",
++    "                  unauthenticated | no_profile. Exit 0 whatever the verdict; --json for structured output.",
+     "  snapshot        Live (no --input, no piped stdin): collect the DOM, write .agent/snapshot.json.",
+     "                  With --input <file> or piped stdin: normalize an ARIA tree offline.",
+     "  click           Live: dry-run unless --armed. Offline: log intent, supersede snapshot.",
+@@ -870,6 +874,26 @@ async function cmdAuth(rest: string[]): Promise<void> {
+   await performAuthRelay({ appOrUrl: target, action: "debug", port });
+ }
+ 
++async function cmdStatus(rest: string[]): Promise<void> {
++  const { values, positionals } = strictParse("status", rest, {
++    cookie: { type: "string", multiple: true },
++    json: { type: "boolean" },
++    "cache-dir": { type: "string" },
++    help: { type: "boolean", short: "h" },
++  });
++  printHelpAndExit(values.help);
++  const [app, extra] = positionals;
++  if (app === undefined || extra !== undefined) {
++    throw invalid("usage: status <app-or-url> [--cookie <name>]...");
++  }
++  const cacheDir = values["cache-dir"] ?? process.env["PWA_NAV_CACHE_DIR"];
++  const result = await statusTool(
++    { app, ...(values.cookie === undefined ? {} : { cookies: values.cookie }) },
++    cacheDir === undefined ? {} : { cacheDir },
++  );
++  console.log(values.json === true ? JSON.stringify(result.structured, null, 2) : (result.text ?? ""));
++}
++
+ async function cmdRuntime(rest: string[]): Promise<void> {
+   const { values, positionals } = strictParse("runtime", rest, { help: { type: "boolean", short: "h" } });
+   printHelpAndExit(values.help);
+@@ -911,6 +935,8 @@ async function main(): Promise<void> {
+       return cmdAuth(rest);
+     case "runtime":
+       return cmdRuntime(rest);
++    case "status":
++      return cmdStatus(rest);
+     case "snapshot":
+       return cmdSnapshot(rest);
+     case "click":
+diff --git a/src/mcp/mcp-tools.ts b/src/mcp/mcp-tools.ts
+index 6a692da..2b807b0 100644
+--- a/src/mcp/mcp-tools.ts
++++ b/src/mcp/mcp-tools.ts
+@@ -8,6 +8,7 @@ import {
+   actionOutcome,
+   actTool,
+   authTool as runAuthTool,
++  statusTool,
+   clickTool,
+   extractTool,
+   findTool as runFindTool,
+@@ -490,13 +491,19 @@ const authToolDef: ToolDef = {
+   description:
+     "Assisted authentication workflow for login-walled PWAs (such as Google NotebookLM) where Google or anti-bot defenses block automated login. " +
+     "Action 'clean' launches the PWA without debugging flags so the user can log in manually without security blocks. " +
+-    "Action 'debug' re-attaches the PWA with debugging port 9222 active, preserving the logged-in session.",
++    "Action 'debug' re-attaches the PWA with debugging port 9222 active, preserving the logged-in session. " +
++    "Action 'status' is read-only and launches nothing: it reports whether the app's stored auth cookies are present, expired or missing (verdict authenticated|expired|unauthenticated|no_profile). Call it before automating a login-walled app.",
+   inputSchema: {
+     type: "object",
+     properties: {
+       action: {
+-        enum: ["clean", "debug"],
+-        description: "clean: launch PWA in clean mode for manual user login. debug: relaunch in debug mode after user is logged in.",
++        enum: ["clean", "debug", "status"],
++        description: "clean: launch PWA in clean mode for manual user login. debug: relaunch in debug mode after user is logged in. status: read-only session health check.",
++      },
++      cookies: {
++        type: "array",
++        items: { type: "string" },
++        description: "status only: auth cookie names to check instead of the built-in name heuristic.",
+       },
+       app: {
+         type: "string",
+@@ -506,10 +513,17 @@ const authToolDef: ToolDef = {
+     additionalProperties: false,
+   },
+   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+-  async handler(args) {
+-    const action = str(args, "action") === "debug" ? "debug" : "clean";
++  async handler(args, ctx) {
++    const action = str(args, "action");
+     const app = str(args, "app");
+-    return runAuthTool({ action, app });
++    if (action === "status") {
++      const cookies = Array.isArray(args["cookies"]) ? args["cookies"].filter((c) => typeof c === "string") : undefined;
++      return statusTool(
++        { ...(app === undefined ? {} : { app }), ...(cookies === undefined ? {} : { cookies }) },
++        ctx.screens.cacheDir === undefined ? {} : { cacheDir: ctx.screens.cacheDir },
++      );
++    }
++    return runAuthTool({ action: action === "debug" ? "debug" : "clean", app });
+   },
+ };
+ 
+diff --git a/src/ops/ops.ts b/src/ops/ops.ts
+index 3c02b16..06ac962 100644
+--- a/src/ops/ops.ts
++++ b/src/ops/ops.ts
+@@ -41,7 +41,7 @@ import { learnScreen, slugify } from "../screens/screen-learn.js";
+ import { learnIntoFile } from "../screens/screen-store.js";
+ import { collectAllTargets } from "../screens/screen-resolve.js";
+ import { PwaNavError } from "../core/errors.js";
+-import { appSlugFromUrl } from "../backend/backend.js";
++import { resolveAppTarget } from "../backend/backend.js";
+ import {
+   launchStandaloneApp,
+   launchStandaloneAppClean,
+@@ -781,8 +781,7 @@ export interface AuthRelayResult {
+ 
+ export async function performAuthRelay(options: AuthRelayOptions): Promise<AuthRelayResult> {
+   const target = options.appOrUrl ?? "https://accounts.google.com";
+-  const appSlug = appSlugFromUrl(target);
+-  const url = isHttpUrl(target) ? target : `https://${target}`;
++  const { slug: appSlug, url } = resolveAppTarget(target);
+ 
+   if (options.action === "clean") {
+     const res = await launchStandaloneAppClean({ url, appSlug });
+diff --git a/src/tools/index.ts b/src/tools/index.ts
+index ed2779d..aa03804 100644
+--- a/src/tools/index.ts
++++ b/src/tools/index.ts
+@@ -17,3 +17,4 @@ export * from "./auth.js";
+ export * from "./qa.js";
+ export * from "./semantic-exec.js";
+ export * from "./runtime.js";
++export * from "./status.js";
+diff --git a/src/tools/status.ts b/src/tools/status.ts
+new file mode 100644
+index 0000000..7678587
+--- /dev/null
++++ b/src/tools/status.ts
+@@ -0,0 +1,47 @@
++// Session health status (spec 007 D4): zero-launch, read-only check of an app's stored cookies.
++// Shared by the CLI (`pwa-nav status <app>`) and MCP (`pwa_auth({ action: "status" })`).
++import { resolveAppTarget } from "../backend/backend.js";
++import { evaluateSessionHealth } from "../browser/session-health.js";
++import { readProfileCookies } from "../browser/session-reader.js";
++import { resolveStandaloneProfileDir } from "../browser/standalone-profile.js";
++import { PwaNavError } from "../core/errors.js";
++import { type ToolOutcome } from "./types.js";
++
++export interface StatusArgs {
++  app?: string;
++  cookies?: readonly string[];
++}
++
++export interface StatusOptions {
++  cacheDir?: string;
++  nowMs?: number;
++}
++
++export async function statusTool(args: StatusArgs, options: StatusOptions = {}): Promise<ToolOutcome> {
++  if (args.app === undefined || args.app === "") {
++    throw new PwaNavError("invalid_args", "status needs an app name or URL", { hint: "pwa-nav status <app>" });
++  }
++  const target = resolveAppTarget(args.app);
++  const profileDir = resolveStandaloneProfileDir(target.slug, options.cacheDir);
++  const health = evaluateSessionHealth(await readProfileCookies(profileDir), {
++    host: target.host,
++    nowMs: options.nowMs ?? Date.now(),
++    ...(args.cookies === undefined ? {} : { authCookieNames: args.cookies }),
++    signInHint: `pwa-nav auth ${args.app} (MCP: pwa_auth({ action: "clean", app: "${args.app}" }))`,
++  });
++
++  const ttl = health.ttlSeconds === undefined || health.ttlSeconds === 0 ? "" : ` (expires in ${formatTtl(health.ttlSeconds)})`;
++  const names = health.cookies.length === 0 ? "" : `\ncookies: ${health.cookies.map((c) => c.name).join(", ")}`;
++  const hint = health.hint === undefined ? "" : `\nhint: ${health.hint}`;
++  return {
++    text: `${target.slug}: ${health.verdict}${ttl}${names}${hint}`,
++    structured: { app: target.slug, host: target.host, ...health },
++  };
++}
++
++function formatTtl(seconds: number): string {
++  if (seconds >= 86_400) return `${String(Math.floor(seconds / 86_400))}d`;
++  if (seconds >= 3_600) return `${String(Math.floor(seconds / 3_600))}h`;
++  if (seconds >= 60) return `${String(Math.floor(seconds / 60))}m`;
++  return `${String(seconds)}s`;
++}

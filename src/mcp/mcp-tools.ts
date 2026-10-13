@@ -8,6 +8,7 @@ import {
   actionOutcome,
   actTool,
   authTool as runAuthTool,
+  statusTool,
   clickTool,
   extractTool,
   findTool as runFindTool,
@@ -490,13 +491,19 @@ const authToolDef: ToolDef = {
   description:
     "Assisted authentication workflow for login-walled PWAs (such as Google NotebookLM) where Google or anti-bot defenses block automated login. " +
     "Action 'clean' launches the PWA without debugging flags so the user can log in manually without security blocks. " +
-    "Action 'debug' re-attaches the PWA with debugging port 9222 active, preserving the logged-in session.",
+    "Action 'debug' re-attaches the PWA with debugging port 9222 active, preserving the logged-in session. " +
+    "Action 'status' is read-only and launches nothing: it reports whether the app's stored auth cookies are present, expired or missing (verdict authenticated|expired|unauthenticated|no_profile). Call it before automating a login-walled app.",
   inputSchema: {
     type: "object",
     properties: {
       action: {
-        enum: ["clean", "debug"],
-        description: "clean: launch PWA in clean mode for manual user login. debug: relaunch in debug mode after user is logged in.",
+        enum: ["clean", "debug", "status"],
+        description: "clean: launch PWA in clean mode for manual user login. debug: relaunch in debug mode after user is logged in. status: read-only session health check.",
+      },
+      cookies: {
+        type: "array",
+        items: { type: "string" },
+        description: "status only: auth cookie names to check instead of the built-in name heuristic.",
       },
       app: {
         type: "string",
@@ -506,10 +513,17 @@ const authToolDef: ToolDef = {
     additionalProperties: false,
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-  async handler(args) {
-    const action = str(args, "action") === "debug" ? "debug" : "clean";
+  async handler(args, ctx) {
+    const action = str(args, "action");
     const app = str(args, "app");
-    return runAuthTool({ action, app });
+    if (action === "status") {
+      const cookies = Array.isArray(args["cookies"]) ? args["cookies"].filter((c) => typeof c === "string") : undefined;
+      return statusTool(
+        { ...(app === undefined ? {} : { app }), ...(cookies === undefined ? {} : { cookies }) },
+        ctx.screens.cacheDir === undefined ? {} : { cacheDir: ctx.screens.cacheDir },
+      );
+    }
+    return runAuthTool({ action: action === "debug" ? "debug" : "clean", app });
   },
 };
 
