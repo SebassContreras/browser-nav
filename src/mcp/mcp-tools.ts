@@ -2,6 +2,7 @@
 // (src/tools/); no browser, gate or ref logic lives here.
 // Page content is untrusted: descriptions are static strings, results echo only what tools print.
 import type { Backend } from "../backend/backend.js";
+import { FirefoxNotFoundError } from "../browser/pwa-runtime.js";
 import {
   ACTION_HINTS,
   actionOutcome,
@@ -15,6 +16,7 @@ import {
   learnTool as runLearnTool,
   openTool,
   READONLY_HINTS,
+  runtimeInstallTool,
   screenshotTool as runScreenshotTool,
   snapshotTool,
   uploadTool,
@@ -43,6 +45,10 @@ export {
 };
 
 export const EXTRACT_INLINE_CAP = 100;
+
+export const RUNTIME_INSTALL_PROMPT =
+  "pwa-nav needs Firefox to open this app and none was found. Download the official Firefox from Mozilla " +
+  "(about 95 MB) into pwa-nav's own folder? It is not installed system-wide and does not change your default browser.";
 
 export interface ToolDef {
   name: string;
@@ -123,7 +129,28 @@ const open: ToolDef = {
     const url = str(args, "url") ?? "";
     const launch = flag(args, "launch");
     const allowOrigin = flag(args, "allowOrigin");
-    return openTool({ url, launch, allowOrigin }, ctx);
+    try {
+      return await openTool({ url, launch, allowOrigin }, ctx);
+    } catch (error) {
+      // No Firefox: ask the human (elicitation) before downloading; otherwise the error hints pwa_install_runtime.
+      if (!launch || !(error instanceof FirefoxNotFoundError) || ctx.confirm === undefined) throw error;
+      if (!(await ctx.confirm(RUNTIME_INSTALL_PROMPT))) throw error;
+      await runtimeInstallTool({ ...(ctx.runtimeInstaller === undefined ? {} : { installer: ctx.runtimeInstaller }) });
+      return openTool({ url, launch, allowOrigin }, ctx);
+    }
+  },
+};
+
+const installRuntime: ToolDef = {
+  name: "pwa_install_runtime",
+  description:
+    "Download the official Mozilla Firefox (about 95 MB) into pwa-nav's own folder so apps can be launched. " +
+    "Only call this after pwa_open failed with 'Firefox was not found' and the user agreed to the download. " +
+    "Nothing is installed system-wide; the default browser is not changed. Re-running updates it.",
+  inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  async handler(_args, ctx) {
+    return runtimeInstallTool({ ...(ctx.runtimeInstaller === undefined ? {} : { installer: ctx.runtimeInstaller }) });
   },
 };
 
@@ -490,6 +517,7 @@ const authToolDef: ToolDef = {
 
 export const TOOLS: readonly ToolDef[] = [
   open,
+  installRuntime,
   authToolDef,
   snapshot,
   click,

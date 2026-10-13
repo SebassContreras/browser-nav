@@ -15,6 +15,7 @@ import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { createBackend, DEFAULT_PORT } from "./backend/backend-factory.js";
 import type { Backend } from "./backend/backend.js";
 import { exitCodeOf, PwaNavError } from "./core/errors.js";
+import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
 import { resolveAgentDir, resolveScreensDir } from "./core/storage.js";
 import {
 
@@ -55,6 +56,7 @@ function usage(): string {
     "",
     "Usage:",
     "  pwa-nav open <url> [--launch] [--allow-origin]",
+    "  pwa-nav runtime status | runtime install   (Firefox used for --launch; install downloads it from Mozilla)",
     "  pwa-nav snapshot [-i | --all] [--json] [--input <file>] [--url <url>] [--title <title>] [--out <path>]",
     "  pwa-nav snapshot --screen [--screen-map <file>] [--screens-dir <dir>]",
     "  pwa-nav snapshot --learn [--prune] [--locale <bcp47>] [--access public|authenticated|unknown]",
@@ -868,6 +870,34 @@ async function cmdAuth(rest: string[]): Promise<void> {
   await performAuthRelay({ appOrUrl: target, action: "debug", port });
 }
 
+async function cmdRuntime(rest: string[]): Promise<void> {
+  const { values, positionals } = strictParse("runtime", rest, { help: { type: "boolean", short: "h" } });
+  printHelpAndExit(values.help);
+  const [subcommand, extra] = positionals;
+  if (extra !== undefined || (subcommand !== "status" && subcommand !== "install")) {
+    throw invalid("usage: runtime status | runtime install");
+  }
+  if (subcommand === "status") {
+    console.log((await runtimeStatusTool()).text ?? "");
+    return;
+  }
+  let lastPct = -1;
+  const result = await runtimeInstallTool({
+    onProgress: (p) => {
+      if (p.phase !== "download") {
+        console.error(`runtime: ${p.phase}`);
+      } else if (p.receivedBytes !== undefined && p.totalBytes !== undefined) {
+        const pct = Math.floor((p.receivedBytes / p.totalBytes) * 10) * 10;
+        if (pct !== lastPct) {
+          lastPct = pct;
+          console.error(`runtime: download ${String(pct)}%`);
+        }
+      }
+    },
+  });
+  console.log(result.text ?? "");
+}
+
 async function main(): Promise<void> {
   const [, , command, ...rest] = process.argv;
   if (command === undefined || command === "-h" || command === "--help") {
@@ -879,6 +909,8 @@ async function main(): Promise<void> {
       return cmdOpen(rest);
     case "auth":
       return cmdAuth(rest);
+    case "runtime":
+      return cmdRuntime(rest);
     case "snapshot":
       return cmdSnapshot(rest);
     case "click":

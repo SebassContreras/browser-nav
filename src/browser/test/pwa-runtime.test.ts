@@ -3,9 +3,13 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { PwaNavError } from "../../core/errors.js";
 import {
+  FirefoxNotFoundError,
   firefoxCandidates,
   isLoginBarrier,
   launchCommandHint,
+  locateFirefox,
+  managedRuntimeBinary,
+  managedRuntimeDir,
   resolveFirefoxBinary,
   validatePort,
   waitForPort,
@@ -43,9 +47,29 @@ test("resolveFirefoxBinary honors override, picks first existing candidate, and 
   const user = join("/local", "Mozilla Firefox", "firefox.exe");
   assert.equal(resolveFirefoxBinary("win32", env, (p) => p === user), user);
   assert.equal(resolveFirefoxBinary("linux", {}, () => true), "/usr/bin/firefox");
-  expectCode(() => resolveFirefoxBinary("win32", env, () => false), "invalid_args", /winget install Mozilla\.Firefox/);
-  expectCode(() => resolveFirefoxBinary("darwin", {}, () => false), "invalid_args", /PWA_NAV_FIREFOX_BINARY/);
-  expectCode(() => resolveFirefoxBinary("freebsd", {}), "invalid_args", /^(?!.*--pwa).*--remote-debugging-port/);
+  expectCode(() => resolveFirefoxBinary("win32", env, () => false), "no_browser", /pwa_install_runtime.*winget install Mozilla\.Firefox/);
+  expectCode(() => resolveFirefoxBinary("darwin", {}, () => false), "no_browser", /PWA_NAV_FIREFOX_BINARY/);
+  assert.throws(() => resolveFirefoxBinary("freebsd", {}), FirefoxNotFoundError);
+});
+
+test("managed runtime lives in pwa-nav's user data dir and is overridable", () => {
+  assert.equal(managedRuntimeDir("win32", { LOCALAPPDATA: "/local" }), join("/local", "pwa-nav", "runtime"));
+  assert.equal(managedRuntimeDir("linux", { HOME: "/h" }), join("/h", ".local", "share", "pwa-nav", "runtime"));
+  assert.equal(managedRuntimeDir("linux", { XDG_DATA_HOME: "/xdg" }), join("/xdg", "pwa-nav", "runtime"));
+  assert.equal(managedRuntimeDir("darwin", { HOME: "/h" }), join("/h", "Library", "Application Support", "pwa-nav", "runtime"));
+  assert.equal(managedRuntimeDir("win32", { PWA_NAV_RUNTIME_DIR: "/rt" }), "/rt");
+  assert.equal(managedRuntimeDir("win32", {}), undefined);
+  assert.equal(managedRuntimeBinary("win32", { PWA_NAV_RUNTIME_DIR: "/rt" }), join("/rt", "firefox", "firefox.exe"));
+});
+
+test("locateFirefox order: override, installed, managed", () => {
+  const env = { ProgramFiles: "/pf", PWA_NAV_RUNTIME_DIR: "/rt" };
+  const installed = join("/pf", "Mozilla Firefox", "firefox.exe");
+  const managed = join("/rt", "firefox", "firefox.exe");
+  assert.deepEqual(locateFirefox("win32", { ...env, PWA_NAV_FIREFOX_BINARY: "/o" }, () => true), { binary: "/o", source: "override" });
+  assert.deepEqual(locateFirefox("win32", env, () => true), { binary: installed, source: "installed" });
+  assert.deepEqual(locateFirefox("win32", env, (p) => p === managed), { binary: managed, source: "managed" });
+  assert.equal(locateFirefox("win32", env, () => false), undefined);
 });
 
 test("validatePort integer bounds checking", () => {

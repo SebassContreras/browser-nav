@@ -393,7 +393,8 @@ If any intermediate step fails or the destination URL does not match `expectScre
 | `PWA_NAV_SCREENS_DIR` | `<cache-dir>/screens` | Directory where screen map JSON files are stored. |
 | `PWA_NAV_DRY_RUN` | `0` | Set to `1` to force dry-run mode in MCP server. |
 | `PWA_NAV_KILL_SWITCH` | — | Path to emergency kill-switch file (or set to `1`). |
-| `PWA_NAV_FIREFOX_BINARY` | Auto | Full path to the Firefox executable (default: stock Firefox install location). |
+| `PWA_NAV_FIREFOX_BINARY` | Auto | Full path to the Firefox executable (default: installed Firefox, then the pwa-nav managed runtime). |
+| `PWA_NAV_RUNTIME_DIR` | Auto | Folder of the managed Firefox runtime (default `%LOCALAPPDATA%\pwa-nav\runtime`). Install with `pwa-nav runtime install`. |
 
 ---
 

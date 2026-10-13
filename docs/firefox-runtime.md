@@ -14,7 +14,17 @@ Firefox is started with `--profile <dir> --remote-debugging-port <port> <url>`. 
 | Linux | `/usr/bin/firefox`, `/usr/lib/firefox/firefox`, `/usr/lib64/firefox/firefox`, `/snap/bin/firefox` | distribution package |
 | macOS | `/Applications/Firefox.app/Contents/MacOS/firefox`, `~/Applications/Firefox.app/…` | `brew install --cask firefox` |
 
-Custom install: set `PWA_NAV_FIREFOX_BINARY` to the full path of the Firefox executable.
+Lookup order: `PWA_NAV_FIREFOX_BINARY` (full path of the executable) → installed Firefox (table above) → the pwa-nav managed runtime.
+
+### Managed runtime (no Firefox installed)
+
+pwa-nav can download its own copy of the official Mozilla Firefox, so users of the MCP server do not need to install a browser:
+
+- Location: `%LOCALAPPDATA%\pwa-nav\runtime\firefox\firefox.exe` (override the folder with `PWA_NAV_RUNTIME_DIR`).
+- Source: latest release from `product-details.mozilla.org` / `archive.mozilla.org` over HTTPS (`en-US` build, ~95 MB), verified against Mozilla's `SHA512SUMS` before use.
+- Extract only (`Firefox Setup.exe /ExtractDir=`): nothing is registered, no shortcuts, no default-browser change, no admin rights.
+- Consent: never downloaded silently. CLI: `pwa-nav runtime install` (and `pwa-nav runtime status` to see which binary is used). MCP: `pwa_open` with `launch: true` asks the user through elicitation when the client supports it; otherwise it fails with `no_browser` and the agent may call `pwa_install_runtime` (approved by the client like any tool).
+- Updating: run the install again. Windows only for now; Linux and macOS print a manual-install hint.
 
 ### Launch Commands per Platform
 
@@ -91,7 +101,7 @@ Several top-level contexts in one instance: pass `--context <id>`. Isolating mul
 | Symptom | Exit | Fix |
 |---|---|---|
 | Port closed | 4 | Launch with the recipe or `open --launch`; check `--port` |
-| Firefox not found | 2 (invalid_args) | Install Firefox or set `PWA_NAV_FIREFOX_BINARY` |
+| Firefox not found | 4 (no_browser) | `pwa-nav runtime install` / MCP `pwa_install_runtime`, install Firefox, or set `PWA_NAV_FIREFOX_BINARY` |
 | Session busy | 5 | See One session limit |
 | Armed action refused | 6 / 7 | `--allow-origin` / remove `.agent/kill` (user only) |
 | Several top-level contexts | 2 (invalid_args) | Pass `--context <id>` |

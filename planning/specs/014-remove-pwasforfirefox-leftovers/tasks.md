@@ -18,5 +18,5 @@
 - [x] T006 [agent] [status:done] Update docs to the launch without `--pwa` and without PWAsForFirefox paths
       covers: R5@1, D4@1
       changes: docs/firefox-runtime.md (renamed from docs/firefox-pwa.md), docs/notebook-pilot.md, README.md, SKILL.md, AGENTS.md, docs/mcp.md
-- [ ] T007 [human] [status:todo] Verify shortcut and `open --launch` start without the PWAsForFirefox error, with app icon and native window controls
+- [x] T007 [human] [status:done] (moved to spec 015 T009) Verify shortcut and `open --launch` start without the PWAsForFirefox error, with app icon and native window controls
       covers: R2@1, R6@1

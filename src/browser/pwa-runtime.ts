@@ -6,23 +6,47 @@ import { join } from "node:path";
 import { PwaNavError } from "../core/errors.js";
 
 export const BINARY_ENV = "PWA_NAV_FIREFOX_BINARY";
+export const RUNTIME_DIR_ENV = "PWA_NAV_RUNTIME_DIR";
 export const MIN_PORT = 1024;
 export const MAX_PORT = 65535;
 export const POLL_INTERVAL_MS = 200;
 export const DEFAULT_LAUNCH_TIMEOUT_MS = 30_000;
 
 export type Env = Readonly<Record<string, string | undefined>>;
+export type FirefoxSource = "override" | "installed" | "managed";
 
-const INSTALL_HINTS: Readonly<Record<string, string>> = {
+export interface ResolvedFirefox {
+  binary: string;
+  source: FirefoxSource;
+}
+
+const MANUAL_INSTALL_HINTS: Readonly<Record<string, string>> = {
   win32: "winget install Mozilla.Firefox",
   linux: "install the firefox package from your distribution",
   darwin: "brew install --cask firefox",
 };
 
+// Raised when no Firefox is available; callers may offer to install the managed runtime.
+export class FirefoxNotFoundError extends PwaNavError {
+  constructor(platform: string) {
+    const manual = MANUAL_INSTALL_HINTS[platform];
+    super("no_browser", "Firefox was not found", {
+      hint:
+        platform === "win32"
+          ? "ask the user whether to download the official Firefox from Mozilla (~95 MB, only into pwa-nav's folder, default browser unchanged); " +
+            "if they agree, call pwa_install_runtime (CLI: `pwa-nav runtime install`) and retry. " +
+            `Alternatives: ${manual ?? "install Firefox"}, or set ${BINARY_ENV}`
+          : `${manual ?? "install Firefox"}, or set ${BINARY_ENV} to the firefox executable`,
+    });
+    this.name = "FirefoxNotFoundError";
+  }
+}
+
+const under = (base: string | undefined, ...parts: string[]): string[] =>
+  base === undefined || base === "" ? [] : [join(base, ...parts)];
+
 // Mozilla's default install locations per platform, in lookup order.
 export function firefoxCandidates(platform: string, env: Env): string[] {
-  const under = (base: string | undefined, ...parts: string[]): string[] =>
-    base === undefined || base === "" ? [] : [join(base, ...parts)];
   switch (platform) {
     case "win32":
       return [
@@ -42,26 +66,56 @@ export function firefoxCandidates(platform: string, env: Env): string[] {
   }
 }
 
+// Directory owned by pwa-nav that holds the managed (downloaded) Firefox runtime.
+export function managedRuntimeDir(platform: string, env: Env): string | undefined {
+  const override = env[RUNTIME_DIR_ENV];
+  if (override !== undefined && override !== "") return override;
+  switch (platform) {
+    case "win32":
+      return under(env["LOCALAPPDATA"], "pwa-nav", "runtime")[0];
+    case "linux": {
+      const xdg = env["XDG_DATA_HOME"];
+      if (xdg !== undefined && xdg !== "") return join(xdg, "pwa-nav", "runtime");
+      return under(env["HOME"], ".local", "share", "pwa-nav", "runtime")[0];
+    }
+    case "darwin":
+      return under(env["HOME"], "Library", "Application Support", "pwa-nav", "runtime")[0];
+    default:
+      return undefined;
+  }
+}
+
+export function managedRuntimeBinary(platform: string, env: Env): string | undefined {
+  const dir = managedRuntimeDir(platform, env);
+  if (dir === undefined) return undefined;
+  if (platform === "win32") return join(dir, "firefox", "firefox.exe");
+  if (platform === "darwin") return join(dir, "Firefox.app", "Contents", "MacOS", "firefox");
+  return join(dir, "firefox", "firefox");
+}
+
+// Resolution order: explicit override, installed stock Firefox, pwa-nav managed runtime.
+export function locateFirefox(
+  platform: string,
+  env: Env,
+  checkExists: (path: string) => boolean = existsSync,
+): ResolvedFirefox | undefined {
+  const override = env[BINARY_ENV];
+  if (override !== undefined && override !== "") return { binary: override, source: "override" };
+  const installed = firefoxCandidates(platform, env).find((path) => checkExists(path));
+  if (installed !== undefined) return { binary: installed, source: "installed" };
+  const managed = managedRuntimeBinary(platform, env);
+  if (managed !== undefined && checkExists(managed)) return { binary: managed, source: "managed" };
+  return undefined;
+}
+
 export function resolveFirefoxBinary(
   platform: string,
   env: Env,
   checkExists: (path: string) => boolean = existsSync,
 ): string {
-  const override = env[BINARY_ENV];
-  if (override !== undefined && override !== "") return override;
-  const install = INSTALL_HINTS[platform];
-  if (install === undefined) {
-    throw new PwaNavError("invalid_args", `cannot locate Firefox on platform "${platform}"`, {
-      hint: `set ${BINARY_ENV}, or launch Firefox manually with --profile <dir> --remote-debugging-port <port> <url>`,
-    });
-  }
-  const found = firefoxCandidates(platform, env).find((path) => checkExists(path));
-  if (found === undefined) {
-    throw new PwaNavError("invalid_args", "Firefox is not installed in a default location", {
-      hint: `${install}, or set ${BINARY_ENV} to the firefox executable`,
-    });
-  }
-  return found;
+  const found = locateFirefox(platform, env, checkExists);
+  if (found === undefined) throw new FirefoxNotFoundError(platform);
+  return found.binary;
 }
 
 export function validatePort(port: number): number {

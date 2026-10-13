@@ -1,4 +1,5 @@
 import type { Backend } from "../backend/backend.js";
+import type { RuntimeInstaller } from "../browser/runtime-installer.js";
 import { PwaNavError } from "../core/errors.js";
 
 export interface BackendRequest {
@@ -29,6 +30,10 @@ export interface ToolContext {
   backend?: Backend;
   port?: number;
   app?: string;
+  /** Asks the human a yes/no question (MCP elicitation). Absent when the client cannot ask. */
+  confirm?: (message: string) => Promise<boolean>;
+  /** Firefox runtime installer override (tests). */
+  runtimeInstaller?: RuntimeInstaller;
 }
 
 export interface ToolOutcome {

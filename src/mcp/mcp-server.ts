@@ -25,6 +25,8 @@ import { agentPath } from "../backend/backend.js";
 import { buildFlowTools, humanOnlyNote } from "./mcp-flows.js";
 import { TOOLS } from "./mcp-tools.js";
 import type { ScreenMap } from "../screens/screen-map.js";
+import type { RuntimeInstaller } from "../browser/runtime-installer.js";
+import type { ToolContext } from "../tools/index.js";
 import type { BackendFactory, ToolDef } from "./mcp-tools.js";
 
 export const SERVER_NAME = "pwa-nav";
@@ -44,7 +46,12 @@ export interface McpServerOptions {
   flowSource?: ScreenMap;
   /** Startup diagnostics sink (stderr by default; never stdout). */
   log?: (line: string) => void;
+  /** Firefox runtime installer override (tests). */
+  runtimeInstaller?: RuntimeInstaller;
 }
+
+// Short enough to answer before typical client tool-call timeouts.
+const ELICIT_TIMEOUT_MS = 60_000;
 
 export const SNAPSHOT_RESOURCE_URI = "pwa-nav://snapshot/latest";
 export const screensResourceUri = (appId: string): string => `pwa-nav://screens/${appId}`;
@@ -156,13 +163,6 @@ export function createMcpServer(options: McpServerOptions): Server {
     screensDir: options.screensDir ?? resolveScreensDir({ cacheDir: effectiveAgentDir }),
     cacheDir: effectiveAgentDir,
   };
-  const ctx = {
-    backendFactory: options.backendFactory,
-    armed: options.armed === true,
-    mode: options.mode ?? "bidi",
-    screens,
-    agentDir: effectiveAgentDir,
-  };
   const mutex = new Mutex();
 
   const server = new Server(
@@ -172,6 +172,39 @@ export function createMcpServer(options: McpServerOptions): Server {
       instructions: humanNote === "" ? BASE_INSTRUCTIONS : `${BASE_INSTRUCTIONS} ${humanNote}`,
     },
   );
+
+  // Yes/no question to the human through MCP elicitation, only when the client supports it.
+  // Any elicitation failure (timeout, interrupted, half-implemented client) counts as "no answer":
+  // the caller then returns its error with a hint instead of aborting the whole tool call.
+  const confirm = async (message: string): Promise<boolean> => {
+    try {
+      const result = await server.elicitInput(
+        {
+          message,
+          requestedSchema: {
+            type: "object",
+            properties: { confirm: { type: "boolean", title: "Download", default: true } },
+            required: ["confirm"],
+          },
+        },
+        { timeout: ELICIT_TIMEOUT_MS },
+      );
+      return result.action === "accept" && result.content?.["confirm"] === true;
+    } catch (error) {
+      log(`pwa-nav-mcp: elicitation failed (${error instanceof Error ? error.message : String(error)}); falling back to hint`);
+      return false;
+    }
+  };
+  const baseCtx: ToolContext = {
+    backendFactory: options.backendFactory,
+    armed: options.armed === true,
+    mode: options.mode ?? "bidi",
+    screens,
+    agentDir: effectiveAgentDir,
+    ...(options.runtimeInstaller === undefined ? {} : { runtimeInstaller: options.runtimeInstaller }),
+  };
+  const contextForCall = (): ToolContext =>
+    server.getClientCapabilities()?.elicitation === undefined ? baseCtx : { ...baseCtx, confirm };
 
   server.setRequestHandler(ListToolsRequestSchema, () => ({
     tools: [...compiled.values()].map(({ tool }) => ({
@@ -235,7 +268,7 @@ export function createMcpServer(options: McpServerOptions): Server {
     }
     return mutex.run(async (): Promise<CallToolResult> => {
       try {
-        const { value, lines } = await capture(() => entry.tool.handler(args, ctx));
+        const { value, lines } = await capture(() => entry.tool.handler(args, contextForCall()));
         const text = value.text ?? lines.join("\n");
         return {
           content: [{ type: "text", text: text === "" ? "ok" : text }],

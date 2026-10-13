@@ -17,5 +17,5 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 011 | screen-map-history-discovery | draft       | 001, 002 | ready | 11 |
 | 012 | native-app-window-chrome | done        | 004 | —     | 12 |
 | 013 | app-icon-and-desktop-shortcut | done        | 005 | —     | 13 |
-| 014 | remove-pwasforfirefox-leftovers | in-progress | 006, 012, 013 | human verify (T007) | 14 |
-| 015 | managed-firefox-runtime | draft       | 014 | ready | 15 |
+| 014 | remove-pwasforfirefox-leftovers | done        | 006, 012, 013 | —     | 14 |
+| 015 | managed-firefox-runtime | done        | 014 | —     | 15 |

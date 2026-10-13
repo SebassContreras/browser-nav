@@ -29,6 +29,6 @@
 
 D1 → D2 (+D5) → D4 → D3.
 
-## Open questions
+## Decisions
 
-- Q1: Locale of the downloaded build (`en-US` fixed vs. system locale). Recommendation: `en-US`; the browser UI is hidden and web content uses the page's own locale.
+- Q1 (resolved 2026-10-13): `en-US` build; the browser UI is hidden and web content uses the page's own locale.
