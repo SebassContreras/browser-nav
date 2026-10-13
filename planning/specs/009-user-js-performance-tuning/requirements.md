@@ -12,7 +12,7 @@ Agents and test runners that require snappy navigation, consistent network idle 
 
 - R1@1: Performance preference tuning: inject calibrated Gecko preferences in `.agent/apps/<appSlug>/profile/user.js` to disable non-essential features (telemetry, background update pings, speculative connections, smooth scrolling/heavy CSS transitions).
 - R2@1: Predictable settling: adjust network and DOM timing preferences to improve the reliability of WebDriver BiDi `networkIdle` detection.
-- R3@1: Cache optimization: optimize script compilation cache (`startupCache`) settings to accelerate cold and warm launches of complex web applications.
+- R3@1: Startup cache preserved: the tuning never disables or relocates Firefox's startup cache (`startupCache`), which already speeds up cold and warm launches by default.
 - R4@1: Non-destructive merge: ensure custom user-defined preferences in `user.js` are preserved without being unconditionally overwritten.
 
 ## Out of scope

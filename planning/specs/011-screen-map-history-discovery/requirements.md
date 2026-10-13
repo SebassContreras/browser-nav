@@ -12,7 +12,7 @@ Agents and developers exploring new or complex web applications (e.g. LinkedIn, 
 
 - R1@1: Read-only history extraction: query `places.sqlite` within the app's profile to extract visited distinct paths, titles, and visit timestamps matching the app's domain.
 - R2@1: Screen map candidate generation: map extracted URLs against existing screens in `screens.json` to identify unmapped routes.
-- R3@1: Safe map enrichment: propose or automatically scaffold skeletal screen entries in `screens.json` with route patterns and suggested IDs for newly discovered pages.
+- R3@1: Safe map enrichment: record discovered, unmapped routes in the screen map's `unmapped[]` list (never invented screens), opt-in and dry-run by default.
 - R4@1: Zero-token discovery CLI/MCP action: expose `pwa-nav screens discover <app>` and MCP support to surface candidate screens instantly without launching live browser round-trips.
 
 ## Out of scope
@@ -22,7 +22,7 @@ Agents and developers exploring new or complex web applications (e.g. LinkedIn, 
 
 ## Dependencies
 
-- 001 (screen-map-filtering), 002 (multi-pwa-isolation).
+- 001 (screen-map-filtering), 002 (multi-pwa-isolation), 007 (session-health-check: shared profile-db adapter).
 
 ## Owner split
 

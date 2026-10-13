@@ -22,7 +22,7 @@ Developers and QA teams running multi-stage automated tests across environments 
 
 ## Dependencies
 
-- 002 (multi-pwa-isolation).
+- 002 (multi-pwa-isolation), 008 (profile-lock-diagnostics).
 
 ## Owner split
 

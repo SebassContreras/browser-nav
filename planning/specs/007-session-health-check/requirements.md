@@ -10,7 +10,7 @@ Agents and developers needing immediate, zero-token feedback on whether a target
 
 ## Requirements
 
-- R1@1: Read-only profile inspection: safely inspect `cookies.sqlite` and `webappsstore.sqlite` under `.agent/apps/<appSlug>/profile/` without locking or modifying browser databases.
+- R1@1: Read-only profile inspection: safely inspect `cookies.sqlite` under `.agent/apps/<appSlug>/profile/` without locking or modifying browser databases.
 - R2@1: Session status detection: determine whether active session cookies for the target domain exist, calculating remaining TTL/expiration timestamps.
 - R3@1: MCP & CLI interfaces: expose status checks via `pwa_auth({ action: "status", app: "<app>" })` and `pwa-nav status <app>`.
 - R4@1: Actionable guidance: when cookies are expired or absent, return structured status with immediate guidance to run `pwa_auth clean` without attempting doomed UI navigation.
