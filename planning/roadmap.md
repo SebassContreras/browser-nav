@@ -10,7 +10,7 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 004 | standalone-pwa-no-extension | done        | - | —      | 4 |
 | 005 | automatic-pwa-provisioning | done        | 004 | —      | 5 |
 | 006 | retire-pwasforfirefox | done        | 004, 005 | —      | 6 |
-| 007 | session-health-check | in_progress | 002 | build | 7 |
+| 007 | session-health-check | done        | 002 | —     | 7 |
 | 008 | profile-lock-diagnostics | todo        | 002 | build | 8 |
 | 009 | user-js-performance-tuning | todo        | 004 | build | 9 |
 | 010 | profile-backup-restore | todo        | 002 | build | 10 |

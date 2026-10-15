@@ -1,0 +1,13 @@
+diff --git a/src/browser/session-health.ts b/src/browser/session-health.ts
+index 483fea4..1dfcaec 100644
+--- a/src/browser/session-health.ts
++++ b/src/browser/session-health.ts
+@@ -27,7 +27,7 @@ export interface SessionHealthOptions {
+   signInHint?: string;
+ }
+ 
+-const AUTH_COOKIE_NAME = /sess|sid|auth|token|login|jwt|^SAPISID$|^__(Secure|Host)-/i;
++const AUTH_COOKIE_NAME = /sess|sid|auth|token|login|jwt|_at$|^SAPISID$|^__(Secure|Host)-/i;
+ 
+ // Firefox stored `expiry` in seconds and later in milliseconds; anything above 1e11
+ // (year 5138 in seconds) can only be milliseconds.

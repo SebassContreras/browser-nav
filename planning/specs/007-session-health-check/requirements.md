@@ -2,7 +2,7 @@
 
 ## What's being built
 
-Session health inspection tool and proactive check (`pwa_auth` action `status` / `pwa-nav status <app>`) that reads profile storage artifacts (`cookies.sqlite`, `webappsstore.sqlite`) in read-only mode to determine whether key authentication tokens/cookies exist and are valid before initiating browser actions or failing with timeouts.
+Session health inspection tool and proactive check (`pwa_auth` action `status` / `pwa-nav status <app>`) that reads the profile cookie store (`cookies.sqlite`) in read-only mode to determine whether key authentication cookies exist and are valid before initiating browser actions or failing with timeouts.
 
 ## Who it serves
 

@@ -1,0 +1,72 @@
+diff --git a/src/browser/test/session-health.test.ts b/src/browser/test/session-health.test.ts
+index e33d685..c8f7a4b 100644
+--- a/src/browser/test/session-health.test.ts
++++ b/src/browser/test/session-health.test.ts
+@@ -1,13 +1,15 @@
+ import assert from "node:assert/strict";
+ import { createHash } from "node:crypto";
+-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
++import { existsSync } from "node:fs";
++import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+ import { tmpdir } from "node:os";
+-import { join } from "node:path";
++import { dirname, join } from "node:path";
+ import { DatabaseSync } from "node:sqlite";
+ import { test } from "node:test";
+ import { PwaNavError } from "../../core/errors.js";
+ import { withProfileDb } from "../profile-db.js";
+ import { evaluateSessionHealth, expiryToMs } from "../session-health.js";
++import { siteOf } from "../site.js";
+ import { readProfileCookies, type StoredCookie } from "../session-reader.js";
+ 
+ const NOW = Date.UTC(2026, 0, 1);
+@@ -24,23 +26,20 @@ async function hash(path: string): Promise<string> {
+   return createHash("sha256").update(await readFile(path)).digest("hex");
+ }
+ 
+-async function pwaNavTempDirs(): Promise<string[]> {
+-  return (await readdir(tmpdir())).filter((name) => name.startsWith("pwa-nav-db-"));
+-}
+-
+ test("withProfileDb reads a copy, leaves the original untouched and removes its temp dir", async () => {
+   const dir = await mkdtemp(join(tmpdir(), "pwa-nav-health-"));
+   try {
+     const path = join(dir, "cookies.sqlite");
+     writeCookieDb(path, [["sid", ".example.com", NOW / 1000 + 60]]);
+     const before = await hash(path);
+-    const tempsBefore = await pwaNavTempDirs();
+ 
+     const cookies = await readProfileCookies(dir);
+     assert.deepEqual(cookies, [{ name: "sid", host: ".example.com", path: "/", expiry: NOW / 1000 + 60 }]);
+ 
+     assert.equal(await hash(path), before);
+-    assert.deepEqual(await pwaNavTempDirs(), tempsBefore);
++    const copyPath = await withProfileDb(path, (db) => String(db.all("PRAGMA database_list")[0]?.["file"]));
++    assert.ok(copyPath !== null && copyPath !== path);
++    assert.equal(existsSync(dirname(copyPath)), false);
+   } finally {
+     await rm(dir, { recursive: true, force: true });
+   }
+@@ -89,3 +88,22 @@ test("evaluateSessionHealth uses explicit cookie names instead of the heuristic"
+   const health = evaluateSessionHealth(cookies, { host: "example.com", nowMs: NOW, authCookieNames: ["custom"] });
+   assert.deepEqual(health.cookies.map((c) => c.name), ["custom"]);
+ });
++
++test("siteOf groups hosts by registrable domain per the Public Suffix List", () => {
++  assert.equal(siteOf(".www.linkedin.com"), "linkedin.com");
++  assert.equal(siteOf("LinkedIn.com"), "linkedin.com");
++  assert.equal(siteOf("login.mybank.co.uk"), "mybank.co.uk");
++  assert.notEqual(siteOf("a.github.io"), siteOf("b.github.io"));
++  assert.equal(siteOf("localhost"), "localhost");
++});
++
++test("evaluateSessionHealth counts a same-site subdomain session cookie found by the heuristic", () => {
++  const health = evaluateSessionHealth(
++    [cookie("li_at", ".www.linkedin.com", NOW + 3_600_000), cookie("li_at", ".evil.co.uk", NOW + 3_600_000)],
++    { host: "linkedin.com", nowMs: NOW },
++  );
++  assert.equal(health.verdict, "authenticated");
++  assert.deepEqual(health.cookies.map((c) => c.host), [".www.linkedin.com"]);
++  const unrelated = evaluateSessionHealth([cookie("sid", ".other.co.uk", NOW + 1e6)], { host: "mybank.co.uk", nowMs: NOW });
++  assert.equal(unrelated.verdict, "unauthenticated");
++});

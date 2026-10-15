@@ -1,5 +1,6 @@
 // Session health verdict from stored cookies (spec 007 D2). Pure: no IO, no clock.
 import type { StoredCookie } from "./session-reader.js";
+import { siteOf } from "./site.js";
 
 export type SessionVerdict = "authenticated" | "expired" | "unauthenticated" | "no_profile";
 
@@ -26,20 +27,12 @@ export interface SessionHealthOptions {
   signInHint?: string;
 }
 
-const AUTH_COOKIE_NAME = /sess|sid|auth|token|login|jwt|^SAPISID$|^__(Secure|Host)-/i;
+const AUTH_COOKIE_NAME = /sess|sid|auth|token|login|jwt|_at$|^SAPISID$|^__(Secure|Host)-/i;
 
 // Firefox stored `expiry` in seconds and later in milliseconds; anything above 1e11
 // (year 5138 in seconds) can only be milliseconds.
 export function expiryToMs(expiry: number): number {
   return expiry > 1e11 ? expiry : expiry * 1000;
-}
-
-// RFC 6265 §5.1.3: a cookie host ".example.com" (or "example.com") matches the host itself
-// and its subdomains.
-export function domainMatches(cookieHost: string, host: string): boolean {
-  const domain = cookieHost.replace(/^\./, "").toLowerCase();
-  const target = host.toLowerCase();
-  return target === domain || target.endsWith(`.${domain}`);
 }
 
 export function evaluateSessionHealth(
@@ -59,7 +52,9 @@ export function evaluateSessionHealth(
   const explicit = options.authCookieNames;
   const isAuth = (name: string): boolean =>
     explicit !== undefined && explicit.length > 0 ? explicit.includes(name) : AUTH_COOKIE_NAME.test(name);
-  const auth = cookies.filter((c) => domainMatches(c.host, options.host) && isAuth(c.name));
+  // Same site (eTLD+1) as the app: a session cookie on `.www.example.com` counts for `example.com`.
+  const site = siteOf(options.host);
+  const auth = cookies.filter((c) => siteOf(c.host) === site && isAuth(c.name));
   const info = auth.map((c) => ({
     name: c.name,
     host: c.host,

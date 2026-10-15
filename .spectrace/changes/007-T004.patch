@@ -1,0 +1,143 @@
+diff --git a/src/browser/test/session-health.test.ts b/src/browser/test/session-health.test.ts
+new file mode 100644
+index 0000000..8ffb1c0
+--- /dev/null
++++ b/src/browser/test/session-health.test.ts
+@@ -0,0 +1,99 @@
++import assert from "node:assert/strict";
++import { createHash } from "node:crypto";
++import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { DatabaseSync } from "node:sqlite";
++import { test } from "node:test";
++import { PwaNavError } from "../../core/errors.js";
++import { withProfileDb } from "../profile-db.js";
++import { domainMatches, evaluateSessionHealth, expiryToMs } from "../session-health.js";
++import { readProfileCookies, type StoredCookie } from "../session-reader.js";
++
++const NOW = Date.UTC(2026, 0, 1);
++
++function writeCookieDb(path: string, rows: readonly [string, string, number][]): void {
++  const db = new DatabaseSync(path);
++  db.exec("CREATE TABLE moz_cookies (name TEXT, value TEXT, host TEXT, path TEXT, expiry INTEGER)");
++  const insert = db.prepare("INSERT INTO moz_cookies VALUES (?, 'secret', ?, '/', ?)");
++  for (const [name, host, expiry] of rows) insert.run(name, host, expiry);
++  db.close();
++}
++
++async function hash(path: string): Promise<string> {
++  return createHash("sha256").update(await readFile(path)).digest("hex");
++}
++
++async function pwaNavTempDirs(): Promise<string[]> {
++  return (await readdir(tmpdir())).filter((name) => name.startsWith("pwa-nav-db-"));
++}
++
++test("withProfileDb reads a copy, leaves the original untouched and removes its temp dir", async () => {
++  const dir = await mkdtemp(join(tmpdir(), "pwa-nav-health-"));
++  try {
++    const path = join(dir, "cookies.sqlite");
++    writeCookieDb(path, [["sid", ".example.com", NOW / 1000 + 60]]);
++    const before = await hash(path);
++    const tempsBefore = await pwaNavTempDirs();
++
++    const cookies = await readProfileCookies(dir);
++    assert.deepEqual(cookies, [{ name: "sid", host: ".example.com", path: "/", expiry: NOW / 1000 + 60 }]);
++
++    assert.equal(await hash(path), before);
++    assert.deepEqual(await pwaNavTempDirs(), tempsBefore);
++  } finally {
++    await rm(dir, { recursive: true, force: true });
++  }
++});
++
++test("withProfileDb returns null for a missing db and a structured error for an unreadable one", async () => {
++  const dir = await mkdtemp(join(tmpdir(), "pwa-nav-health-"));
++  try {
++    assert.equal(await readProfileCookies(dir), null);
++    const path = join(dir, "cookies.sqlite");
++    await writeFile(path, "not a database");
++    await assert.rejects(
++      withProfileDb(path, (db) => db.all("SELECT 1")),
++      (err: unknown) => err instanceof PwaNavError && err.code === "session_busy",
++    );
++  } finally {
++    await rm(dir, { recursive: true, force: true });
++  }
++});
++
++test("domainMatches follows RFC 6265 domain matching", () => {
++  assert.equal(domainMatches(".example.com", "example.com"), true);
++  assert.equal(domainMatches(".example.com", "app.example.com"), true);
++  assert.equal(domainMatches("example.com", "APP.example.com"), true);
++  assert.equal(domainMatches(".example.com", "badexample.com"), false);
++  assert.equal(domainMatches("app.example.com", "example.com"), false);
++});
++
++test("expiryToMs accepts both seconds and milliseconds", () => {
++  assert.equal(expiryToMs(1_800_000_000), 1_800_000_000_000);
++  assert.equal(expiryToMs(1_800_000_000_000), 1_800_000_000_000);
++});
++
++const cookie = (name: string, host: string, expiry: number): StoredCookie => ({ name, host, path: "/", expiry });
++
++test("evaluateSessionHealth verdicts", () => {
++  const opts = { host: "app.example.com", nowMs: NOW };
++  assert.equal(evaluateSessionHealth(null, opts).verdict, "no_profile");
++  assert.equal(evaluateSessionHealth([cookie("theme", ".example.com", NOW)], opts).verdict, "unauthenticated");
++  assert.equal(evaluateSessionHealth([cookie("sid", ".other.com", NOW + 1e6)], opts).verdict, "unauthenticated");
++
++  const expired = evaluateSessionHealth([cookie("sid", ".example.com", NOW / 1000 - 10)], opts);
++  assert.equal(expired.verdict, "expired");
++  assert.match(expired.hint ?? "", /Sign in again/);
++
++  const ok = evaluateSessionHealth([cookie("sid", ".example.com", NOW + 3_600_000)], opts);
++  assert.equal(ok.verdict, "authenticated");
++  assert.equal(ok.ttlSeconds, 3600);
++  assert.deepEqual(ok.cookies.map((c) => c.name), ["sid"]);
++});
++
++test("evaluateSessionHealth uses explicit cookie names instead of the heuristic", () => {
++  const cookies = [cookie("sid", ".example.com", NOW + 1e6), cookie("custom", ".example.com", NOW + 1e6)];
++  const health = evaluateSessionHealth(cookies, { host: "example.com", nowMs: NOW, authCookieNames: ["custom"] });
++  assert.deepEqual(health.cookies.map((c) => c.name), ["custom"]);
++});
+diff --git a/src/tools/test/status.test.ts b/src/tools/test/status.test.ts
+new file mode 100644
+index 0000000..2c660cd
+--- /dev/null
++++ b/src/tools/test/status.test.ts
+@@ -0,0 +1,32 @@
++import assert from "node:assert/strict";
++import { mkdir, mkdtemp, rm } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { DatabaseSync } from "node:sqlite";
++import { test } from "node:test";
++import { resolveAppTarget } from "../../backend/backend.js";
++import { resolveStandaloneProfileDir } from "../../browser/standalone-profile.js";
++import { statusTool } from "../status.js";
++
++test("statusTool reports the verdict, cookie names and sign-in hint from the stored profile", async () => {
++  const cacheDir = await mkdtemp(join(tmpdir(), "pwa-nav-status-"));
++  try {
++    const missing = await statusTool({ app: "example.com" }, { cacheDir, nowMs: 0 });
++    assert.equal((missing.structured as { verdict: string }).verdict, "no_profile");
++
++    const profileDir = resolveStandaloneProfileDir(resolveAppTarget("example.com").slug, cacheDir);
++    await mkdir(profileDir, { recursive: true });
++    const db = new DatabaseSync(join(profileDir, "cookies.sqlite"));
++    db.exec("CREATE TABLE moz_cookies (name TEXT, host TEXT, path TEXT, expiry INTEGER)");
++    db.exec("INSERT INTO moz_cookies VALUES ('sid', '.example.com', '/', 7200)");
++    db.close();
++
++    const ok = await statusTool({ app: "example.com" }, { cacheDir, nowMs: 0 });
++    assert.match(ok.text, /: authenticated \(expires in 2h\)\ncookies: sid$/);
++    const expired = await statusTool({ app: "example.com" }, { cacheDir, nowMs: 10_000_000 });
++    assert.match(expired.text, /expired[\s\S]*hint: .*pwa-nav auth example\.com/);
++    await assert.rejects(statusTool({}), /status needs an app/);
++  } finally {
++    await rm(cacheDir, { recursive: true, force: true });
++  }
++});

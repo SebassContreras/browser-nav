@@ -1,0 +1,146 @@
+diff --git a/package.json b/package.json
+index f50953f..bc366c9 100644
+--- a/package.json
++++ b/package.json
+@@ -25,7 +25,8 @@
+   "dependencies": {
+     "@modelcontextprotocol/sdk": "1.31.0",
+     "ajv": "^8.20.0",
+-    "ajv-formats": "^3.0.1"
++    "ajv-formats": "^3.0.1",
++    "tldts": "7.4.18"
+   },
+   "devDependencies": {
+     "@types/jsdom": "^30.0.0",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index a46c687..9f88f32 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -17,6 +17,9 @@ importers:
+       ajv-formats:
+         specifier: ^3.0.1
+         version: 3.0.1(ajv@8.20.0)
++      tldts:
++        specifier: 7.4.18
++        version: 7.4.18
+     devDependencies:
+       '@types/jsdom':
+         specifier: ^30.0.0
+@@ -1058,11 +1061,11 @@ packages:
+     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
+     engines: {node: '>=12.0.0'}
+ 
+-  tldts-core@7.4.16:
+-    resolution: {integrity: sha512-MDolfaSJtlSK5Y0A1xl3277ekubZwobpBjugknDizI9O5Rm60a1m8k4ICK+MRsCDzPygT81mp3BBf5RKDlFRfA==}
++  tldts-core@7.4.18:
++    resolution: {integrity: sha512-KI2PKvCmvQI/xD6ypPqkU0i7oxNXR/O58RLRaHR4svsgVUQ2JE/XC8BtMbG6PSehD27I8sZJRcC1ASnCy6lp3g==}
+ 
+-  tldts@7.4.16:
+-    resolution: {integrity: sha512-QwBER5KMR86IIjpIiO7H/Z3IMJPsZ1A6RKPAqzTTgOyUQUSt9FdnKcqhTaJmkY6HVrgouZHZR0ncK5QxvmnQeg==}
++  tldts@7.4.18:
++    resolution: {integrity: sha512-somxA8xKAUzlAxl0TX/jMSYIbRNFIVGnI96pVGJPeMc5BsHmfVXn6mOJT6U++ELnl04eGfzpfcEuZe8WiASkXg==}
+     hasBin: true
+ 
+   toidentifier@1.0.1:
+@@ -2214,17 +2217,17 @@ snapshots:
+       fdir: 6.5.0(picomatch@4.0.7)
+       picomatch: 4.0.7
+ 
+-  tldts-core@7.4.16: {}
++  tldts-core@7.4.18: {}
+ 
+-  tldts@7.4.16:
++  tldts@7.4.18:
+     dependencies:
+-      tldts-core: 7.4.16
++      tldts-core: 7.4.18
+ 
+   toidentifier@1.0.1: {}
+ 
+   tough-cookie@6.0.2:
+     dependencies:
+-      tldts: 7.4.16
++      tldts: 7.4.18
+ 
+   tr46@6.0.0:
+     dependencies:
+diff --git a/src/browser/session-health.ts b/src/browser/session-health.ts
+index c4db7c4..483fea4 100644
+--- a/src/browser/session-health.ts
++++ b/src/browser/session-health.ts
+@@ -1,5 +1,6 @@
+ // Session health verdict from stored cookies (spec 007 D2). Pure: no IO, no clock.
+ import type { StoredCookie } from "./session-reader.js";
++import { siteOf } from "./site.js";
+ 
+ export type SessionVerdict = "authenticated" | "expired" | "unauthenticated" | "no_profile";
+ 
+@@ -34,14 +35,6 @@ export function expiryToMs(expiry: number): number {
+   return expiry > 1e11 ? expiry : expiry * 1000;
+ }
+ 
+-// RFC 6265 §5.1.3: a cookie host ".example.com" (or "example.com") matches the host itself
+-// and its subdomains.
+-export function domainMatches(cookieHost: string, host: string): boolean {
+-  const domain = cookieHost.replace(/^\./, "").toLowerCase();
+-  const target = host.toLowerCase();
+-  return target === domain || target.endsWith(`.${domain}`);
+-}
+-
+ export function evaluateSessionHealth(
+   cookies: readonly StoredCookie[] | null,
+   options: SessionHealthOptions,
+@@ -59,7 +52,9 @@ export function evaluateSessionHealth(
+   const explicit = options.authCookieNames;
+   const isAuth = (name: string): boolean =>
+     explicit !== undefined && explicit.length > 0 ? explicit.includes(name) : AUTH_COOKIE_NAME.test(name);
+-  const auth = cookies.filter((c) => domainMatches(c.host, options.host) && isAuth(c.name));
++  // Same site (eTLD+1) as the app: a session cookie on `.www.example.com` counts for `example.com`.
++  const site = siteOf(options.host);
++  const auth = cookies.filter((c) => siteOf(c.host) === site && isAuth(c.name));
+   const info = auth.map((c) => ({
+     name: c.name,
+     host: c.host,
+diff --git a/src/browser/site.ts b/src/browser/site.ts
+new file mode 100644
+index 0000000..cc4f606
+--- /dev/null
++++ b/src/browser/site.ts
+@@ -0,0 +1,9 @@
++// Site (registrable domain, eTLD+1) of a host per the Public Suffix List (spec 007 D2).
++// The only file that imports `tldts`.
++import { getDomain } from "tldts";
++
++// Hosts without a registrable domain (localhost, IPs, bare public suffixes) are their own site.
++export function siteOf(host: string): string {
++  const bare = host.replace(/^\./, "").toLowerCase();
++  return getDomain(bare, { allowPrivateDomains: true }) ?? bare;
++}
+diff --git a/src/browser/test/session-health.test.ts b/src/browser/test/session-health.test.ts
+index 8ffb1c0..e33d685 100644
+--- a/src/browser/test/session-health.test.ts
++++ b/src/browser/test/session-health.test.ts
+@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
+ import { test } from "node:test";
+ import { PwaNavError } from "../../core/errors.js";
+ import { withProfileDb } from "../profile-db.js";
+-import { domainMatches, evaluateSessionHealth, expiryToMs } from "../session-health.js";
++import { evaluateSessionHealth, expiryToMs } from "../session-health.js";
+ import { readProfileCookies, type StoredCookie } from "../session-reader.js";
+ 
+ const NOW = Date.UTC(2026, 0, 1);
+@@ -61,14 +61,6 @@ test("withProfileDb returns null for a missing db and a structured error for an
+   }
+ });
+ 
+-test("domainMatches follows RFC 6265 domain matching", () => {
+-  assert.equal(domainMatches(".example.com", "example.com"), true);
+-  assert.equal(domainMatches(".example.com", "app.example.com"), true);
+-  assert.equal(domainMatches("example.com", "APP.example.com"), true);
+-  assert.equal(domainMatches(".example.com", "badexample.com"), false);
+-  assert.equal(domainMatches("app.example.com", "example.com"), false);
+-});
+-
+ test("expiryToMs accepts both seconds and milliseconds", () => {
+   assert.equal(expiryToMs(1_800_000_000), 1_800_000_000_000);
+   assert.equal(expiryToMs(1_800_000_000_000), 1_800_000_000_000);
