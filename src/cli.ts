@@ -9,7 +9,6 @@
 // is PwaNavError("invalid_args") -> exit 2.
 import { fstatSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import * as readline from "node:readline";
 import { join } from "node:path";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { createBackend, DEFAULT_PORT } from "./backend/backend-factory.js";
@@ -853,30 +852,16 @@ async function cmdQa(rest: string[]): Promise<void> {
 
 async function cmdAuth(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("auth", rest, {
-    clean: { type: "boolean" },
-    debug: { type: "boolean" },
     port: { type: "string" },
+    timeout: { type: "string" },
     help: { type: "boolean", short: "h" },
   });
   printHelpAndExit(values.help);
   const target = positionals[0];
   const port = values.port !== undefined ? Number(values.port) : undefined;
+  const timeoutMs = values.timeout !== undefined ? Number(values.timeout) * 1000 : undefined;
 
-  if (values.clean) {
-    await performAuthRelay({ appOrUrl: target, action: "clean", port });
-    return;
-  }
-  if (values.debug) {
-    await performAuthRelay({ appOrUrl: target, action: "debug", port });
-    return;
-  }
-
-  await performAuthRelay({ appOrUrl: target, action: "clean", port });
-  console.log("\nPress [Enter] after completing sign-in in the browser window to re-attach in debug mode...");
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  await new Promise((resolve) => rl.once("line", resolve));
-  rl.close();
-  await performAuthRelay({ appOrUrl: target, action: "debug", port });
+  await performAuthRelay({ appOrUrl: target, port, timeoutMs });
 }
 
 async function cmdStatus(rest: string[]): Promise<void> {

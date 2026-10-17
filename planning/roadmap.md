@@ -19,3 +19,4 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 013 | app-icon-and-desktop-shortcut | done        | 005 | —     | 13 |
 | 014 | remove-pwasforfirefox-leftovers | done        | 006, 012, 013 | —     | 14 |
 | 015 | managed-firefox-runtime | done        | 014 | —     | 15 |
+| 016 | assisted-auth-transition | done        | 007, 008 | —     | 16 |

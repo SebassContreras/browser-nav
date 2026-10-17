@@ -491,15 +491,14 @@ const authToolDef: ToolDef = {
   name: "pwa_auth",
   description:
     "Assisted authentication workflow for login-walled PWAs (such as Google NotebookLM) where Google or anti-bot defenses block automated login. " +
-    "Action 'clean' launches the PWA without debugging flags so the user can log in manually without security blocks. " +
-    "Action 'debug' re-attaches the PWA with debugging port 9222 active, preserving the logged-in session. " +
-    "Action 'status' is read-only and launches nothing: it reports whether the app's stored auth cookies are present, expired or missing (verdict authenticated|expired|unauthenticated|no_profile). Call it before automating a login-walled app.",
+    "By default, launches clean mode, monitors until login is completed, cleanly closes the window, and relaunches in debug mode on port 9222 without manual steps. " +
+    "Action 'status' is read-only and launches nothing: it reports whether the app's stored auth cookies are present, expired or missing (verdict authenticated|expired|unauthenticated|no_profile).",
   inputSchema: {
     type: "object",
     properties: {
       action: {
-        enum: ["clean", "debug", "status"],
-        description: "clean: launch PWA in clean mode for manual user login. debug: relaunch in debug mode after user is logged in. status: read-only session health check.",
+        enum: ["status"],
+        description: "Optional. 'status': read-only session health check without launching the browser.",
       },
       cookies: {
         type: "array",
@@ -510,6 +509,10 @@ const authToolDef: ToolDef = {
         type: "string",
         description: "App name, slug, or URL (e.g. 'notebook'). Defaults to the installed PWA.",
       },
+      timeoutMs: {
+        type: "integer",
+        description: "Max wait time in ms for user login completion (default: 180000).",
+      },
     },
     additionalProperties: false,
   },
@@ -517,6 +520,7 @@ const authToolDef: ToolDef = {
   async handler(args, ctx) {
     const action = str(args, "action");
     const app = str(args, "app");
+    const timeoutMs = typeof args["timeoutMs"] === "number" ? args["timeoutMs"] : undefined;
     if (action === "status") {
       const cookies = Array.isArray(args["cookies"]) ? args["cookies"].filter((c) => typeof c === "string") : undefined;
       return statusTool(
@@ -524,7 +528,7 @@ const authToolDef: ToolDef = {
         ctx.screens.cacheDir === undefined ? {} : { cacheDir: ctx.screens.cacheDir },
       );
     }
-    return runAuthTool({ action: action === "debug" ? "debug" : "clean", app });
+    return runAuthTool({ app, timeoutMs });
   },
 };
 

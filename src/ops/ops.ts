@@ -42,10 +42,6 @@ import { learnIntoFile } from "../screens/screen-store.js";
 import { collectAllTargets } from "../screens/screen-resolve.js";
 import { PwaNavError } from "../core/errors.js";
 import { resolveAppTarget } from "../backend/backend.js";
-import {
-  launchStandaloneApp,
-  launchStandaloneAppClean,
-} from "../browser/standalone-runner.js";
 
 // Re-exported so existing callers keep their imports.
 export { ensureParentDir, isHttpUrl, loadSession, parseSession };
@@ -767,47 +763,43 @@ export async function performScreenshot(
 
 export interface AuthRelayOptions {
   appOrUrl?: string;
-  action: "clean" | "debug";
   port?: number;
   quiet?: boolean;
+  timeoutMs?: number;
 }
 
 export interface AuthRelayResult {
-  status: "clean_started" | "debug_resumed";
+  status: "authenticated";
   message: string;
   command?: string;
   siteId?: string;
 }
 
-export async function performAuthRelay(options: AuthRelayOptions): Promise<AuthRelayResult> {
+export async function performAuthRelay(options: AuthRelayOptions = {}): Promise<AuthRelayResult> {
   const target = options.appOrUrl ?? "https://accounts.google.com";
   const { slug: appSlug, url } = resolveAppTarget(target);
 
-  if (options.action === "clean") {
-    const res = await launchStandaloneAppClean({ url, appSlug });
-    const msg = `PWA '${appSlug}' launched in clean mode (no debugging port). Please sign in manually in the browser window. When finished, re-run with '--debug' or call pwa_auth({ action: 'debug' }) to resume automation.`;
-    if (options.quiet !== true) {
-      console.log(msg);
-    }
-    return {
-      status: "clean_started",
-      message: msg,
-      command: res.command,
-      siteId: appSlug,
-    };
-  }
-
-  // action === "debug"
+  const { AuthWorkflowOrchestrator } = await import("./auth-workflow.js");
+  const orchestrator = new AuthWorkflowOrchestrator();
   const port = options.port ?? 9222;
-  const res = await launchStandaloneApp({ url, appSlug, port });
-  const msg = `PWA '${appSlug}' restarted in debug mode on port ${String(res.port)}. Session preserved from clean login. Ready for automation.`;
-  if (options.quiet !== true) {
-    console.log(msg);
-  }
+
+  const res = await orchestrator.execute({
+    url,
+    appSlug,
+    port,
+    timeoutMs: options.timeoutMs,
+    onProgress: (msg) => {
+      if (options.quiet !== true) {
+        console.log(msg);
+      }
+    },
+  });
+
+  const msg = `PWA '${appSlug}' authenticated successfully and resumed in debug mode on port ${String(res.port)}. Ready for automation.`;
   return {
-    status: "debug_resumed",
+    status: "authenticated",
     message: msg,
-    command: res.command,
+    command: res.debugResult.command,
     siteId: appSlug,
   };
 }

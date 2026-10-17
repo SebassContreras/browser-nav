@@ -3,17 +3,16 @@ import { performAuthRelay } from "../ops/ops.js";
 import { type ToolOutcome } from "./types.js";
 
 export interface AuthArgs {
-  action?: "clean" | "debug";
   app?: string;
+  timeoutMs?: number;
 }
 
 export async function authTool(args: AuthArgs, ctx?: { mode?: string }): Promise<ToolOutcome> {
   if (ctx?.mode === "offline") {
     throw new PwaNavError("invalid_args", "auth tool requires the live backend (--backend bidi).");
   }
-  const action = args.action === "debug" ? "debug" : "clean";
   const app = args.app;
-  const result = await performAuthRelay({ appOrUrl: app, action });
+  const result = await performAuthRelay({ appOrUrl: app, timeoutMs: args.timeoutMs });
 
   return {
     text: result.message,
