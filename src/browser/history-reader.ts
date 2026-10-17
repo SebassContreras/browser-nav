@@ -1,0 +1,66 @@
+// Read-only access to Firefox's `moz_places` history schema (spec 011 D1).
+// Extracts visited URLs, titles, visit count, and timestamps for a specific app origin.
+import { join } from "node:path";
+import { withProfileDb } from "./profile-db.js";
+
+export interface StoredHistoryEntry {
+  url: string;
+  title: string | null;
+  visitCount: number;
+  lastVisitDate: number; // PRTime (microseconds)
+}
+
+/**
+ * Computes reversed host string as stored in Firefox moz_places (`rev_host`).
+ * For example, "www.example.com" -> "moc.elpmaxe.www."
+ */
+export function reverseHost(host: string): string {
+  const reversed = host.split("").reverse().join("");
+  return reversed.endsWith(".") ? reversed : `${reversed}.`;
+}
+
+/**
+ * Reads visited history entries for the given origin from profile's places.sqlite.
+ * Returns null if places.sqlite does not exist.
+ */
+export async function readProfileHistory(
+  profileDir: string,
+  origin: string,
+): Promise<StoredHistoryEntry[] | null> {
+  const dbPath = join(profileDir, "places.sqlite");
+  let targetOriginUrl: URL;
+  try {
+    targetOriginUrl = new URL(origin);
+  } catch {
+    return [];
+  }
+
+  const targetOrigin = targetOriginUrl.origin;
+  const revHost = reverseHost(targetOriginUrl.hostname);
+
+  return withProfileDb(dbPath, (db) => {
+    const rows = db.all(
+      "SELECT url, title, visit_count, last_visit_date FROM moz_places WHERE rev_host = ? AND hidden = 0 AND visit_count > 0",
+      revHost,
+    );
+
+    const results: StoredHistoryEntry[] = [];
+    for (const row of rows) {
+      const urlStr = String(row["url"] ?? "");
+      try {
+        const parsed = new URL(urlStr);
+        if (parsed.origin === targetOrigin) {
+          results.push({
+            url: urlStr,
+            title: row["title"] != null ? String(row["title"]) : null,
+            visitCount: Number(row["visit_count"] ?? 0),
+            lastVisitDate: Number(row["last_visit_date"] ?? 0),
+          });
+        }
+      } catch {
+        // Skip malformed URLs
+      }
+    }
+    return results;
+  });
+}

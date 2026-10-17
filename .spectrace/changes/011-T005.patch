@@ -1,0 +1,206 @@
+diff --git a/src/browser/test/history-reader.test.ts b/src/browser/test/history-reader.test.ts
+index 16e4cb5..3ff1348 100644
+--- a/src/browser/test/history-reader.test.ts
++++ b/src/browser/test/history-reader.test.ts
+@@ -1,5 +1,5 @@
+ import assert from "node:assert/strict";
+-import { mkdir, mkdtemp, rm } from "node:fs/promises";
++import { mkdtemp, rm } from "node:fs/promises";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { DatabaseSync } from "node:sqlite";
+@@ -65,9 +65,10 @@ test("readProfileHistory reads visited entries matching origin and excludes hidd
+       ["https://example.com/feed", "https://example.com/profile/123"],
+     );
+     const feed = results.find((r) => r.url === "https://example.com/feed");
+-    assert.equal(feed?.title, "Feed Title");
+-    assert.equal(feed?.visitCount, 5);
+-    assert.equal(feed?.lastVisitDate, 1700000000000);
++    assert.ok(feed !== undefined);
++    assert.equal(feed.title, "Feed Title");
++    assert.equal(feed.visitCount, 5);
++    assert.equal(feed.lastVisitDate, 1700000000000);
+   } finally {
+     await rm(dir, { recursive: true, force: true });
+   }
+diff --git a/src/cli.ts b/src/cli.ts
+index 8f93350..9445df9 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -974,6 +974,9 @@ async function cmdProfile(rest: string[]): Promise<void> {
+     return;
+   }
+ 
++  throw invalid(`unknown profile subcommand: ${subcommand}`);
++}
++
+ async function cmdScreens(rest: string[]): Promise<void> {
+   const [subcommand, ...subRest] = rest;
+   if (subcommand === undefined || subcommand === "-h" || subcommand === "--help") {
+diff --git a/src/mcp/test/mcp.bidi.stdio.test.ts b/src/mcp/test/mcp.bidi.stdio.test.ts
+index 842c9c9..d9f381d 100644
+--- a/src/mcp/test/mcp.bidi.stdio.test.ts
++++ b/src/mcp/test/mcp.bidi.stdio.test.ts
+@@ -195,6 +195,7 @@ test("stdio+bidi: tools/resources, open blocked then allowed, snapshot, dry-run
+         "pwa_act",
+         "pwa_auth",
+         "pwa_click",
++        "pwa_discover",
+         "pwa_extract",
+         "pwa_fill",
+         "pwa_find",
+@@ -330,7 +331,7 @@ test("stdio+bidi: ambiguous screens dir logs one stderr line and starts without
+     try {
+       await client.connect(transport);
+       const { tools } = await client.listTools();
+-      assert.equal(tools.length, 13);
++      assert.equal(tools.length, 14);
+       assert.deepEqual((await client.listResources()).resources.map((r) => r.uri), ["pwa-nav://snapshot/latest"]);
+       assert.match(stderr, /2 screen maps/);
+     } finally {
+diff --git a/src/mcp/test/mcp.stdio.test.ts b/src/mcp/test/mcp.stdio.test.ts
+index 12c23ce..30bd724 100644
+--- a/src/mcp/test/mcp.stdio.test.ts
++++ b/src/mcp/test/mcp.stdio.test.ts
+@@ -29,7 +29,7 @@ test("stdio: lists tools, calls an offline tool, exits cleanly on close", async
+   try {
+     await client.connect(transport);
+     const { tools } = await client.listTools();
+-    assert.equal(tools.length, 13);
++    assert.equal(tools.length, 14);
+     const opened = (await client.callTool({
+       name: "pwa_open",
+       arguments: { url: "http://localhost:8080/login" },
+diff --git a/src/screens/screen-discover.ts b/src/screens/screen-discover.ts
+index 0594154..bdb9627 100644
+--- a/src/screens/screen-discover.ts
++++ b/src/screens/screen-discover.ts
+@@ -59,7 +59,7 @@ export function generalisePathname(pathname: string): string {
+ 
+     const count = (usedParamCounts[type] ?? 0) + 1;
+     usedParamCounts[type] = count;
+-    const paramName = count === 1 ? `:${type}` : `:${type}${count}`;
++    const paramName = count === 1 ? `:${type}` : `:${type}${String(count)}`;
+     return paramName;
+   });
+ 
+@@ -197,7 +197,7 @@ export function applyDiscovery(
+       existingUnmapped.push({
+         route: c.route,
+         reason: "history",
+-        note: `${c.visitCount} visits, last ${dateStr}${titleSnippet}`,
++        note: `${String(c.visitCount)} visits, last ${dateStr}${titleSnippet}`,
+       });
+       existingRoutes.add(c.route);
+     }
+diff --git a/src/screens/test/screen-discover.test.ts b/src/screens/test/screen-discover.test.ts
+index 719fcf5..07af2d9 100644
+--- a/src/screens/test/screen-discover.test.ts
++++ b/src/screens/test/screen-discover.test.ts
+@@ -91,14 +91,16 @@ test("discoverRoutes groups visits, filters covered routes and unmapped routes,
+ 
+   // /products/:id should have 10 visits, latest date 500, title "Product 101"
+   const productCandidate = candidates[0];
+-  assert.equal(productCandidate?.route, "/products/:id");
+-  assert.equal(productCandidate?.visitCount, 10);
+-  assert.equal(productCandidate?.lastVisitDate, 500);
+-  assert.equal(productCandidate?.lastTitle, "Product 101");
++  assert.ok(productCandidate !== undefined);
++  assert.equal(productCandidate.route, "/products/:id");
++  assert.equal(productCandidate.visitCount, 10);
++  assert.equal(productCandidate.lastVisitDate, 500);
++  assert.equal(productCandidate.lastTitle, "Product 101");
+ 
+   const aboutCandidate = candidates[1];
+-  assert.equal(aboutCandidate?.route, "/about");
+-  assert.equal(aboutCandidate?.visitCount, 3);
++  assert.ok(aboutCandidate !== undefined);
++  assert.equal(aboutCandidate.route, "/about");
++  assert.equal(aboutCandidate.visitCount, 3);
+ });
+ 
+ test("applyDiscovery creates a new ScreenMap with enriched unmapped[] without mutating original", () => {
+@@ -113,12 +115,14 @@ test("applyDiscovery creates a new ScreenMap with enriched unmapped[] without mu
+ 
+   const updated = applyDiscovery(BASE_MAP, candidates);
+   assert.notEqual(updated, BASE_MAP);
+-  assert.equal(BASE_MAP.unmapped?.length, 1);
+-  assert.equal(updated.unmapped?.length, 2);
++  assert.ok(BASE_MAP.unmapped !== undefined);
++  assert.equal(BASE_MAP.unmapped.length, 1);
++  assert.ok(updated.unmapped !== undefined);
++  assert.equal(updated.unmapped.length, 2);
+ 
+-  const added = updated.unmapped?.find((u) => u.route === "/new-route/:id");
+-  assert.ok(added);
+-  assert.equal(added?.reason, "history");
+-  assert.match(added?.note ?? "", /12 visits/);
+-  assert.match(added?.note ?? "", /Item Detail/);
++  const added = updated.unmapped.find((u) => u.route === "/new-route/:id");
++  assert.ok(added !== undefined);
++  assert.equal(added.reason, "history");
++  assert.match(added.note ?? "", /12 visits/);
++  assert.match(added.note ?? "", /Item Detail/);
+ });
+diff --git a/src/tools/discover.ts b/src/tools/discover.ts
+index a9d6e57..8815aee 100644
+--- a/src/tools/discover.ts
++++ b/src/tools/discover.ts
+@@ -127,12 +127,12 @@ export async function discoverTool(
+         ? new Date(Math.floor(c.lastVisitDate / 1000)).toISOString().replace("T", " ").replace(/\..+/, "")
+         : "unknown";
+     const titleSnippet = c.lastTitle ? ` "${c.lastTitle}"` : "";
+-    return `  ${c.route} (${c.visitCount} visits, last ${dateStr}${titleSnippet})`;
++    return `  ${c.route} (${String(c.visitCount)} visits, last ${dateStr}${titleSnippet})`;
+   });
+ 
+   const header = written
+-    ? `discover: wrote ${candidates.length} candidate route(s) into unmapped[] in ${mapPath}:\n`
+-    : `discover: found ${candidates.length} candidate route(s) (dry-run, pass --write to persist to unmapped[]):\n`;
++    ? `discover: wrote ${String(candidates.length)} candidate route(s) into unmapped[] in ${mapPath ?? ""}:\n`
++    : `discover: found ${String(candidates.length)} candidate route(s) (dry-run, pass --write to persist to unmapped[]):\n`;
+ 
+   return {
+     text: `${header}${lines.join("\n")}`,
+diff --git a/src/tools/test/discover.test.ts b/src/tools/test/discover.test.ts
+index a96f469..d1f87bd 100644
+--- a/src/tools/test/discover.test.ts
++++ b/src/tools/test/discover.test.ts
+@@ -1,5 +1,5 @@
+ import assert from "node:assert/strict";
+-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
++import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { DatabaseSync } from "node:sqlite";
+@@ -7,6 +7,7 @@ import { test } from "node:test";
+ import { resolveAppTarget } from "../../backend/backend.js";
+ import { resolveStandaloneProfileDir } from "../../browser/standalone-profile.js";
+ import { reverseHost } from "../../browser/history-reader.js";
++import type { ScreenMap } from "../../screens/screen-map.js";
+ import { discoverTool } from "../discover.js";
+ 
+ const DEMO_MAP = {
+@@ -90,7 +91,7 @@ test("discoverTool performs dry-run by default and persists to unmapped[] when w
+     assert.equal(dryRunStructured.candidates.length, 2);
+ 
+     // Verify map on disk unchanged
+-    const mapContentBefore = JSON.parse(await import("node:fs/promises").then((f) => f.readFile(mapPath, "utf8")));
++    const mapContentBefore = JSON.parse(await readFile(mapPath, "utf8")) as ScreenMap;
+     assert.equal(mapContentBefore.unmapped, undefined);
+ 
+     // 2. Write mode
+@@ -100,9 +101,10 @@ test("discoverTool performs dry-run by default and persists to unmapped[] when w
+     assert.equal(writeStructured.written, true);
+ 
+     // Verify map on disk updated with history entries
+-    const mapContentAfter = JSON.parse(await import("node:fs/promises").then((f) => f.readFile(mapPath, "utf8")));
+-    assert.equal(mapContentAfter.unmapped?.length, 2);
+-    assert.equal(mapContentAfter.unmapped[0].reason, "history");
++    const mapContentAfter = JSON.parse(await readFile(mapPath, "utf8")) as ScreenMap;
++    assert.ok(mapContentAfter.unmapped !== undefined);
++    assert.equal(mapContentAfter.unmapped.length, 2);
++    assert.equal(mapContentAfter.unmapped[0]?.reason, "history");
+ 
+     // 3. Second run reports all covered
+     const reRunResult = await discoverTool({ app: "testapp.com" }, { cacheDir });

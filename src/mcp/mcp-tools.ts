@@ -10,6 +10,7 @@ import {
   authTool as runAuthTool,
   statusTool,
   clickTool,
+  discoverTool,
   extractTool,
   findTool as runFindTool,
   invalid,
@@ -527,7 +528,49 @@ const authToolDef: ToolDef = {
   },
 };
 
-
+const discoverToolDef: ToolDef = {
+  name: "pwa_discover",
+  description:
+    "Zero-token history discovery tool: queries the app profile's places.sqlite to discover candidate routes " +
+    "and enrich the screen map's unmapped[] list without launching the browser or BiDi.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      app: {
+        type: "string",
+        description: "App name, slug, or URL (e.g. 'mercadona'). Defaults to current app.",
+      },
+      write: {
+        type: "boolean",
+        description: "Persist discovered candidate routes into the screen map's unmapped[] array (default: false / dry-run).",
+      },
+      limit: {
+        type: "integer",
+        minimum: 1,
+        maximum: 200,
+        description: "Maximum number of candidate routes to return (default: 50).",
+      },
+    },
+    required: ["app"],
+    additionalProperties: false,
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  async handler(args, ctx) {
+    const app = str(args, "app");
+    const write = flag(args, "write");
+    const limit = typeof args["limit"] === "number" ? args["limit"] : undefined;
+    return discoverTool(
+      {
+        app,
+        write,
+        limit,
+        screenMap: ctx.screens.screenMap,
+        screensDir: ctx.screens.screensDir,
+      },
+      ctx.screens.cacheDir === undefined ? {} : { cacheDir: ctx.screens.cacheDir },
+    );
+  },
+};
 
 export const TOOLS: readonly ToolDef[] = [
   open,
@@ -543,4 +586,5 @@ export const TOOLS: readonly ToolDef[] = [
   act,
   learnToolDef,
   waitToolDef,
+  discoverToolDef,
 ];

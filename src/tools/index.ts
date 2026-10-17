@@ -19,3 +19,4 @@ export * from "./semantic-exec.js";
 export * from "./runtime.js";
 export * from "./status.js";
 export * from "./profile.js";
+export * from "./discover.js";

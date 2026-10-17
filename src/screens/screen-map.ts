@@ -180,7 +180,7 @@ export interface ScreenMap {
   journeys?: Journey[];
   unmapped?: {
     route?: string;
-    reason: "link-only" | "requires-login" | "not-visited";
+    reason: "link-only" | "requires-login" | "not-visited" | "history";
     discoveredFrom?: string;
     note?: string;
   }[];

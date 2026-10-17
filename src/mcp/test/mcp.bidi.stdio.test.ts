@@ -195,6 +195,7 @@ test("stdio+bidi: tools/resources, open blocked then allowed, snapshot, dry-run 
         "pwa_act",
         "pwa_auth",
         "pwa_click",
+        "pwa_discover",
         "pwa_extract",
         "pwa_fill",
         "pwa_find",
@@ -330,7 +331,7 @@ test("stdio+bidi: ambiguous screens dir logs one stderr line and starts without 
     try {
       await client.connect(transport);
       const { tools } = await client.listTools();
-      assert.equal(tools.length, 13);
+      assert.equal(tools.length, 14);
       assert.deepEqual((await client.listResources()).resources.map((r) => r.uri), ["pwa-nav://snapshot/latest"]);
       assert.match(stderr, /2 screen maps/);
     } finally {

@@ -18,6 +18,7 @@ import { exitCodeOf, PwaNavError } from "./core/errors.js";
 import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
 import { statusTool } from "./tools/status.js";
 import { profileBackupTool, profileRestoreTool } from "./tools/profile.js";
+import { discoverTool } from "./tools/discover.js";
 import { resolveAgentDir, resolveScreensDir } from "./core/storage.js";
 import {
 
@@ -77,6 +78,7 @@ function usage(): string {
     "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
     "  pwa-nav profile backup <app> [--out <file>]",
     "  pwa-nav profile restore <app> <file> [--force]",
+    "  pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]",
     "  pwa-nav qa run <check-file>",
     "",
     "Global options (open, snapshot, click, fill, upload, screenshot, act, journey, wait):",
@@ -975,6 +977,48 @@ async function cmdProfile(rest: string[]): Promise<void> {
   throw invalid(`unknown profile subcommand: ${subcommand}`);
 }
 
+async function cmdScreens(rest: string[]): Promise<void> {
+  const [subcommand, ...subRest] = rest;
+  if (subcommand === undefined || subcommand === "-h" || subcommand === "--help") {
+    throw invalid("usage: pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]");
+  }
+
+  if (subcommand === "discover") {
+    const { values, positionals } = strictParse("screens discover", subRest, {
+      write: { type: "boolean" },
+      limit: { type: "string" },
+      "screen-map": { type: "string" },
+      "screens-dir": { type: "string" },
+      "cache-dir": { type: "string" },
+      help: { type: "boolean", short: "h" },
+    });
+    printHelpAndExit(values.help);
+    const [app, extra] = positionals;
+    if (app === undefined || extra !== undefined) {
+      throw invalid("usage: pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]");
+    }
+    const limit = values.limit !== undefined ? Number(values.limit) : undefined;
+    const cacheDir = requireNonEmpty("--cache-dir", values["cache-dir"]);
+    const screenMap = requireNonEmpty("--screen-map", values["screen-map"]);
+    const screensDir = requireNonEmpty("--screens-dir", values["screens-dir"]);
+
+    const result = await discoverTool(
+      {
+        app,
+        write: values.write === true,
+        limit,
+        screenMap,
+        screensDir,
+      },
+      cacheDir === undefined ? {} : { cacheDir },
+    );
+    console.log(result.text ?? "");
+    return;
+  }
+
+  throw invalid(`unknown screens subcommand: ${subcommand}`);
+}
+
 async function main(): Promise<void> {
   const [, , command, ...rest] = process.argv;
   if (command === undefined || command === "-h" || command === "--help") {
@@ -992,6 +1036,8 @@ async function main(): Promise<void> {
       return cmdStatus(rest);
     case "profile":
       return cmdProfile(rest);
+    case "screens":
+      return cmdScreens(rest);
     case "snapshot":
       return cmdSnapshot(rest);
     case "click":

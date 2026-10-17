@@ -234,7 +234,7 @@
       "required": ["reason"],
       "properties": {
         "route": { "type": "string", "pattern": "^/" },
-        "reason": { "enum": ["link-only", "requires-login", "not-visited"] },
+        "reason": { "enum": ["link-only", "requires-login", "not-visited", "history"] },
         "discoveredFrom": { "$ref": "#/$defs/slug" },
         "note": { "type": "string" }
       }

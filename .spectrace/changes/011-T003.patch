@@ -1,0 +1,347 @@
+diff --git a/src/cli.ts b/src/cli.ts
+index c2ad3f7..8f93350 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -18,6 +18,7 @@ import { exitCodeOf, PwaNavError } from "./core/errors.js";
+ import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
+ import { statusTool } from "./tools/status.js";
+ import { profileBackupTool, profileRestoreTool } from "./tools/profile.js";
++import { discoverTool } from "./tools/discover.js";
+ import { resolveAgentDir, resolveScreensDir } from "./core/storage.js";
+ import {
+ 
+@@ -77,6 +78,7 @@ function usage(): string {
+     "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
+     "  pwa-nav profile backup <app> [--out <file>]",
+     "  pwa-nav profile restore <app> <file> [--force]",
++    "  pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]",
+     "  pwa-nav qa run <check-file>",
+     "",
+     "Global options (open, snapshot, click, fill, upload, screenshot, act, journey, wait):",
+@@ -972,7 +974,46 @@ async function cmdProfile(rest: string[]): Promise<void> {
+     return;
+   }
+ 
+-  throw invalid(`unknown profile subcommand: ${subcommand}`);
++async function cmdScreens(rest: string[]): Promise<void> {
++  const [subcommand, ...subRest] = rest;
++  if (subcommand === undefined || subcommand === "-h" || subcommand === "--help") {
++    throw invalid("usage: pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]");
++  }
++
++  if (subcommand === "discover") {
++    const { values, positionals } = strictParse("screens discover", subRest, {
++      write: { type: "boolean" },
++      limit: { type: "string" },
++      "screen-map": { type: "string" },
++      "screens-dir": { type: "string" },
++      "cache-dir": { type: "string" },
++      help: { type: "boolean", short: "h" },
++    });
++    printHelpAndExit(values.help);
++    const [app, extra] = positionals;
++    if (app === undefined || extra !== undefined) {
++      throw invalid("usage: pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]");
++    }
++    const limit = values.limit !== undefined ? Number(values.limit) : undefined;
++    const cacheDir = requireNonEmpty("--cache-dir", values["cache-dir"]);
++    const screenMap = requireNonEmpty("--screen-map", values["screen-map"]);
++    const screensDir = requireNonEmpty("--screens-dir", values["screens-dir"]);
++
++    const result = await discoverTool(
++      {
++        app,
++        write: values.write === true,
++        limit,
++        screenMap,
++        screensDir,
++      },
++      cacheDir === undefined ? {} : { cacheDir },
++    );
++    console.log(result.text ?? "");
++    return;
++  }
++
++  throw invalid(`unknown screens subcommand: ${subcommand}`);
+ }
+ 
+ async function main(): Promise<void> {
+@@ -992,6 +1033,8 @@ async function main(): Promise<void> {
+       return cmdStatus(rest);
+     case "profile":
+       return cmdProfile(rest);
++    case "screens":
++      return cmdScreens(rest);
+     case "snapshot":
+       return cmdSnapshot(rest);
+     case "click":
+diff --git a/src/mcp/mcp-tools.ts b/src/mcp/mcp-tools.ts
+index 2b807b0..55e3fef 100644
+--- a/src/mcp/mcp-tools.ts
++++ b/src/mcp/mcp-tools.ts
+@@ -10,6 +10,7 @@ import {
+   authTool as runAuthTool,
+   statusTool,
+   clickTool,
++  discoverTool,
+   extractTool,
+   findTool as runFindTool,
+   invalid,
+@@ -527,7 +528,49 @@ const authToolDef: ToolDef = {
+   },
+ };
+ 
+-
++const discoverToolDef: ToolDef = {
++  name: "pwa_discover",
++  description:
++    "Zero-token history discovery tool: queries the app profile's places.sqlite to discover candidate routes " +
++    "and enrich the screen map's unmapped[] list without launching the browser or BiDi.",
++  inputSchema: {
++    type: "object",
++    properties: {
++      app: {
++        type: "string",
++        description: "App name, slug, or URL (e.g. 'mercadona'). Defaults to current app.",
++      },
++      write: {
++        type: "boolean",
++        description: "Persist discovered candidate routes into the screen map's unmapped[] array (default: false / dry-run).",
++      },
++      limit: {
++        type: "integer",
++        minimum: 1,
++        maximum: 200,
++        description: "Maximum number of candidate routes to return (default: 50).",
++      },
++    },
++    required: ["app"],
++    additionalProperties: false,
++  },
++  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
++  async handler(args, ctx) {
++    const app = str(args, "app");
++    const write = flag(args, "write");
++    const limit = typeof args["limit"] === "number" ? args["limit"] : undefined;
++    return discoverTool(
++      {
++        app,
++        write,
++        limit,
++        screenMap: ctx.screens.screenMap,
++        screensDir: ctx.screens.screensDir,
++      },
++      ctx.screens.cacheDir === undefined ? {} : { cacheDir: ctx.screens.cacheDir },
++    );
++  },
++};
+ 
+ export const TOOLS: readonly ToolDef[] = [
+   open,
+@@ -543,4 +586,5 @@ export const TOOLS: readonly ToolDef[] = [
+   act,
+   learnToolDef,
+   waitToolDef,
++  discoverToolDef,
+ ];
+diff --git a/src/mcp/test/mcp-server.test.ts b/src/mcp/test/mcp-server.test.ts
+index 6509b30..a9fca20 100644
+--- a/src/mcp/test/mcp-server.test.ts
++++ b/src/mcp/test/mcp-server.test.ts
+@@ -175,6 +175,7 @@ test("tools/list: names, schemas compile under Ajv 2020, annotations, no armed f
+       "pwa_act",
+       "pwa_auth",
+       "pwa_click",
++      "pwa_discover",
+       "pwa_extract",
+       "pwa_fill",
+       "pwa_find",
+@@ -500,7 +501,7 @@ test("flow tools: listed with the flow's own inputSchema; humanOnly flows are no
+     assert.match(flow.description ?? "", /^Run flow "search" on screen "search" of app "synthetic"/);
+     assert.match(flow.description ?? "", /Search for a term\./);
+     assert.ok(!(flow.description ?? "").includes("Query"), "element names never reach descriptions");
+-    assert.equal(tools.length, 14);
++    assert.equal(tools.length, 15);
+     const ajv = new Ajv2020({ allErrors: true, strict: true });
+     for (const tool of tools) assert.doesNotThrow(() => ajv.compile(tool.inputSchema), tool.name);
+     assert.match(client.getInstructions() ?? "", /dry-run/i);
+@@ -509,7 +510,7 @@ test("flow tools: listed with the flow's own inputSchema; humanOnly flows are no
+   // The demo map only has a humanOnly flow: no flow tool, but instructions + resource mention it.
+   await withMcp({}, async ({ client }) => {
+     const { tools } = await client.listTools();
+-    assert.equal(tools.length, 13);
++    assert.equal(tools.length, 14);
+     assert.ok(!tools.some((t) => t.name.startsWith("flow_")));
+     assert.match(client.getInstructions() ?? "", /Human-only flows exist.*login \(screen login\)/);
+     const { resources } = await client.listResources();
+@@ -632,7 +633,7 @@ test("startup tolerates missing, invalid, ambiguous and Ajv-invalid maps (no flo
+   for (const [label, maps, expected] of cases) {
+     await withMcp({ maps }, async ({ client, logs }) => {
+       const { tools } = await client.listTools();
+-      assert.equal(tools.length, 13, label);
++      assert.equal(tools.length, 14, label);
+       assert.ok(logs.some((l) => expected.test(l)), `${label}: ${logs.join(" | ")}`);
+       const { resources } = await client.listResources();
+       assert.deepEqual(resources.map((r) => r.uri), ["pwa-nav://snapshot/latest"], label);
+diff --git a/src/tools/discover.ts b/src/tools/discover.ts
+new file mode 100644
+index 0000000..a9d6e57
+--- /dev/null
++++ b/src/tools/discover.ts
+@@ -0,0 +1,147 @@
++// Discover tool (spec 011 D4): history-assisted route discovery engine.
++// Discovers unmapped routes from Places history (places.sqlite) without launching the browser or BiDi.
++import { existsSync } from "node:fs";
++import { join } from "node:path";
++import { resolveAppTarget } from "../backend/backend.js";
++import { readProfileHistory } from "../browser/history-reader.js";
++import { resolveStandaloneProfileDir } from "../browser/standalone-profile.js";
++import { PwaNavError } from "../core/errors.js";
++import { resolveAgentDir, resolveScreensDir } from "../core/storage.js";
++import { applyDiscovery, discoverRoutes, type DiscoveredRouteCandidate } from "../screens/screen-discover.js";
++import { loadExplicitMap, loadScreenMapsFromDir, selectMap } from "../screens/screen-match.js";
++import { writeScreenMap } from "../screens/screen-store.js";
++import type { ScreenMap } from "../screens/screen-map.js";
++import type { ToolOutcome } from "./types.js";
++
++export interface DiscoverArgs {
++  app?: string;
++  write?: boolean;
++  limit?: number;
++  screensDir?: string;
++  screenMap?: string;
++}
++
++export interface DiscoverOptions {
++  cacheDir?: string;
++}
++
++export interface DiscoverResult {
++  app: string;
++  origin: string;
++  candidates: DiscoveredRouteCandidate[];
++  written: boolean;
++  mapPath?: string;
++}
++
++export async function discoverTool(
++  args: DiscoverArgs,
++  options: DiscoverOptions = {},
++): Promise<ToolOutcome> {
++  if (args.app === undefined || args.app === "") {
++    throw new PwaNavError("invalid_args", "discover needs an app name or URL", {
++      hint: "pwa-nav screens discover <app> (or MCP: pwa_discover({ app: \"<app>\" }))",
++    });
++  }
++
++  const target = resolveAppTarget(args.app);
++  const cacheDir = options.cacheDir ?? resolveAgentDir();
++  const profileDir = resolveStandaloneProfileDir(target.slug, cacheDir);
++
++  // 1. Locate the screen map for this app
++  let mapPath: string | undefined;
++  let map: ScreenMap;
++
++  if (args.screenMap) {
++    mapPath = args.screenMap;
++    map = await loadExplicitMap(mapPath);
++  } else {
++    // Check canonical app screens path first: <agentDir>/apps/<slug>/screens.json
++    const appScreensJson = join(cacheDir, "apps", target.slug, "screens.json");
++    if (existsSync(appScreensJson)) {
++      mapPath = appScreensJson;
++      map = await loadExplicitMap(mapPath);
++    } else {
++      const screensDir = args.screensDir ?? resolveScreensDir({ cacheDir });
++      const loadedMaps = await loadScreenMapsFromDir(screensDir, { agentDir: cacheDir });
++      try {
++        const selected = selectMap(loadedMaps, `https://${target.host}`);
++        map = selected;
++        const found = loadedMaps.find((l) => l.map === selected);
++        mapPath = found?.path;
++      } catch (err) {
++        if (err instanceof PwaNavError && err.code === "unmapped_screen") {
++          throw new PwaNavError(
++            "unmapped_screen",
++            `no screen map found for ${target.slug} (${target.host})`,
++            {
++              hint: `learn the first screen first with 'pwa-nav snapshot --learn' or place screens.json in ${appScreensJson}`,
++            },
++          );
++        }
++        throw err;
++      }
++    }
++  }
++
++  // 2. Read history from places.sqlite
++  const entries = await readProfileHistory(profileDir, `https://${target.host}`);
++  if (!entries || entries.length === 0) {
++    return {
++      text: `discover: no history found for ${target.slug} (0 visited URLs). Browse the app first or use snapshot --learn.`,
++      structured: {
++        app: target.slug,
++        origin: `https://${target.host}`,
++        candidates: [],
++        written: false,
++        mapPath,
++      },
++    };
++  }
++
++  // 3. Discover candidates
++  const candidates = discoverRoutes(entries, map, { limit: args.limit });
++  if (candidates.length === 0) {
++    return {
++      text: `discover: all visited history routes are already mapped or in unmapped[] for ${target.slug}.`,
++      structured: {
++        app: target.slug,
++        origin: `https://${target.host}`,
++        candidates: [],
++        written: false,
++        mapPath,
++      },
++    };
++  }
++
++  // 4. Apply discovery if write is enabled
++  let written = false;
++  if (args.write === true && mapPath) {
++    const updatedMap = applyDiscovery(map, candidates);
++    await writeScreenMap(mapPath, updatedMap);
++    written = true;
++  }
++
++  const lines = candidates.map((c) => {
++    const dateStr =
++      c.lastVisitDate > 0
++        ? new Date(Math.floor(c.lastVisitDate / 1000)).toISOString().replace("T", " ").replace(/\..+/, "")
++        : "unknown";
++    const titleSnippet = c.lastTitle ? ` "${c.lastTitle}"` : "";
++    return `  ${c.route} (${c.visitCount} visits, last ${dateStr}${titleSnippet})`;
++  });
++
++  const header = written
++    ? `discover: wrote ${candidates.length} candidate route(s) into unmapped[] in ${mapPath}:\n`
++    : `discover: found ${candidates.length} candidate route(s) (dry-run, pass --write to persist to unmapped[]):\n`;
++
++  return {
++    text: `${header}${lines.join("\n")}`,
++    structured: {
++      app: target.slug,
++      origin: `https://${target.host}`,
++      candidates,
++      written,
++      mapPath,
++    },
++  };
++}
+diff --git a/src/tools/index.ts b/src/tools/index.ts
+index 325f04e..c6e89b0 100644
+--- a/src/tools/index.ts
++++ b/src/tools/index.ts
+@@ -19,3 +19,4 @@ export * from "./semantic-exec.js";
+ export * from "./runtime.js";
+ export * from "./status.js";
+ export * from "./profile.js";
++export * from "./discover.js";
