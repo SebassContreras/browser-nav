@@ -124,7 +124,7 @@ async function withMcp(opts: McpOpts, fn: (env: Env) => Promise<void>): Promise<
   const log = (line: string): void => {
     logs.push(line);
   };
-  const flowSource = await loadFlowSource({ screensDir: join(dir, "screens") }, log);
+  const flowSource = await loadFlowSource({ screensDir: join(dir, "screens"), cacheDir: agentDir }, log);
   const env = {
     ...process.env,
     PWA_NAV_KILL_SWITCH: join(dir, "kill-file"),
@@ -134,6 +134,7 @@ async function withMcp(opts: McpOpts, fn: (env: Env) => Promise<void>): Promise<
     mode: "bidi",
     ...(opts.armed === undefined ? {} : { armed: opts.armed }),
     screensDir: join(dir, "screens"),
+    cacheDir: agentDir,
     ...(flowSource === undefined ? {} : { flowSource }),
     log,
     backendFactory: ({ armed, launch }) =>

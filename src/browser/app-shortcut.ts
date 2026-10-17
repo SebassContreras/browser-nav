@@ -90,7 +90,8 @@ export class WindowsShortcutService implements AppShortcutService {
  * Non-operating system or mock implementation of AppShortcutService.
  */
 export class NoopShortcutService implements AppShortcutService {
-  async createShortcut(_options: ShortcutOptions): Promise<string | null> {
+  async createShortcut(): Promise<string | null> {
+    await Promise.resolve();
     return null;
   }
 }

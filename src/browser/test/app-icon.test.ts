@@ -68,8 +68,10 @@ test("DefaultAppIconService saves ICO buffer when fetch succeeds", async () => {
 
   try {
     const validIco = Buffer.from([0x00, 0x00, 0x01, 0x00, 0x00, 0x00]);
-    const mockFetch: typeof fetch = async () =>
-      new Response(validIco, { status: 200, headers: { "content-type": "image/x-icon" } });
+    const mockFetch: typeof fetch = async () => {
+      await Promise.resolve();
+      return new Response(validIco, { status: 200, headers: { "content-type": "image/x-icon" } });
+    };
 
     const service = new DefaultAppIconService({ fetchFn: mockFetch });
     const result = await service.resolveIcon("https://example.com", targetPath);
@@ -97,8 +99,10 @@ test("DefaultAppIconService converts PNG buffer to ICO container", async () => {
     validPng[6] = 0x1a;
     validPng[7] = 0x0a;
 
-    const mockFetch: typeof fetch = async () =>
-      new Response(validPng, { status: 200, headers: { "content-type": "image/png" } });
+    const mockFetch: typeof fetch = async () => {
+      await Promise.resolve();
+      return new Response(validPng, { status: 200, headers: { "content-type": "image/png" } });
+    };
 
     const service = new DefaultAppIconService({ fetchFn: mockFetch });
     const result = await service.resolveIcon("https://example.com", targetPath);
@@ -117,6 +121,7 @@ test("DefaultAppIconService returns null resiliently on network failure", async 
 
   try {
     const mockFetch: typeof fetch = async () => {
+      await Promise.resolve();
       throw new Error("Network timeout");
     };
 

@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import type { ShortcutOptions } from "../app-shortcut.js";
 import { DefaultPwaProvisioner } from "../provisioner.js";
 import type { StandaloneLaunchOptions, StandaloneLaunchResult } from "../standalone-runner.js";
 
@@ -77,17 +78,19 @@ describe("DefaultPwaProvisioner - profile and slug", () => {
     const dir = await mkdtemp(join(tmpdir(), "pwa-provision-icon-"));
     try {
       let iconTarget: string | null = null;
-      let shortcutOpts: unknown = null;
+      let shortcutOpts: ShortcutOptions | null = null;
 
       const mockIconService = {
         resolveIcon: async (_url: string, targetPath: string) => {
+          await Promise.resolve();
           iconTarget = targetPath;
           return targetPath;
         },
       };
 
       const mockShortcutService = {
-        createShortcut: async (options: any) => {
+        createShortcut: async (options: ShortcutOptions) => {
+          await Promise.resolve();
           shortcutOpts = options;
           return `${options.destinationDir}/${options.name}.lnk`;
         },
@@ -104,6 +107,8 @@ describe("DefaultPwaProvisioner - profile and slug", () => {
       assert.ok(iconTarget);
       assert.match(iconTarget, /icon\.ico$/);
       assert.equal(res.iconPath, iconTarget);
+      assert.ok(shortcutOpts);
+      assert.equal(shortcutOpts.name, "linkedin-com");
       assert.ok(res.shortcutPath);
       assert.match(res.shortcutPath, /linkedin-com\.lnk$/);
     } finally {

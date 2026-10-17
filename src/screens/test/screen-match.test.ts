@@ -209,7 +209,7 @@ describe("screens dir", () => {
 
   it("missing dir is empty", async () => {
     await withTmp(async (dir) => {
-      assert.deepEqual(await loadScreenMapsFromDir(join(dir, "nope")), []);
+      assert.deepEqual(await loadScreenMapsFromDir(join(dir, "nope"), { agentDir: dir }), []);
     });
   });
 
@@ -219,7 +219,7 @@ describe("screens dir", () => {
       await writeFile(join(dir, "demo.screens.json"), JSON.stringify(example));
       await writeFile(join(dir, "notes.json"), "{ not a map");
       await writeFile(join(dir, "readme.md"), "x");
-      const loaded = await loadScreenMapsFromDir(dir);
+      const loaded = await loadScreenMapsFromDir(dir, { agentDir: dir });
       assert.equal(loaded.length, 1);
       assert.equal(loaded[0]?.path, join(dir, "demo.screens.json"));
       const url = "http://localhost:8080/login";
@@ -231,7 +231,7 @@ describe("screens dir", () => {
     await withTmp(async (dir) => {
       const file = join(dir, "bad.screens.json");
       await writeFile(file, JSON.stringify({ schemaVersion: "1.0.0" }));
-      await assert.rejects(loadScreenMapsFromDir(dir), (error: unknown) => {
+      await assert.rejects(loadScreenMapsFromDir(dir, { agentDir: dir }), (error: unknown) => {
         assert.ok(error instanceof ScreenMapError);
         assert.ok(error.message.includes(file));
         return true;

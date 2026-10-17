@@ -1,0 +1,170 @@
+diff --git a/src/browser/process-inspector.ts b/src/browser/process-inspector.ts
+new file mode 100644
+index 0000000..cb5ed94
+--- /dev/null
++++ b/src/browser/process-inspector.ts
+@@ -0,0 +1,164 @@
++import { execFile } from "node:child_process";
++import { promisify } from "node:util";
++
++const execFileAsync = promisify(execFile);
++
++export interface ProcessInfo {
++  pid: number;
++  command: string;
++}
++
++export type CommandRunner = (
++  file: string,
++  args: string[],
++  options?: { timeout?: number },
++) => Promise<{ stdout: string; stderr: string }>;
++
++export const defaultCommandRunner: CommandRunner = async (file, args, options) => {
++  const result = await execFileAsync(file, args, {
++    timeout: options?.timeout ?? 5000,
++    maxBuffer: 10 * 1024 * 1024,
++    windowsHide: true,
++  });
++  return {
++    stdout: String(result.stdout ?? ""),
++    stderr: String(result.stderr ?? ""),
++  };
++};
++
++export interface ProcessInspector {
++  isAlive(pid: number): boolean;
++  findByArg(fragment: string): Promise<ProcessInfo[]>;
++}
++
++export function isPidAlive(pid: number): boolean {
++  if (!Number.isInteger(pid) || pid <= 0) {
++    return false;
++  }
++  try {
++    process.kill(pid, 0);
++    return true;
++  } catch (err: unknown) {
++    if (typeof err === "object" && err !== null && "code" in err) {
++      const code = (err as { code: string }).code;
++      if (code === "EPERM") {
++        // Exists but we lack permissions to signal it
++        return true;
++      }
++    }
++    return false;
++  }
++}
++
++export class WindowsProcessInspector implements ProcessInspector {
++  private readonly runCmd: CommandRunner;
++
++  constructor(runCmd: CommandRunner = defaultCommandRunner) {
++    this.runCmd = runCmd;
++  }
++
++  isAlive(pid: number): boolean {
++    return isPidAlive(pid);
++  }
++
++  async findByArg(fragment: string): Promise<ProcessInfo[]> {
++    if (!fragment) {
++      return [];
++    }
++    const psScript =
++      "Get-CimInstance Win32_Process -Filter \"Name='firefox.exe'\" | Select-Object ProcessId, CommandLine | ConvertTo-Json -Compress";
++
++    let stdout = "";
++    try {
++      const res = await this.runCmd(
++        "powershell.exe",
++        ["-NoProfile", "-NonInteractive", "-Command", psScript],
++        { timeout: 5000 },
++      );
++      stdout = res.stdout.trim();
++    } catch {
++      return [];
++    }
++
++    if (!stdout) {
++      return [];
++    }
++
++    try {
++      const parsed: unknown = JSON.parse(stdout);
++      const items = Array.isArray(parsed) ? parsed : [parsed];
++      const normFragment = fragment.toLowerCase().replace(/\\/g, "/");
++
++      const results: ProcessInfo[] = [];
++      for (const item of items) {
++        if (!item || typeof item !== "object") continue;
++        const pid = Number((item as { ProcessId?: unknown }).ProcessId);
++        const cmd = String((item as { CommandLine?: unknown }).CommandLine ?? "");
++        if (Number.isInteger(pid) && pid > 0) {
++          const normCmd = cmd.toLowerCase().replace(/\\/g, "/");
++          if (normCmd.includes(normFragment)) {
++            results.push({ pid, command: cmd });
++          }
++        }
++      }
++      return results;
++    } catch {
++      return [];
++    }
++  }
++}
++
++export class PosixProcessInspector implements ProcessInspector {
++  private readonly runCmd: CommandRunner;
++
++  constructor(runCmd: CommandRunner = defaultCommandRunner) {
++    this.runCmd = runCmd;
++  }
++
++  isAlive(pid: number): boolean {
++    return isPidAlive(pid);
++  }
++
++  async findByArg(fragment: string): Promise<ProcessInfo[]> {
++    if (!fragment) {
++      return [];
++    }
++    let stdout = "";
++    try {
++      const res = await this.runCmd("ps", ["-ax", "-o", "pid=,args="], { timeout: 5000 });
++      stdout = res.stdout;
++    } catch {
++      return [];
++    }
++
++    const lines = stdout.split("\n");
++    const results: ProcessInfo[] = [];
++
++    for (const line of lines) {
++      const trimmed = line.trim();
++      if (!trimmed) continue;
++      // Format: <pid> <args...>
++      const match = trimmed.match(/^(\d+)\s+(.+)$/);
++      if (!match) continue;
++      const pidStr = match[1];
++      const command = match[2];
++      if (pidStr !== undefined && command !== undefined) {
++        const pid = parseInt(pidStr, 10);
++        if (command.includes(fragment)) {
++          results.push({ pid, command });
++        }
++      }
++    }
++    return results;
++  }
++}
++
++export function createProcessInspector(
++  platform: NodeJS.Platform = process.platform,
++  runCmd: CommandRunner = defaultCommandRunner,
++): ProcessInspector {
++  if (platform === "win32") {
++    return new WindowsProcessInspector(runCmd);
++  }
++  return new PosixProcessInspector(runCmd);
++}

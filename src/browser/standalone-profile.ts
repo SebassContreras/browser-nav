@@ -1,8 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveAgentDir } from "../core/storage.js";
+import { PERFORMANCE_PREFS } from "./performance-prefs.js";
+import { mergeUserJs, type PrefValue } from "./user-js.js";
 
-export const DEFAULT_STANDALONE_USER_PREFS: Readonly<Record<string, boolean | number | string>> = {
+export { serializeUserJs, type PrefValue } from "./user-js.js";
+
+export const DEFAULT_STANDALONE_USER_PREFS: Readonly<Record<string, PrefValue>> = {
   // WebDriver BiDi activation
   "remote.active-protocols": 1,
   "remote.experimental-modules": 1,
@@ -20,6 +24,11 @@ export const DEFAULT_STANDALONE_USER_PREFS: Readonly<Record<string, boolean | nu
   "taskbar.grouping.useprofile": true,
 };
 
+export const BIDI_UNOVERRIDABLE_PREF_KEYS: ReadonlySet<string> = new Set([
+  "remote.active-protocols",
+  "remote.experimental-modules",
+]);
+
 export const STANDALONE_USER_CHROME_CSS = `/* Hide Firefox tabs toolbar and navigation/URL bar for clean standalone app window with native OS titlebar */
 #TabsToolbar {
   visibility: collapse !important;
@@ -28,13 +37,6 @@ export const STANDALONE_USER_CHROME_CSS = `/* Hide Firefox tabs toolbar and navi
   visibility: collapse !important;
 }
 `;
-
-export function serializeUserJs(prefs: Readonly<Record<string, boolean | number | string>>): string {
-  const lines = Object.entries(prefs).map(([key, val]) => {
-    return `user_pref(${JSON.stringify(key)}, ${JSON.stringify(val)});`;
-  });
-  return `${lines.join("\n")}\n`;
-}
 
 export function resolveStandaloneProfileDir(appSlug: string, cacheDir?: string): string {
   const agentDir = resolveAgentDir({ cacheDir });
@@ -45,20 +47,45 @@ export async function ensureStandaloneProfile(
   appSlug: string,
   options: {
     cacheDir?: string;
-    extraPrefs?: Record<string, boolean | number | string>;
+    extraPrefs?: Record<string, PrefValue>;
   } = {},
 ): Promise<string> {
   const profileDir = resolveStandaloneProfileDir(appSlug, options.cacheDir);
   const chromeDir = join(profileDir, "chrome");
   await mkdir(chromeDir, { recursive: true });
 
-  const prefs = {
+  const managedPrefs: Record<string, PrefValue> = {
     ...DEFAULT_STANDALONE_USER_PREFS,
+    ...PERFORMANCE_PREFS,
     ...(options.extraPrefs ?? {}),
   };
-  const userJsContent = serializeUserJs(prefs);
-  await writeFile(join(profileDir, "user.js"), userJsContent, "utf8");
-  await writeFile(join(chromeDir, "userChrome.css"), STANDALONE_USER_CHROME_CSS, "utf8");
+
+  const userJsPath = join(profileDir, "user.js");
+  let existingContent = "";
+  try {
+    existingContent = await readFile(userJsPath, "utf8");
+  } catch {
+    existingContent = "";
+  }
+
+  const updatedUserJs = mergeUserJs(existingContent, managedPrefs, {
+    unoverridableKeys: BIDI_UNOVERRIDABLE_PREF_KEYS,
+  });
+
+  if (updatedUserJs !== existingContent) {
+    await writeFile(userJsPath, updatedUserJs, "utf8");
+  }
+
+  const chromeCssPath = join(chromeDir, "userChrome.css");
+  let existingCss = "";
+  try {
+    existingCss = await readFile(chromeCssPath, "utf8");
+  } catch {
+    existingCss = "";
+  }
+  if (existingCss !== STANDALONE_USER_CHROME_CSS) {
+    await writeFile(chromeCssPath, STANDALONE_USER_CHROME_CSS, "utf8");
+  }
 
   return profileDir;
 }

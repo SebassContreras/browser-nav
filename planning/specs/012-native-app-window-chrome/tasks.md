@@ -8,4 +8,4 @@
       kind: test
       changes: src/browser/test/standalone-profile.test.ts
 - [x] T003 [human] [status:done] Verify dragging, minimizing, and closing window using native OS controls
-      covers: R2@1, R3@1
+      covers: R2@1, R3@1, D3@1
