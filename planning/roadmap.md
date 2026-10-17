@@ -13,7 +13,7 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 007 | session-health-check | done        | 002 | —     | 7 |
 | 008 | profile-lock-diagnostics | done        | 002 | —     | 8 |
 | 009 | user-js-performance-tuning | done        | 004 | —     | 9 |
-| 010 | profile-backup-restore | todo        | 002 | build | 10 |
+| 010 | profile-backup-restore | done        | 002 | —     | 10 |
 | 011 | screen-map-history-discovery | todo        | 001, 002 | build | 11 |
 | 012 | native-app-window-chrome | done        | 004 | —     | 12 |
 | 013 | app-icon-and-desktop-shortcut | done        | 005 | —     | 13 |

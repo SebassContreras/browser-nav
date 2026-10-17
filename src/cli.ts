@@ -17,6 +17,7 @@ import type { Backend } from "./backend/backend.js";
 import { exitCodeOf, PwaNavError } from "./core/errors.js";
 import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
 import { statusTool } from "./tools/status.js";
+import { profileBackupTool, profileRestoreTool } from "./tools/profile.js";
 import { resolveAgentDir, resolveScreensDir } from "./core/storage.js";
 import {
 
@@ -74,6 +75,8 @@ function usage(): string {
     "  pwa-nav journey <name> [key=value...] [--dry-run] [--screen-map <file>] [--screens-dir <dir>]",
     "  pwa-nav auth [<app-or-url>] [--clean] [--debug] [--port <n>]",
     "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
+    "  pwa-nav profile backup <app> [--out <file>]",
+    "  pwa-nav profile restore <app> <file> [--force]",
     "  pwa-nav qa run <check-file>",
     "",
     "Global options (open, snapshot, click, fill, upload, screenshot, act, journey, wait):",
@@ -922,6 +925,56 @@ async function cmdRuntime(rest: string[]): Promise<void> {
   console.log(result.text ?? "");
 }
 
+async function cmdProfile(rest: string[]): Promise<void> {
+  const [subcommand, ...subRest] = rest;
+  if (subcommand === undefined || subcommand === "-h" || subcommand === "--help") {
+    throw invalid("usage: pwa-nav profile backup <app> [--out <file>] | pwa-nav profile restore <app> <file> [--force]");
+  }
+
+  if (subcommand === "backup") {
+    const { values, positionals } = strictParse("profile backup", subRest, {
+      out: { type: "string" },
+      "cache-dir": { type: "string" },
+      help: { type: "boolean", short: "h" },
+    });
+    printHelpAndExit(values.help);
+    const [app, extra] = positionals;
+    if (app === undefined || extra !== undefined) {
+      throw invalid("usage: pwa-nav profile backup <app> [--out <file>]");
+    }
+    const out = requireNonEmpty("--out", values.out);
+    const cacheDir = requireNonEmpty("--cache-dir", values["cache-dir"]);
+    const result = await profileBackupTool(
+      { app, ...(out === undefined ? {} : { out }) },
+      cacheDir === undefined ? {} : { cacheDir },
+    );
+    console.log(result.text ?? "");
+    return;
+  }
+
+  if (subcommand === "restore") {
+    const { values, positionals } = strictParse("profile restore", subRest, {
+      force: { type: "boolean" },
+      "cache-dir": { type: "string" },
+      help: { type: "boolean", short: "h" },
+    });
+    printHelpAndExit(values.help);
+    const [app, file, extra] = positionals;
+    if (app === undefined || file === undefined || extra !== undefined) {
+      throw invalid("usage: pwa-nav profile restore <app> <file> [--force]");
+    }
+    const cacheDir = requireNonEmpty("--cache-dir", values["cache-dir"]);
+    const result = await profileRestoreTool(
+      { app, file, force: values.force === true },
+      cacheDir === undefined ? {} : { cacheDir },
+    );
+    console.log(result.text ?? "");
+    return;
+  }
+
+  throw invalid(`unknown profile subcommand: ${subcommand}`);
+}
+
 async function main(): Promise<void> {
   const [, , command, ...rest] = process.argv;
   if (command === undefined || command === "-h" || command === "--help") {
@@ -937,6 +990,8 @@ async function main(): Promise<void> {
       return cmdRuntime(rest);
     case "status":
       return cmdStatus(rest);
+    case "profile":
+      return cmdProfile(rest);
     case "snapshot":
       return cmdSnapshot(rest);
     case "click":
