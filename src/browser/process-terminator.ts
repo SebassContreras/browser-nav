@@ -104,7 +104,7 @@ export class DefaultProcessTerminator implements ProcessTerminator {
         await this.kill(pid, true);
         if (lock.holders.length > 0) {
           for (const holder of lock.holders) {
-            if (holder.pid !== undefined && holder.pid !== pid) {
+            if (holder.pid !== pid) {
               await this.kill(holder.pid, true);
             }
           }

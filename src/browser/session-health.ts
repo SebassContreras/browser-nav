@@ -29,6 +29,9 @@ export interface SessionHealthOptions {
 
 const AUTH_COOKIE_NAME = /sess|sid|auth|token|login|jwt|_at$|^SAPISID$|^__(Secure|Host)-/i;
 
+// Cookies set by login gateways / preferences prior to credential authentication (e.g. Google pre-login)
+const PRE_AUTH_COOKIE_NAME = /^(__Host-GAPS|__Secure-ENID)$/i;
+
 // Firefox stored `expiry` in seconds and later in milliseconds; anything above 1e11
 // (year 5138 in seconds) can only be milliseconds.
 export function expiryToMs(expiry: number): number {
@@ -51,7 +54,9 @@ export function evaluateSessionHealth(
 
   const explicit = options.authCookieNames;
   const isAuth = (name: string): boolean =>
-    explicit !== undefined && explicit.length > 0 ? explicit.includes(name) : AUTH_COOKIE_NAME.test(name);
+    explicit !== undefined && explicit.length > 0
+      ? explicit.includes(name)
+      : AUTH_COOKIE_NAME.test(name) && !PRE_AUTH_COOKIE_NAME.test(name);
   // Same site (eTLD+1) as the app: a session cookie on `.www.example.com` counts for `example.com`.
   const site = siteOf(options.host);
   const auth = cookies.filter((c) => siteOf(c.host) === site && isAuth(c.name));

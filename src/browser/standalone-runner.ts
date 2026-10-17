@@ -54,6 +54,7 @@ export function buildStandaloneLaunchArgs(options: {
 }): string[] {
   validatePort(options.port);
   const args = [
+    "-no-remote",
     "--profile",
     options.profileDir,
     "--remote-debugging-port",
@@ -72,6 +73,7 @@ export function buildCleanStandaloneLaunchArgs(options: {
   headless?: boolean;
 }): string[] {
   const args = [
+    "-no-remote",
     "--profile",
     options.profileDir,
   ];

@@ -27,6 +27,7 @@ test("buildStandaloneLaunchArgs formats profile, debugging port and target url w
   });
 
   assert.deepEqual(args, [
+    "-no-remote",
     "--profile",
     "C:\\profiles\\linkedin",
     "--remote-debugging-port",
