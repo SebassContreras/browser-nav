@@ -20,7 +20,7 @@ import { OfflineBackend } from "../../backend/backend.js";
 import { performSnapshot } from "../../ops/ops.js";
 
 function makeOfflineContext(armed = false): ToolContext {
-  const backend = new OfflineBackend({ armed });
+  const backend = new OfflineBackend();
   return {
     backendFactory: () => backend,
     backend,
@@ -48,7 +48,7 @@ test("openTool validates url and offline limitations", async () => {
 test("authTool handles relay errors", async () => {
   const ctx = makeOfflineContext();
   await assert.rejects(
-    async () => authTool({ action: "clean", app: "nonexistent-app-xyz" }, ctx),
+    async () => authTool({ app: "nonexistent-app-xyz" }, ctx),
     /requires the live backend/,
   );
 });

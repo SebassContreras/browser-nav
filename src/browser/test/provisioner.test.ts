@@ -78,7 +78,7 @@ describe("DefaultPwaProvisioner - profile and slug", () => {
     const dir = await mkdtemp(join(tmpdir(), "pwa-provision-icon-"));
     try {
       let iconTarget: string | null = null;
-      let shortcutOpts: ShortcutOptions | null = null;
+      let shortcutOpts: ShortcutOptions | undefined;
 
       const mockIconService = {
         resolveIcon: async (_url: string, targetPath: string) => {

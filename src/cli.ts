@@ -39,16 +39,17 @@ import {
 import type { ActOp, ExtractMode } from "./ops/ops.js";
 import { runCheck } from "./ops/qa.js";
 import {
-  runLearn,
-  runScreenView,
-  runSemanticAct,
-  runSemanticClick,
-  runSemanticFill,
-  runSemanticUpload,
+  actTool,
+  clickTool,
+  executeLearn,
+  fillTool,
+  renderScreenViewForBackend,
+  uploadTool,
   validateLearnFlags,
   NO_INPUT_LINE,
   type ScreenSource,
-} from "./cli/cli-screens.js";
+  type SemanticContext,
+} from "./tools/index.js";
 import { isSemanticToken, parseFlowInputs } from "./screens/screen-resolve.js";
 import { performJourney } from "./ops/journey.js";
 
@@ -73,7 +74,7 @@ function usage(): string {
     "  pwa-nav wait --query <str> [--state visible|hidden|enabled] [--timeout <ms|s>] [--interval <ms|s>]",
     "  pwa-nav act --snapshot <id> [--dry-run] <op>...   |   act [--dry-run] <semantic-op>...",
     "  pwa-nav journey <name> [key=value...] [--dry-run] [--screen-map <file>] [--screens-dir <dir>]",
-    "  pwa-nav auth [<app-or-url>] [--clean] [--debug] [--port <n>]",
+    "  pwa-nav auth [<app-or-url>] [--port <n>] [--timeout <s|ms>]",
     "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
     "  pwa-nav profile backup <app> [--out <file>]",
     "  pwa-nav profile restore <app> <file> [--force]",
@@ -415,7 +416,8 @@ async function cmdSnapshot(rest: string[]): Promise<void> {
       throw invalid(`${mode} cannot be combined with --input, --json${values.screen === true ? ", -i" : ""} or --all.`);
     }
     if (values.screen === true) {
-      await runScreenView(makeBackend(live), screenSource);
+      const text = await renderScreenViewForBackend(makeBackend(live), screenSource);
+      console.log(text);
       return;
     }
     if (live.mode === "offline") {
@@ -426,7 +428,7 @@ async function cmdSnapshot(rest: string[]): Promise<void> {
     const appId = requireNonEmpty("--app-id", values["app-id"]);
     const appName = requireNonEmpty("--app-name", values["app-name"]);
     validateLearnFlags({ locale, access, appId });
-    await runLearn(makeBackend(live), {
+    await executeLearn(makeBackend(live), {
       ...screenSource,
       outPath,
       prune: values.prune === true,
@@ -529,7 +531,7 @@ function semanticContext(values: {
   backend?: string;
   port?: string;
   context?: string;
-}): Parameters<typeof runSemanticClick>[0] {
+}): SemanticContext {
   if (values.snapshot !== undefined) {
     throw invalid("--snapshot is not used with @id targets (they resolve on a fresh snapshot).");
   }
@@ -561,7 +563,17 @@ async function cmdClick(rest: string[]): Promise<void> {
   const semanticRef = positionals[0];
   if (semanticRef?.startsWith("@") === true) {
     if (positionals.length !== 1) throw invalid("missing <ref>.");
-    await runSemanticClick(semanticContext(values), semanticRef.slice(1));
+    const ctx = semanticContext(values);
+    await clickTool(
+      { target: semanticRef, dryRun: !ctx.armed },
+      {
+        backendFactory: () => ctx.backend,
+        backend: ctx.backend,
+        armed: ctx.armed,
+        mode: "bidi",
+        screens: ctx,
+      },
+    );
     return;
   }
   const snapshotId = requireSnapshotId(values.snapshot);
@@ -582,7 +594,17 @@ async function cmdFill(rest: string[]): Promise<void> {
   if (semanticRef?.startsWith("@") === true) {
     const semanticText = positionals[1];
     if (semanticText === undefined || positionals.length !== 2) throw invalid("missing <ref> <text>.");
-    await runSemanticFill(semanticContext(values), semanticRef.slice(1), semanticText);
+    const ctx = semanticContext(values);
+    await fillTool(
+      { target: semanticRef, text: semanticText, dryRun: !ctx.armed },
+      {
+        backendFactory: () => ctx.backend,
+        backend: ctx.backend,
+        armed: ctx.armed,
+        mode: "bidi",
+        screens: ctx,
+      },
+    );
     return;
   }
   const snapshotId = requireSnapshotId(values.snapshot);
@@ -604,7 +626,17 @@ async function cmdUpload(rest: string[]): Promise<void> {
   if (semanticRef?.startsWith("@") === true) {
     const files = positionals.slice(1);
     if (files.length === 0) throw invalid("missing <ref> <path>.");
-    await runSemanticUpload(semanticContext(values), semanticRef.slice(1), files);
+    const ctx = semanticContext(values);
+    await uploadTool(
+      { target: semanticRef, files, dryRun: !ctx.armed },
+      {
+        backendFactory: () => ctx.backend,
+        backend: ctx.backend,
+        armed: ctx.armed,
+        mode: "bidi",
+        screens: ctx,
+      },
+    );
     return;
   }
   const snapshotId = requireSnapshotId(values.snapshot);
@@ -623,7 +655,17 @@ async function cmdAct(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("act", rest, ACTION_OPTIONS);
   printHelpAndExit(values.help);
   if (positionals.some(isSemanticToken)) {
-    await runSemanticAct(semanticContext(values), positionals);
+    const ctx = semanticContext(values);
+    await actTool(
+      { ops: positionals, dryRun: !ctx.armed },
+      {
+        backendFactory: () => ctx.backend,
+        backend: ctx.backend,
+        armed: ctx.armed,
+        mode: "bidi",
+        screens: ctx,
+      },
+    );
     return;
   }
   const snapshotId = requireSnapshotId(values.snapshot);

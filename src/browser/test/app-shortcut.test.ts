@@ -37,16 +37,13 @@ test("NoopShortcutService returns null cleanly", async () => {
   assert.equal(result, null);
 });
 
-import type { execFile } from "node:child_process";
-import type { promisify } from "node:util";
 
-type ExecFileAsync = ReturnType<typeof promisify<typeof execFile>>;
 
 test("WindowsShortcutService delegates to execFn", async () => {
   let executedCmd: string | null = null;
   let executedArgs: readonly string[] | null = null;
 
-  const mockExec: ExecFileAsync = (async (
+  const mockExec = (async (
     file: string,
     args?: readonly string[] | null,
   ): Promise<{ stdout: string; stderr: string }> => {
@@ -54,7 +51,7 @@ test("WindowsShortcutService delegates to execFn", async () => {
     executedCmd = file;
     executedArgs = args ?? null;
     return { stdout: "", stderr: "" };
-  }) as unknown as ExecFileAsync;
+  }) as unknown as NonNullable<ConstructorParameters<typeof WindowsShortcutService>[0]>["execFn"];
 
   const service = new WindowsShortcutService({
     execFn: mockExec,

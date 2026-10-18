@@ -83,9 +83,9 @@ test("discoverTool performs dry-run by default and persists to unmapped[] when w
 
     // 1. Dry run
     const dryRunResult = await discoverTool({ app: "testapp.com" }, { cacheDir });
-    assert.match(dryRunResult.text, /dry-run/);
-    assert.match(dryRunResult.text, /\/candidate-one \(5 visits/);
-    assert.match(dryRunResult.text, /\/items\/:id \(2 visits/);
+    assert.match(dryRunResult.text ?? "", /dry-run/);
+    assert.match(dryRunResult.text ?? "", /\/candidate-one \(5 visits/);
+    assert.match(dryRunResult.text ?? "", /\/items\/:id \(2 visits/);
     const dryRunStructured = dryRunResult.structured as { written: boolean; candidates: unknown[] };
     assert.equal(dryRunStructured.written, false);
     assert.equal(dryRunStructured.candidates.length, 2);
@@ -96,7 +96,7 @@ test("discoverTool performs dry-run by default and persists to unmapped[] when w
 
     // 2. Write mode
     const writeResult = await discoverTool({ app: "testapp.com", write: true }, { cacheDir });
-    assert.match(writeResult.text, /wrote 2 candidate route\(s\) into unmapped\[\]/);
+    assert.match(writeResult.text ?? "", /wrote 2 candidate route\(s\) into unmapped\[\]/);
     const writeStructured = writeResult.structured as { written: boolean };
     assert.equal(writeStructured.written, true);
 
@@ -108,7 +108,7 @@ test("discoverTool performs dry-run by default and persists to unmapped[] when w
 
     // 3. Second run reports all covered
     const reRunResult = await discoverTool({ app: "testapp.com" }, { cacheDir });
-    assert.match(reRunResult.text, /all visited history routes are already mapped or in unmapped\[\]/);
+    assert.match(reRunResult.text ?? "", /all visited history routes are already mapped or in unmapped\[\]/);
   } finally {
     await rm(cacheDir, { recursive: true, force: true });
   }

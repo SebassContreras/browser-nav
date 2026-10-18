@@ -90,7 +90,8 @@ export class WindowsShortcutService implements AppShortcutService {
  * Non-operating system or mock implementation of AppShortcutService.
  */
 export class NoopShortcutService implements AppShortcutService {
-  async createShortcut(): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async createShortcut(options: ShortcutOptions): Promise<string | null> {
     await Promise.resolve();
     return null;
   }

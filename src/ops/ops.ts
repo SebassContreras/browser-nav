@@ -47,10 +47,23 @@ import { resolveAppTarget } from "../backend/backend.js";
 export { ensureParentDir, isHttpUrl, loadSession, parseSession };
 export type { ActOp, Backend, Session };
 
-export const DEFAULT_SESSION_PATH = join(resolveAgentDir(), "session.json");
-export const DEFAULT_SNAPSHOT_PATH = join(resolveAgentDir(), "snapshot.json");
-export const DEFAULT_ACTIONS_PATH = join(resolveAgentDir(), "actions.log");
-export const DEFAULT_SCREENSHOT_PATH = join(resolveAgentDir(), "screenshot.png");
+export function getDefaultSessionPath(): string {
+  return join(resolveAgentDir(), "session.json");
+}
+export function getDefaultSnapshotPath(): string {
+  return join(resolveAgentDir(), "snapshot.json");
+}
+export function getDefaultActionsPath(): string {
+  return join(resolveAgentDir(), "actions.log");
+}
+export function getDefaultScreenshotPath(): string {
+  return join(resolveAgentDir(), "screenshot.png");
+}
+
+export const DEFAULT_SESSION_PATH = getDefaultSessionPath();
+export const DEFAULT_SNAPSHOT_PATH = getDefaultSnapshotPath();
+export const DEFAULT_ACTIONS_PATH = getDefaultActionsPath();
+export const DEFAULT_SCREENSHOT_PATH = getDefaultScreenshotPath();
 
 export interface SnapshotPerformOptions {
   url: string;

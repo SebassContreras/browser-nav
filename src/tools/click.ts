@@ -23,17 +23,9 @@ export async function clickTool(args: ClickArgs, ctx: ToolContext): Promise<Tool
 
   if (target !== undefined) {
     if (ref !== undefined) throw invalid("pass either target or ref, not both.");
-    let token = target.startsWith("@") ? target : `@${target}`;
-    // legacy support for target="id=value"
-    const eq = token.indexOf("=");
-    let fallbackQuery: string | undefined;
-    if (eq >= 0) {
-      fallbackQuery = token.slice(eq + 1);
-      token = token.slice(0, eq);
-    }
+    const token = target.startsWith("@") ? target : `@${target}`;
     const parsed = parseTarget(token);
     if (parsed.kind === "id") {
-      if (parsed.query === undefined && fallbackQuery !== undefined) parsed.query = fallbackQuery;
       semanticTarget = parsed;
       displayTarget = `@${parsed.id}`;
     } else {

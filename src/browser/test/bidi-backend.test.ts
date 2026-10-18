@@ -262,7 +262,6 @@ test("open --launch: provisions and launches standalone PWA when target origin i
     },
     {
       launch: true,
-      launchFn: () => Promise.reject(new Error("site not installed")),
       provisioner: mockProvisioner,
       probe: () => Promise.resolve(false),
     },
@@ -300,7 +299,7 @@ test("open: kill-switch blocks navigation (kill_switch) even when allowed, befor
 
 test("open --launch: blocked before probe and spawn", async () => {
   let probed = 0;
-  let launched = 0;
+  const launched = 0;
   await withEnv(
     async (e) => {
       await expectError(e.backend.open("https://app.test/home"), "origin_blocked");
@@ -313,10 +312,6 @@ test("open --launch: blocked before probe and spawn", async () => {
       probe: () => {
         probed++;
         return Promise.resolve(false);
-      },
-      launchFn: () => {
-        launched++;
-        return Promise.resolve({ siteId: "S", port: 1, command: "cmd", pid: undefined });
       },
     },
   );

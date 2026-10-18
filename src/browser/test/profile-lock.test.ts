@@ -70,7 +70,7 @@ class FakeFsDeps implements FsDeps {
 
 function fakeSpawn(): ChildProcess {
   const ee = new EventEmitter() as ChildProcess;
-  ee.pid = 9999;
+  Object.defineProperty(ee, "pid", { value: 9999, writable: true });
   ee.unref = () => ee;
   return ee;
 }

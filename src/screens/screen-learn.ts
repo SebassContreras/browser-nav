@@ -110,7 +110,7 @@ export function deriveIds(
 }
 
 /** Content-named prose (a message, not a control): 5+ words ending in sentence punctuation. */
-export function isProse(raw: Pick<RawElement, "name" | "nameSource">): boolean {
+function isProse(raw: Pick<RawElement, "name" | "nameSource">): boolean {
   if (raw.nameSource !== "content") return false;
   const name = raw.name.trim();
   return name.split(/\s+/).length >= 5 && /[.!?…]$/.test(name);
@@ -122,7 +122,7 @@ const TRANSIENT_NAME_PREFIXES: readonly string[] = [
 ];
 
 /** Name starts with a transient blocklist prefix (reactions, quoted messages). */
-export function isTransientName(name: string): boolean {
+function isTransientName(name: string): boolean {
   const folded = name.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().trim();
   return TRANSIENT_NAME_PREFIXES.some((prefix) => folded.startsWith(prefix));
 }
@@ -396,7 +396,7 @@ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options
   return screen;
 }
 
-export function nestBranchIntoActionList(
+function nestBranchIntoActionList(
   actions: ScreenAction[],
   targetActionIdOrName: string,
   branch: OpensBranch,
@@ -418,10 +418,3 @@ export function nestBranchIntoActionList(
   return false;
 }
 
-export function attachOpensBranch(screen: Screen, actionIdOrName: string, branch: OpensBranch): Screen {
-  const actions = structuredClone(screen.actions);
-  nestBranchIntoActionList(actions, actionIdOrName, branch);
-  const updated: Screen = { ...screen, actions };
-  updated.fingerprint = fingerprintOf(screenElements(updated));
-  return updated;
-}

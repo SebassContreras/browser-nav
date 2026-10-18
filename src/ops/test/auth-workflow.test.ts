@@ -34,6 +34,7 @@ test("AuthWorkflowOrchestrator: completes full clean -> observe -> terminate -> 
       return Promise.resolve({
         appSlug: "notebook",
         url: "https://notebook.google.com",
+        profileDir: "fake/profile",
         port: 9222,
         command: "firefox --remote-debugging-port 9222",
         pid: 10000,
@@ -86,8 +87,10 @@ test("AuthWorkflowOrchestrator: cleans up process on watcher timeout", async () 
       return Promise.resolve({
         appSlug: "notebook",
         url: "https://notebook.google.com",
+        profileDir: "fake/profile",
         port: 9222,
         command: "firefox",
+        pid: 10000,
       });
     },
   });

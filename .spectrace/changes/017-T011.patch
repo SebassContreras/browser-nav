@@ -1,0 +1,13 @@
+diff --git a/src/cli.ts b/src/cli.ts
+index d422813..dc83a27 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -74,7 +74,7 @@ function usage(): string {
+     "  pwa-nav wait --query <str> [--state visible|hidden|enabled] [--timeout <ms|s>] [--interval <ms|s>]",
+     "  pwa-nav act --snapshot <id> [--dry-run] <op>...   |   act [--dry-run] <semantic-op>...",
+     "  pwa-nav journey <name> [key=value...] [--dry-run] [--screen-map <file>] [--screens-dir <dir>]",
+-    "  pwa-nav auth [<app-or-url>] [--clean] [--debug] [--port <n>]",
++    "  pwa-nav auth [<app-or-url>] [--port <n>] [--timeout <s|ms>]",
+     "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
+     "  pwa-nav profile backup <app> [--out <file>]",
+     "  pwa-nav profile restore <app> <file> [--force]",

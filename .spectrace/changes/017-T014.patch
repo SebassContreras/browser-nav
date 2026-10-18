@@ -1,0 +1,47 @@
+diff --git a/src/ops/ops.ts b/src/ops/ops.ts
+index c062d84..e26d115 100644
+--- a/src/ops/ops.ts
++++ b/src/ops/ops.ts
+@@ -60,25 +60,10 @@ export function getDefaultScreenshotPath(): string {
+   return join(resolveAgentDir(), "screenshot.png");
+ }
+ 
+-export const DEFAULT_SESSION_PATH: string = Object.freeze({
+-  toString: () => getDefaultSessionPath(),
+-  valueOf: () => getDefaultSessionPath(),
+-}) as unknown as string;
+-
+-export const DEFAULT_SNAPSHOT_PATH: string = Object.freeze({
+-  toString: () => getDefaultSnapshotPath(),
+-  valueOf: () => getDefaultSnapshotPath(),
+-}) as unknown as string;
+-
+-export const DEFAULT_ACTIONS_PATH: string = Object.freeze({
+-  toString: () => getDefaultActionsPath(),
+-  valueOf: () => getDefaultActionsPath(),
+-}) as unknown as string;
+-
+-export const DEFAULT_SCREENSHOT_PATH: string = Object.freeze({
+-  toString: () => getDefaultScreenshotPath(),
+-  valueOf: () => getDefaultScreenshotPath(),
+-}) as unknown as string;
++export const DEFAULT_SESSION_PATH = getDefaultSessionPath();
++export const DEFAULT_SNAPSHOT_PATH = getDefaultSnapshotPath();
++export const DEFAULT_ACTIONS_PATH = getDefaultActionsPath();
++export const DEFAULT_SCREENSHOT_PATH = getDefaultScreenshotPath();
+ 
+ export interface SnapshotPerformOptions {
+   url: string;
+diff --git a/src/tools/test/tools.test.ts b/src/tools/test/tools.test.ts
+index 34ba324..40bb93e 100644
+--- a/src/tools/test/tools.test.ts
++++ b/src/tools/test/tools.test.ts
+@@ -48,7 +48,7 @@ test("openTool validates url and offline limitations", async () => {
+ test("authTool handles relay errors", async () => {
+   const ctx = makeOfflineContext();
+   await assert.rejects(
+-    async () => authTool({ app: "nonexistent-app-xyz" }),
++    async () => authTool({ app: "nonexistent-app-xyz" }, ctx),
+     /requires the live backend/,
+   );
+ });

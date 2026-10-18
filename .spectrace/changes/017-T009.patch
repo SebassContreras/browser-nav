@@ -1,0 +1,42 @@
+diff --git a/src/backend/index.ts b/src/backend/index.ts
+deleted file mode 100644
+index ef43496..0000000
+--- a/src/backend/index.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-export * from "./backend.js";
+-export * from "./backend-factory.js";
+diff --git a/src/core/index.ts b/src/core/index.ts
+deleted file mode 100644
+index f97ac0b..0000000
+--- a/src/core/index.ts
++++ /dev/null
+@@ -1,5 +0,0 @@
+-export * from "./errors.js";
+-export * from "./snapshot.js";
+-export * from "./refs.js";
+-export * from "./gate.js";
+-export * from "./storage.js";
+diff --git a/src/ops/index.ts b/src/ops/index.ts
+deleted file mode 100644
+index 260bdf7..0000000
+--- a/src/ops/index.ts
++++ /dev/null
+@@ -1,3 +0,0 @@
+-export * from "./ops.js";
+-export * from "./qa.js";
+-export * from "./journey.js";
+diff --git a/src/screens/index.ts b/src/screens/index.ts
+deleted file mode 100644
+index 75b215f..0000000
+--- a/src/screens/index.ts
++++ /dev/null
+@@ -1,8 +0,0 @@
+-export * from "./screen-map.js";
+-export * from "./screen-match.js";
+-export * from "./screen-view.js";
+-export * from "./screen-learn.js";
+-export * from "./screen-merge.js";
+-export * from "./screen-resolve.js";
+-export * from "./screen-store.js";
+-export * from "./screen-journey.js";

@@ -22,9 +22,9 @@ test("statusTool reports the verdict, cookie names and sign-in hint from the sto
     db.close();
 
     const ok = await statusTool({ app: "example.com" }, { cacheDir, nowMs: 0 });
-    assert.match(ok.text, /: authenticated \(expires in 2h\)\ncookies: sid$/);
+    assert.match(ok.text ?? "", /: authenticated \(expires in 2h\)\ncookies: sid$/);
     const expired = await statusTool({ app: "example.com" }, { cacheDir, nowMs: 10_000_000 });
-    assert.match(expired.text, /expired[\s\S]*hint: .*pwa-nav auth example\.com/);
+    assert.match(expired.text ?? "", /expired[\s\S]*hint: .*pwa-nav auth example\.com/);
     await assert.rejects(statusTool({}), /status needs an app/);
   } finally {
     await rm(cacheDir, { recursive: true, force: true });
