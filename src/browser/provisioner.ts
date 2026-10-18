@@ -10,6 +10,7 @@ import {
 } from "./standalone-runner.js";
 import { type AppIconService, DefaultAppIconService } from "./app-icon.js";
 import { type AppShortcutService, WindowsShortcutService } from "./app-shortcut.js";
+import type { AppRegistry } from "../core/app-registry.js";
 
 /**
  * Domain specification and runtime configuration for an isolated standalone PWA.
@@ -46,7 +47,7 @@ export interface PwaProvisioner {
   /**
    * Resolves the app slug for a given target URL.
    */
-  resolveSlug(url: string): string;
+  resolveSlug(url: string): string | Promise<string>;
 
   /**
    * Prepares the isolated profile for the target URL.
@@ -67,6 +68,7 @@ export class DefaultPwaProvisioner implements PwaProvisioner {
   private readonly launchFn: typeof launchStandaloneApp;
   private readonly iconService: AppIconService;
   private readonly shortcutService: AppShortcutService;
+  private readonly registry?: AppRegistry;
   private readonly env: Env;
 
   constructor(
@@ -74,21 +76,26 @@ export class DefaultPwaProvisioner implements PwaProvisioner {
       launchFn?: typeof launchStandaloneApp;
       iconService?: AppIconService;
       shortcutService?: AppShortcutService;
+      registry?: AppRegistry;
       env?: Env;
     } = {},
   ) {
     this.launchFn = options.launchFn ?? launchStandaloneApp;
     this.iconService = options.iconService ?? new DefaultAppIconService();
     this.shortcutService = options.shortcutService ?? new WindowsShortcutService();
+    this.registry = options.registry;
     this.env = options.env ?? process.env;
   }
 
-  resolveSlug(url: string): string {
+  resolveSlug(url: string): string | Promise<string> {
+    if (this.registry) {
+      return this.registry.resolveSlug(url);
+    }
     return appSlugFromUrl(url);
   }
 
   async provision(url: string, options: ProvisionOptions = {}): Promise<ProvisionedPwa> {
-    const appSlug = this.resolveSlug(url);
+    const appSlug = await this.resolveSlug(url);
     const profileDir = await ensureStandaloneProfile(appSlug, { cacheDir: options.cacheDir });
 
     // Resolve app directory (parent of profile) to persist icon.ico

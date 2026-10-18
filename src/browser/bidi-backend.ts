@@ -4,6 +4,7 @@
 import { dirname, join } from "node:path";
 import { addAllowedOrigin, assertArmedAllowed, assertFileUploadAllowed, assertNavigationAllowed } from "../core/gate.js";
 import { resolveAgentDir } from "../core/storage.js";
+import { FileAppRegistry } from "../core/app-registry.js";
 import { withTopLevelContext, type TopLevelContextOptions } from "../bidi/session.js";
 import type { BidiClient } from "../bidi/protocol.js";
 import {
@@ -101,7 +102,7 @@ export class BidiBackend implements Backend {
     this.agentDir = options.agentDir ?? resolveAgentDir();
     this.env = options.env ?? process.env;
     this.platform = options.platform ?? process.platform;
-    this.provisioner = options.provisioner ?? new DefaultPwaProvisioner();
+    this.provisioner = options.provisioner ?? new DefaultPwaProvisioner({ registry: new FileAppRegistry(this.agentDir) });
   }
 
   // --- session plumbing ---

@@ -1,0 +1,132 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import { openTool } from "../open.js";
+import type { ToolContext } from "../types.js";
+import { OfflineBackend, type Session } from "../../backend/backend.js";
+
+async function makeTempDir(): Promise<string> {
+  return mkdtemp(join(tmpdir(), "pwa-nav-open-test-"));
+}
+
+function makeMockBackend(agentDir: string, customOpen?: (url: string) => Promise<Session>): OfflineBackend {
+  const backend = new OfflineBackend({ agentDir });
+  if (customOpen) {
+    backend.open = customOpen;
+  }
+  return backend;
+}
+
+function makeContext(backend: OfflineBackend): ToolContext {
+  return {
+    backendFactory: () => backend,
+    backend,
+    armed: false,
+    mode: "offline",
+    screens: {},
+  };
+}
+
+test("openTool: given explicit --app, binds initial origin to that app in allow.json", async () => {
+  // Arrange
+  const dir = await makeTempDir();
+  try {
+    const backend = makeMockBackend(dir);
+    const ctx = makeContext(backend);
+
+    // Act
+    const res = await openTool({ url: "https://notebook.google.com", app: "custom-notebook" }, ctx);
+
+    // Assert
+    assert.equal(res.structured["url"], "https://notebook.google.com");
+    assert.equal(
+      res.structured["screenMap"],
+      join(dir, "apps", "custom-notebook", "screens.json"),
+    );
+
+    const allowJson = JSON.parse(await readFile(join(dir, "allow.json"), "utf8")) as {
+      apps: Record<string, { origins: string[] }>;
+    };
+    assert.ok(allowJson.apps["custom-notebook"]);
+    assert.deepEqual(allowJson.apps["custom-notebook"].origins, ["https://notebook.google.com"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("openTool: given redirection to different origin, auto-binds initial origin to destination slug", async () => {
+  // Arrange
+  const dir = await makeTempDir();
+  try {
+    const backend = makeMockBackend(dir, () => {
+      return Promise.resolve({
+        url: "https://notebooklm.google.com/u/0/",
+        title: "NotebookLM",
+        openedAt: new Date().toISOString(),
+      });
+    });
+    const ctx = makeContext(backend);
+
+    // Act
+    const res = await openTool({ url: "https://notebook.google.com" }, ctx);
+
+    // Assert
+    assert.equal(res.structured["url"], "https://notebooklm.google.com/u/0/");
+    assert.equal(
+      res.structured["screenMap"],
+      join(dir, "apps", "notebooklm-google-com", "screens.json"),
+    );
+
+    const allowJson = JSON.parse(await readFile(join(dir, "allow.json"), "utf8")) as {
+      apps: Record<string, { origins: string[] }>;
+    };
+    assert.ok(allowJson.apps["notebooklm-google-com"]);
+    assert.deepEqual(allowJson.apps["notebooklm-google-com"].origins, [
+      "https://notebook.google.com",
+    ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("openTool: given login barrier destination, does not bind barrier origin as app slug", async () => {
+  // Arrange
+  const dir = await makeTempDir();
+  try {
+    const backend = makeMockBackend(dir, () => {
+      return Promise.resolve({
+        url: "https://accounts.google.com/signin/v2/identifier",
+        title: "Sign in - Google Accounts",
+        openedAt: new Date().toISOString(),
+      });
+    });
+    const ctx = makeContext(backend);
+
+    // Act
+    const res = await openTool({ url: "https://notebook.google.com" }, ctx);
+
+    // Assert
+    assert.equal(res.structured["url"], "https://accounts.google.com/signin/v2/identifier");
+    assert.equal(res.structured["loginBarrier"], true);
+    // Preserves initial origin slug, NOT accounts-google-com
+    assert.equal(
+      res.structured["screenMap"],
+      join(dir, "apps", "notebook-google-com", "screens.json"),
+    );
+
+    // Verification that accounts.google.com was never registered in allow.json
+    try {
+      const allowContent = await readFile(join(dir, "allow.json"), "utf8");
+      const allowJson = JSON.parse(allowContent) as {
+        apps?: Record<string, { origins: string[] }>;
+      };
+      assert.equal(allowJson.apps?.["accounts-google-com"], undefined);
+    } catch (err) {
+      assert.equal((err as NodeJS.ErrnoException).code, "ENOENT");
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

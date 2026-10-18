@@ -1,7 +1,7 @@
-// Armed gate: kill-switch + origin allow-list (spec 004 design, "Key decisions").
-import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { PwaNavError } from "./errors.js";
+import { FileAppRegistry, extractAllowedOrigins } from "./app-registry.js";
 
 export const DEFAULT_AGENT_DIR = ".agent";
 export const KILL_SWITCH_ENV = "PWA_NAV_KILL_SWITCH";
@@ -75,43 +75,12 @@ function allowListPath(agentDir: string): string {
   return join(agentDir, "allow.json");
 }
 
-function isMissing(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException).code === "ENOENT";
-}
-
 export async function loadAllowList(
   agentDir: string = DEFAULT_AGENT_DIR,
   extraOrigins: readonly string[] = [],
 ): Promise<string[]> {
-  const file = allowListPath(agentDir);
-  let raw: string;
-  let origins: string[] = [];
-  try {
-    raw = await readFile(file, "utf8");
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (error) {
-      throw new PwaNavError("invalid_args", `malformed ${file}: invalid JSON`, {
-        hint: 'expected {"origins": ["https://example.com"]}',
-        cause: error,
-      });
-    }
-    const rawOrigins = (parsed as { origins?: unknown } | null)?.origins;
-    if (!Array.isArray(rawOrigins) || !rawOrigins.every((o): o is string => typeof o === "string")) {
-      throw new PwaNavError("invalid_args", `malformed ${file}: "origins" must be a string array`, {
-        hint: 'expected {"origins": ["https://example.com"]}',
-      });
-    }
-    origins = rawOrigins;
-  } catch (error) {
-    if (!isMissing(error) && error instanceof PwaNavError) {
-      throw error;
-    }
-    if (!isMissing(error)) {
-      throw new PwaNavError("invalid_args", `cannot read ${file}`, { cause: error });
-    }
-  }
+  const registry = new FileAppRegistry(agentDir);
+  const origins = await registry.getAllowedOrigins();
   return [...new Set([...origins, ...extraOrigins])];
 }
 
@@ -126,16 +95,24 @@ export async function addAllowedOrigin(
       hint: "use an http(s) origin such as https://example.com",
     });
   }
-  const current = await loadAllowList(agentDir);
-  const next = [
-    ...new Set([...current.map((o) => normalizeOrigin(o) ?? o), normalized]),
+  const registry = new FileAppRegistry(agentDir);
+  const config = await registry.load();
+  const currentOrigins = config.origins ?? [];
+  const nextOrigins = [
+    ...new Set([...currentOrigins.map((o) => normalizeOrigin(o) ?? o), normalized]),
   ].sort();
+  config.origins = nextOrigins;
+
   const file = resolve(allowListPath(agentDir));
   await mkdir(dirname(file), { recursive: true });
   const tmp = `${file}.${String(process.pid)}.tmp`;
-  await writeFile(tmp, JSON.stringify({ origins: next }, null, 2) + "\n", "utf8");
+  const output: { origins: string[]; apps?: typeof config.apps } = { origins: nextOrigins };
+  if (config.apps && Object.keys(config.apps).length > 0) {
+    output.apps = config.apps;
+  }
+  await writeFile(tmp, JSON.stringify(output, null, 2) + "\n", "utf8");
   await rename(tmp, file);
-  return next;
+  return extractAllowedOrigins(config);
 }
 
 export interface AssertArmedOptions {

@@ -1,0 +1,41 @@
+diff --git a/src/tools/open.ts b/src/tools/open.ts
+index cb97e4f..325e3ae 100644
+--- a/src/tools/open.ts
++++ b/src/tools/open.ts
+@@ -1,6 +1,6 @@
+ import { join } from "node:path";
+-import { appSlugFromUrl } from "../backend/backend.js";
+ import { isLoginBarrier } from "../browser/pwa-runtime.js";
++import { FileAppRegistry, normalizeOrigin } from "../core/app-registry.js";
+ import { performOpen } from "../ops/ops.js";
+ import { getBackend } from "./common.js";
+ import { invalid, type ToolContext, type ToolOutcome } from "./types.js";
+@@ -24,8 +24,27 @@ export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOu
+ 
+   const backend = getBackend(ctx, { armed: false, launch, port, app });
+   const session = await performOpen(url, { backend, allowOrigin });
+-  const slug = appSlugFromUrl(session.url);
++  const registry = new FileAppRegistry(backend.agentDir);
+   const barrier = isLoginBarrier(session.url);
++  const initialOrigin = normalizeOrigin(url);
++  const destOrigin = normalizeOrigin(session.url);
++
++  let slug: string;
++  if (app) {
++    if (initialOrigin) {
++      await registry.registerAppOrigin(initialOrigin, app);
++    }
++    if (destOrigin && !barrier) {
++      await registry.registerAppOrigin(destOrigin, app);
++    }
++    slug = app;
++  } else if (!barrier && initialOrigin && destOrigin && initialOrigin !== destOrigin) {
++    const destSlug = await registry.resolveSlug(session.url);
++    await registry.registerAppOrigin(initialOrigin, destSlug);
++    slug = destSlug;
++  } else {
++    slug = await registry.resolveSlug(barrier ? url : session.url);
++  }
+ 
+   const sessionPath = join(backend.agentDir, "session.json");
+   const textLines = [`open ok: ${session.url} -> ${sessionPath}`];

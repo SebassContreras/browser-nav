@@ -20,5 +20,6 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 014 | remove-pwasforfirefox-leftovers | done        | 006, 012, 013 | —     | 14 |
 | 015 | managed-firefox-runtime | done        | 014 | —     | 15 |
 | 016 | assisted-auth-transition | done        | 007, 008 | —     | 16 |
-| 017 | code-audit-cleanup | done        | 006, 012, 016 | —      | 17 |
+| 017 | code-audit-cleanup | in_progress | 006, 012, 016 | build  | 17 |
+| 018 | canonical-app-origin-mapping | done        | 002, 004, 005 | —     | 18 |
 

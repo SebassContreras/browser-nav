@@ -258,3 +258,63 @@ test("assertFileUploadAllowed: allows files inside safe roots, rejects outside a
   }
 });
 
+test("loadAllowList: recognizes origins mapped inside apps without flat origins entry", async () => {
+  // Arrange
+  const dir = await tmp();
+  try {
+    const config = {
+      apps: {
+        "notebooklm-google-com": {
+          name: "NotebookLM",
+          origins: ["https://notebooklm.google.com", "https://notebook.google.com"],
+        },
+      },
+    };
+    await writeFile(join(dir, "allow.json"), JSON.stringify(config), "utf8");
+
+    // Act
+    const allowed = await loadAllowList(dir);
+
+    // Assert
+    assert.deepEqual(allowed, ["https://notebook.google.com", "https://notebooklm.google.com"]);
+
+    // Act & Assert navigation gate treats them as authorized without throwing
+    await assert.doesNotReject(
+      assertNavigationAllowed({ url: "https://notebook.google.com/test", agentDir: dir }),
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("addAllowedOrigin: preserves existing apps mapping when adding a flat origin", async () => {
+  // Arrange
+  const dir = await tmp();
+  try {
+    const initialConfig = {
+      apps: {
+        "custom-app": {
+          origins: ["https://custom-app.com"],
+        },
+      },
+    };
+    await writeFile(join(dir, "allow.json"), JSON.stringify(initialConfig), "utf8");
+
+    // Act
+    await addAllowedOrigin("https://example.com", dir);
+
+    // Assert
+    const allowed = await loadAllowList(dir);
+    assert.deepEqual(allowed, ["https://custom-app.com", "https://example.com"]);
+
+    const fileContent = JSON.parse(await readFile(join(dir, "allow.json"), "utf8")) as {
+      origins?: string[];
+      apps?: Record<string, { origins: string[] }>;
+    };
+    assert.deepEqual(fileContent.origins, ["https://example.com"]);
+    assert.deepEqual(fileContent.apps?.["custom-app"]?.origins, ["https://custom-app.com"]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+

@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 import type { ShortcutOptions } from "../app-shortcut.js";
 import { DefaultPwaProvisioner } from "../provisioner.js";
 import type { StandaloneLaunchOptions, StandaloneLaunchResult } from "../standalone-runner.js";
+import { MemoryAppRegistry } from "../../core/app-registry.js";
 
 describe("DefaultPwaProvisioner - profile and slug", () => {
   it("resolves slug deterministically from arbitrary URLs", () => {
@@ -111,6 +112,30 @@ describe("DefaultPwaProvisioner - profile and slug", () => {
       assert.equal(shortcutOpts.name, "linkedin-com");
       assert.ok(res.shortcutPath);
       assert.match(res.shortcutPath, /linkedin-com\.lnk$/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("given origin with canonical alias in AppRegistry, directs profile creation to canonical app slug", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pwa-provision-alias-"));
+    try {
+      const memoryRegistry = new MemoryAppRegistry({
+        apps: {
+          "notebooklm-google-com": {
+            name: "NotebookLM",
+            origins: ["https://notebooklm.google.com", "https://notebook.google.com"],
+          },
+        },
+      });
+
+      const provisioner = new DefaultPwaProvisioner({ registry: memoryRegistry });
+      const targetUrl = "https://notebook.google.com/u/0/";
+      const result = await provisioner.provision(targetUrl, { cacheDir: dir });
+
+      assert.equal(result.appSlug, "notebooklm-google-com");
+      assert.equal(result.profileDir, join(dir, "apps", "notebooklm-google-com", "profile"));
+      assert.ok(existsSync(result.profileDir));
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
