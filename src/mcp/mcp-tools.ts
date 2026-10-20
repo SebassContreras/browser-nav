@@ -119,7 +119,12 @@ const open: ToolDef = {
   inputSchema: {
     type: "object",
     properties: {
-      url: { type: "string", minLength: 1, description: "http(s) URL to open." },
+      url: {
+        type: "string",
+        minLength: 1,
+        description:
+          "Target to navigate to. Valid formats: full HTTP(S) URL (e.g. 'https://www.linkedin.com'), domain (e.g. 'linkedin.com'), or registered app slug / canonical alias (e.g. 'notebook', 'linkedin', 'mercadona', 'google', 'github', 'twitter', 'x'). Arbitrary bare words or typos (e.g. 'linkeding') are forbidden and rejected fail-fast.",
+      },
       launch: { type: "boolean", description: "Start the PWA runtime with the debugging port if nothing listens." },
       allowOrigin: { type: "boolean", description: "Add this URL's origin to the allow-list after a successful navigation." },
     },

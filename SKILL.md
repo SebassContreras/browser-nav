@@ -35,7 +35,7 @@ Both CLI and MCP delegate 100% of their operations to the unified Tools Service 
 
 | Capability | CLI Command | MCP Tool Name | Notes |
 |---|---|---|---|
-| **Navigate** | `pwa-nav open <url> [--allow-origin]` | `pwa_open` (`url`, `allowOrigin`) | Origin must be in `.agent/allow.json` or approved. |
+| **Navigate** | `pwa-nav open <target> [--allow-origin]` | `pwa_open` (`url`, `allowOrigin`) | Target: full URL (`https://...`), domain (`linkedin.com`), or slug/alias (`notebook`, `mercadona`). Typos/bare words forbidden. |
 | **Inspect screen map** | `pwa-nav snapshot --screen [--query <str>]` | `pwa_snapshot` (`screen: true`, `query`, `role`) | Compact view of semantic `@id` targets, flows, journeys, inline query filter. |
 | **Raw accessibility tree** | `pwa-nav snapshot -i [--all] [--query <str>]` | `pwa_snapshot` (`interactiveOnly: true`, `query`, `role`) | Writes `.agent/snapshot.json`. Returns element count, path, and filtered matches. |
 | **Wait condition** | `pwa-nav wait <target> [--state visible\|hidden\|enabled]` | `pwa_wait` (`target`, `query`, `state`, `timeoutMs`) | Wait for element/state or async AI background ops without shell sleep. |
@@ -170,6 +170,7 @@ WebDriver BiDi automates in-page DOM operations (clicking buttons, typing, navig
 12. **Windows Sandbox Awareness**: Never assume a browser spawned from within an agent sandbox on Windows is visible to the user. Prefer connecting to user-launched instances on port 9222.
 13. **Per-Application Storage Isolation & Zero Loose Files**: Snapshots and sessions are stored strictly segregated under `.agent/apps/<appSlug>/` (e.g. `.agent/apps/linkedin.com/snapshot.json`). Snapshots and learn passes enrich the persistent screen map (`screens/<app>.screens.json`) without scattering loose ref or snapshot files across the workspace. Ephemeral `eN` refs expire on mutation; agents operate on permanent `@id` targets. Agents must never read root `.agent/snapshot.json` files from prior sessions or user home directories. Always use `pwa_find` and `pwa_snapshot`.
 14. **Zero Shell/Process/Port Inspection Loops (Wait For Browser Startup)**: Agents **MUST NEVER** execute shell or PowerShell commands (`Get-Process`, `Get-NetTCPConnection`, `Get-CimInstance`, `netstat`, `ps`, `kill`, `taskkill`) to check if the browser is running, what process owns port 9222, what flags were passed, or what sites are registered. When opening an app with `pwa_open`, simply wait for the browser to launch and connect; `pwa-nav` handles port checking and connection retries internally.
+15. **Target Resolution For Navigation**: Always pass a full HTTP(S) URL (e.g. `https://www.linkedin.com`), a recognizable domain (e.g. `linkedin.com`), or a registered app slug / alias (`notebook`, `linkedin`, `mercadona`). Bare search terms or typos (such as `linkeding`) are rejected fail-fast with `invalid_args` before spawning browser processes.
 
 ---
 

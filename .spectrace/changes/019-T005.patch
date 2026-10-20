@@ -1,0 +1,162 @@
+diff --git a/src/cli.ts b/src/cli.ts
+index c8d8d2a..688b3b4 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -30,7 +30,6 @@ import {
+   performFill,
+   performFind,
+   performLiveSnapshot,
+-  performOpen,
+   performScreenshot,
+   performSnapshot,
+   performUpload,
+diff --git a/src/core/target-resolution.ts b/src/core/target-resolution.ts
+index 75f625b..4507604 100644
+--- a/src/core/target-resolution.ts
++++ b/src/core/target-resolution.ts
+@@ -78,7 +78,7 @@ export async function resolveNavigationTarget(
+       const config = await registry.load();
+       if (config.apps && config.apps[lowerInput]) {
+         const appDef = config.apps[lowerInput];
+-        if (appDef && Array.isArray(appDef.origins) && appDef.origins.length > 0) {
++        if (Array.isArray(appDef.origins) && appDef.origins.length > 0) {
+           const origin = appDef.origins[0];
+           if (origin) {
+             return {
+diff --git a/src/tools/open.ts b/src/tools/open.ts
+index 4da699e..29d8af4 100644
+--- a/src/tools/open.ts
++++ b/src/tools/open.ts
+@@ -28,8 +28,9 @@ export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOu
+   const preRegistry = new FileAppRegistry(probeBackend.agentDir);
+   const resolved = await resolveNavigationTarget(rawUrl, preRegistry);
+ 
+-  const effectiveApp = explicitApp ?? (resolved.appSlug || undefined);
++  const initialTargetSlug = resolved.appSlug || undefined;
+   const targetUrl = resolved.url;
++  const effectiveApp = explicitApp ?? initialTargetSlug;
+ 
+   const backend = getBackend(ctx, { armed: false, launch, port, app: effectiveApp });
+   const session = await performOpen(targetUrl, { backend, allowOrigin });
+@@ -39,18 +40,26 @@ export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOu
+   const destOrigin = normalizeOrigin(session.url);
+ 
+   let slug: string;
+-  if (effectiveApp) {
++  if (explicitApp) {
+     if (initialOrigin) {
+-      await registry.registerAppOrigin(initialOrigin, effectiveApp);
++      await registry.registerAppOrigin(initialOrigin, explicitApp);
+     }
+     if (destOrigin && !barrier) {
+-      await registry.registerAppOrigin(destOrigin, effectiveApp);
++      await registry.registerAppOrigin(destOrigin, explicitApp);
+     }
+-    slug = effectiveApp;
++    slug = explicitApp;
+   } else if (!barrier && initialOrigin && destOrigin && initialOrigin !== destOrigin) {
+     const destSlug = await registry.resolveSlug(session.url);
+     await registry.registerAppOrigin(initialOrigin, destSlug);
+     slug = destSlug;
++  } else if (initialTargetSlug) {
++    if (initialOrigin) {
++      await registry.registerAppOrigin(initialOrigin, initialTargetSlug);
++    }
++    if (destOrigin && !barrier) {
++      await registry.registerAppOrigin(destOrigin, initialTargetSlug);
++    }
++    slug = initialTargetSlug;
+   } else {
+     slug = await registry.resolveSlug(barrier ? targetUrl : session.url);
+   }
+diff --git a/src/tools/test/open.test.ts b/src/tools/test/open.test.ts
+index 8bf8ae5..15e233b 100644
+--- a/src/tools/test/open.test.ts
++++ b/src/tools/test/open.test.ts
+@@ -6,6 +6,7 @@ import { test } from "node:test";
+ import { openTool } from "../open.js";
+ import type { ToolContext } from "../types.js";
+ import { OfflineBackend, type Session } from "../../backend/backend.js";
++import { PwaNavError } from "../../core/errors.js";
+ 
+ async function makeTempDir(): Promise<string> {
+   return mkdtemp(join(tmpdir(), "pwa-nav-open-test-"));
+@@ -130,3 +131,78 @@ test("openTool: given login barrier destination, does not bind barrier origin as
+     await rm(dir, { recursive: true, force: true });
+   }
+ });
++
++test("openTool: given canonical alias, resolves to full URL and slug", async () => {
++  // Arrange
++  const dir = await makeTempDir();
++  try {
++    const backend = makeMockBackend(dir);
++    const ctx = makeContext(backend);
++
++    // Act
++    const res = await openTool({ url: "linkedin" }, ctx);
++
++    // Assert
++    assert.equal(res.structured["url"], "https://www.linkedin.com");
++    assert.equal(
++      res.structured["screenMap"],
++      join(dir, "apps", "linkedin", "screens.json"),
++    );
++  } finally {
++    await rm(dir, { recursive: true, force: true });
++  }
++});
++
++test("openTool: given domain without protocol, auto-completes with https://", async () => {
++  // Arrange
++  const dir = await makeTempDir();
++  try {
++    const backend = makeMockBackend(dir);
++    const ctx = makeContext(backend);
++
++    // Act
++    const res = await openTool({ url: "mercadona.es" }, ctx);
++
++    // Assert
++    assert.equal(res.structured["url"], "https://mercadona.es");
++    assert.equal(
++      res.structured["screenMap"],
++      join(dir, "apps", "mercadona-es", "screens.json"),
++    );
++  } finally {
++    await rm(dir, { recursive: true, force: true });
++  }
++});
++
++test("openTool: given bare typo or unresolvable word, fails fast with invalid_args before opening session", async () => {
++  // Arrange
++  const dir = await makeTempDir();
++  try {
++    let openCalled = false;
++    const backend = makeMockBackend(dir, () => {
++      openCalled = true;
++      return Promise.resolve({
++        url: "",
++        title: "",
++        openedAt: new Date().toISOString(),
++      });
++    });
++    const ctx = makeContext(backend);
++
++    // Act & Assert
++    await assert.rejects(
++      async () => openTool({ url: "linkeding" }, ctx),
++      (err: unknown) => {
++        assert.ok(err instanceof PwaNavError);
++        assert.equal(err.code, "invalid_args");
++        assert.match(err.message, /cannot resolve navigation target "linkeding"/);
++        return true;
++      },
++    );
++
++    // Fail-fast guarantee: backend.open must NEVER be called
++    assert.equal(openCalled, false);
++  } finally {
++    await rm(dir, { recursive: true, force: true });
++  }
++});

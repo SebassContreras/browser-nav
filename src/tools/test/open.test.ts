@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { openTool } from "../open.js";
 import type { ToolContext } from "../types.js";
 import { OfflineBackend, type Session } from "../../backend/backend.js";
+import { PwaNavError } from "../../core/errors.js";
 
 async function makeTempDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), "pwa-nav-open-test-"));
@@ -126,6 +127,81 @@ test("openTool: given login barrier destination, does not bind barrier origin as
     } catch (err) {
       assert.equal((err as NodeJS.ErrnoException).code, "ENOENT");
     }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("openTool: given canonical alias, resolves to full URL and slug", async () => {
+  // Arrange
+  const dir = await makeTempDir();
+  try {
+    const backend = makeMockBackend(dir);
+    const ctx = makeContext(backend);
+
+    // Act
+    const res = await openTool({ url: "linkedin" }, ctx);
+
+    // Assert
+    assert.equal(res.structured["url"], "https://www.linkedin.com");
+    assert.equal(
+      res.structured["screenMap"],
+      join(dir, "apps", "linkedin", "screens.json"),
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("openTool: given domain without protocol, auto-completes with https://", async () => {
+  // Arrange
+  const dir = await makeTempDir();
+  try {
+    const backend = makeMockBackend(dir);
+    const ctx = makeContext(backend);
+
+    // Act
+    const res = await openTool({ url: "mercadona.es" }, ctx);
+
+    // Assert
+    assert.equal(res.structured["url"], "https://mercadona.es");
+    assert.equal(
+      res.structured["screenMap"],
+      join(dir, "apps", "mercadona-es", "screens.json"),
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("openTool: given bare typo or unresolvable word, fails fast with invalid_args before opening session", async () => {
+  // Arrange
+  const dir = await makeTempDir();
+  try {
+    let openCalled = false;
+    const backend = makeMockBackend(dir, () => {
+      openCalled = true;
+      return Promise.resolve({
+        url: "",
+        title: "",
+        openedAt: new Date().toISOString(),
+      });
+    });
+    const ctx = makeContext(backend);
+
+    // Act & Assert
+    await assert.rejects(
+      async () => openTool({ url: "linkeding" }, ctx),
+      (err: unknown) => {
+        assert.ok(err instanceof PwaNavError);
+        assert.equal(err.code, "invalid_args");
+        assert.match(err.message, /cannot resolve navigation target "linkeding"/);
+        return true;
+      },
+    );
+
+    // Fail-fast guarantee: backend.open must NEVER be called
+    assert.equal(openCalled, false);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

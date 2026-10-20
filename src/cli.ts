@@ -30,7 +30,6 @@ import {
   performFill,
   performFind,
   performLiveSnapshot,
-  performOpen,
   performScreenshot,
   performSnapshot,
   performUpload,
@@ -41,6 +40,7 @@ import { runCheck } from "./ops/qa.js";
 import {
   actTool,
   clickTool,
+  openTool,
   executeLearn,
   fillTool,
   renderScreenViewForBackend,
@@ -354,10 +354,23 @@ async function cmdOpen(rest: string[]): Promise<void> {
   if (live.mode === "offline" && (values.launch === true || values["allow-origin"] === true)) {
     throw invalid("--launch and --allow-origin require --backend bidi.");
   }
-  const backend = makeBackend(live, {
-    ...(values.launch === true ? { launch: true } : {}),
-  });
-  await performOpen(url, { backend, allowOrigin: values["allow-origin"] === true });
+  const ctx = {
+    backendFactory: (req: { armed?: boolean; launch?: boolean }) => makeBackend(live, { armed: req.armed, launch: req.launch }),
+    backend: makeBackend(live, { ...(values.launch === true ? { launch: true } : {}) }),
+    armed: true,
+    mode: live.mode,
+    screens: {},
+  };
+  await openTool(
+    {
+      url,
+      launch: values.launch === true,
+      allowOrigin: values["allow-origin"] === true,
+      port: live.port,
+      app: live.app,
+    },
+    ctx,
+  );
 }
 
 async function cmdSnapshot(rest: string[]): Promise<void> {

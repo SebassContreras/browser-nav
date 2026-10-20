@@ -98,7 +98,7 @@ Agents operate through two complementary navigation layers:
 4. **Interact Directly**:
    - In MCP: call `pwa_click({ ref: "e1" })`, `pwa_click({ ref: "Sign in" })`, or `pwa_click({ target: "@sign-in" })` directly without requiring `snapshotId` (it resolves to the latest snapshot automatically).
    - In CLI: use `pwa-nav click --snapshot <id> <ref>` or semantic `pwa-nav click '@target'`.
-5. **Smart PWA Navigation & Assisted Auth**: Pass URL or installed app slug directly: `pwa-nav open notebook` or `pwa_open({ url: "notebook" })`. For login-walled apps (Google, bot walls), use `pwa-nav auth <app>` or MCP `pwa_auth` to launch in clean mode for user login and re-attach in debug mode.
+5. **Smart PWA Navigation & Target Resolution**: Pass full URLs (`https://www.linkedin.com`), valid domains (`linkedin.com`), or installed app slugs / canonical aliases (`pwa-nav open notebook`, `pwa-nav open linkedin`, or `pwa_open({ url: "mercadona" })`). Bare words without TLDs and typos (such as `linkeding`) are strictly forbidden and rejected fail-fast with `invalid_args`. For login-walled apps (Google, bot walls), use `pwa-nav auth <app>` or MCP `pwa_auth` to launch in clean mode for user login and re-attach in debug mode.
 6. **Learn Screen**: When on a stable, new screen, run `pwa_learn` (or CLI `pwa-nav snapshot --learn --locale <bcp47>`) to register it into `.agent/apps/<appSlug>/screens.json`.
 
 ---

@@ -1,0 +1,107 @@
+diff --git a/src/cli.ts b/src/cli.ts
+index dc83a27..c8d8d2a 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -41,6 +41,7 @@ import { runCheck } from "./ops/qa.js";
+ import {
+   actTool,
+   clickTool,
++  openTool,
+   executeLearn,
+   fillTool,
+   renderScreenViewForBackend,
+@@ -354,10 +355,23 @@ async function cmdOpen(rest: string[]): Promise<void> {
+   if (live.mode === "offline" && (values.launch === true || values["allow-origin"] === true)) {
+     throw invalid("--launch and --allow-origin require --backend bidi.");
+   }
+-  const backend = makeBackend(live, {
+-    ...(values.launch === true ? { launch: true } : {}),
+-  });
+-  await performOpen(url, { backend, allowOrigin: values["allow-origin"] === true });
++  const ctx = {
++    backendFactory: (req: { armed?: boolean; launch?: boolean }) => makeBackend(live, { armed: req.armed, launch: req.launch }),
++    backend: makeBackend(live, { ...(values.launch === true ? { launch: true } : {}) }),
++    armed: true,
++    mode: live.mode,
++    screens: {},
++  };
++  await openTool(
++    {
++      url,
++      launch: values.launch === true,
++      allowOrigin: values["allow-origin"] === true,
++      port: live.port,
++      app: live.app,
++    },
++    ctx,
++  );
+ }
+ 
+ async function cmdSnapshot(rest: string[]): Promise<void> {
+diff --git a/src/tools/open.ts b/src/tools/open.ts
+index 325e3ae..4da699e 100644
+--- a/src/tools/open.ts
++++ b/src/tools/open.ts
+@@ -1,6 +1,7 @@
+ import { join } from "node:path";
+ import { isLoginBarrier } from "../browser/pwa-runtime.js";
+ import { FileAppRegistry, normalizeOrigin } from "../core/app-registry.js";
++import { resolveNavigationTarget } from "../core/target-resolution.js";
+ import { performOpen } from "../ops/ops.js";
+ import { getBackend } from "./common.js";
+ import { invalid, type ToolContext, type ToolOutcome } from "./types.js";
+@@ -14,36 +15,44 @@ export interface OpenArgs {
+ }
+ 
+ export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOutcome> {
+-  const { url, launch = false, allowOrigin = false, port, app } = args;
+-  if (!url || url.length === 0) {
++  const { url: rawUrl, launch = false, allowOrigin = false, port, app: explicitApp } = args;
++  if (!rawUrl || rawUrl.length === 0) {
+     throw invalid("missing <url>.");
+   }
+   if (ctx.mode === "offline" && (launch || allowOrigin)) {
+     throw invalid("--launch and --allow-origin require the live backend (--backend bidi).");
+   }
+ 
+-  const backend = getBackend(ctx, { armed: false, launch, port, app });
+-  const session = await performOpen(url, { backend, allowOrigin });
++  // Pre-navigation target resolution and validation (fail-fast without spawning processes or tabs)
++  const probeBackend = getBackend(ctx, { armed: false, launch: false, port, app: explicitApp });
++  const preRegistry = new FileAppRegistry(probeBackend.agentDir);
++  const resolved = await resolveNavigationTarget(rawUrl, preRegistry);
++
++  const effectiveApp = explicitApp ?? (resolved.appSlug || undefined);
++  const targetUrl = resolved.url;
++
++  const backend = getBackend(ctx, { armed: false, launch, port, app: effectiveApp });
++  const session = await performOpen(targetUrl, { backend, allowOrigin });
+   const registry = new FileAppRegistry(backend.agentDir);
+   const barrier = isLoginBarrier(session.url);
+-  const initialOrigin = normalizeOrigin(url);
++  const initialOrigin = normalizeOrigin(targetUrl);
+   const destOrigin = normalizeOrigin(session.url);
+ 
+   let slug: string;
+-  if (app) {
++  if (effectiveApp) {
+     if (initialOrigin) {
+-      await registry.registerAppOrigin(initialOrigin, app);
++      await registry.registerAppOrigin(initialOrigin, effectiveApp);
+     }
+     if (destOrigin && !barrier) {
+-      await registry.registerAppOrigin(destOrigin, app);
++      await registry.registerAppOrigin(destOrigin, effectiveApp);
+     }
+-    slug = app;
++    slug = effectiveApp;
+   } else if (!barrier && initialOrigin && destOrigin && initialOrigin !== destOrigin) {
+     const destSlug = await registry.resolveSlug(session.url);
+     await registry.registerAppOrigin(initialOrigin, destSlug);
+     slug = destSlug;
+   } else {
+-    slug = await registry.resolveSlug(barrier ? url : session.url);
++    slug = await registry.resolveSlug(barrier ? targetUrl : session.url);
+   }
+ 
+   const sessionPath = join(backend.agentDir, "session.json");
