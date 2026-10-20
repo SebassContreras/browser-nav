@@ -3,8 +3,8 @@
 ## Context
 
 The audit of `pwa-nav` highlighted technical debt accumulated across iterative specs:
-- Redundant forwarding adapter `src/cli/cli-screens.ts` (Middle Man code smell).
-- Four unconsumed internal barrel files (`src/backend/index.ts`, `src/core/index.ts`, `src/ops/index.ts`, `src/screens/index.ts`).
+- Redundant forwarding adapter `cli-screens` (Middle Man code smell).
+- Four unconsumed internal barrel files (`backend/index`, `core/index`, `ops/index`, `screens/index`).
 - Outdated `--clean` and `--debug` flags listed in `pwa-nav auth --help`.
 - Unexported utility functions in `src/screens/screen-learn.ts` exposed needlessly to the module boundary.
 - Unused legacy `target="id=value"` syntax in `src/tools/click.ts`.
@@ -13,12 +13,12 @@ The audit of `pwa-nav` highlighted technical debt accumulated across iterative s
 
 ## Approach
 
-- D1@1 (implements R1): Remove Middle Man `src/cli/cli-screens.ts` and dispatch semantic actions directly in `src/cli.ts`.
+- D1@1 (implements R1): Remove Middle Man `cli-screens` and dispatch semantic actions directly in `src/cli.ts`.
   - Refactor `cmdClick`, `cmdFill`, `cmdUpload`, `cmdAct`, `cmdSnapshot` in `src/cli.ts` to call `clickTool`, `fillTool`, `uploadTool`, `actTool`, `snapshotTool`, and `renderScreenViewForBackend` directly from `src/tools/`.
-  - Delete `src/cli/cli-screens.ts` and its test file `src/cli/test/cli-screens.test.ts` (if any, or re-target to `src/cli/test/cli.test.ts`).
+  - Delete `cli-screens` and its test file `src/cli/test/cli-screens.test.ts` (if any, or re-target to `src/cli/test/cli.test.ts`).
   - _(standard: Martin Fowler Refactoring - Remove Middle Man — https://refactoring.com/catalog/removeMiddleMan.html)_
 - D2@1 (implements R2): Delete orphan barrel files.
-  - Remove `src/backend/index.ts`, `src/core/index.ts`, `src/ops/index.ts`, and `src/screens/index.ts`.
+  - Remove `backend/index`, `core/index`, `ops/index`, and `screens/index`.
   - Maintain `src/index.ts` as the sole public package entrypoint.
   - _(standard: Node.js ESM Single-Package Architecture — https://nodejs.org/api/packages.html#package-entry-points)_
 - D3@1 (implements R3): Align `pwa-nav auth` usage string with strict parser options.
@@ -67,7 +67,7 @@ The audit of `pwa-nav` highlighted technical debt accumulated across iterative s
 - `src/screens/screen-learn.ts` (D4)
 - `src/ops/ops.ts` (D6)
 - Test mock repairs across `src/**/test/` (D7)
-- Deletion of `src/cli/cli-screens.ts` and `src/{backend,core,ops,screens}/index.ts` (D1, D2)
+- Deletion of `cli-screens` and `internal barrel files` (D1, D2)
 
 ## Sequencing
 

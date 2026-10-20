@@ -5,9 +5,9 @@
 This specification addresses the findings from the comprehensive read-only code audit conducted across the `pwa-nav` codebase. The audit identified dead code, redundant middle-man adapters, unparsed/zombie CLI flags, non-lazy top-level I/O, test mock typing drift, and loose encapsulation.
 
 Owner architectural decisions incorporated:
-1. Dead submodule barrel files (`src/backend/index.ts`, `src/core/index.ts`, `src/ops/index.ts`, `src/screens/index.ts`) must be removed; `pwa-nav` is a single-package library with `src/index.ts` as the sole public API surface.
+1. Dead submodule barrel files (`backend/index`, `core/index`, `ops/index`, `screens/index`) must be removed; `pwa-nav` is a single-package library with `src/index.ts` as the sole public API surface.
 2. Legacy `target="id=value"` in `src/tools/click.ts` is confirmed unused by callers and verified across fixtures/docs/tests before complete removal.
-3. The Middle Man adapter `src/cli/cli-screens.ts` must be eliminated in favor of direct calls from `src/cli.ts` to `src/tools/`.
+3. The Middle Man adapter `cli-screens` must be eliminated in favor of direct calls from `src/cli.ts` to `src/tools/`.
 4. Zombie CLI flags `--clean` and `--debug` in `pwa-nav auth` usage string must be removed from help documentation.
 5. Top-level sync filesystem lookups in `src/ops/ops.ts` (`DEFAULT_ACTIONS_PATH`, `DEFAULT_SCREENSHOT_PATH`) must become lazy getters.
 6. Test mock interface signatures must be aligned with real types so `tsc --noEmit` exits with 0 errors.
@@ -23,8 +23,8 @@ Developers and autonomous pair-programming agents maintaining and extending `pwa
 
 ## Requirements
 
-- R1@1: Remove Middle Man adapter: delete `src/cli/cli-screens.ts` and dispatch semantic actions (`click`, `fill`, `upload`, `act`, `learn`, `screen`) directly from `src/cli.ts` to the unified tools service layer (`src/tools/`).
-- R2@1: Remove orphan internal barrel files: delete `src/backend/index.ts`, `src/core/index.ts`, `src/ops/index.ts`, and `src/screens/index.ts` to enforce explicit internal imports and single-package library entrypoint via `src/index.ts`.
+- R1@1: Remove Middle Man adapter: delete `cli-screens` and dispatch semantic actions (`click`, `fill`, `upload`, `act`, `learn`, `screen`) directly from `src/cli.ts` to the unified tools service layer (`src/tools/`).
+- R2@1: Remove orphan internal barrel files: delete `backend/index`, `core/index`, `ops/index`, and `screens/index` to enforce explicit internal imports and single-package library entrypoint via `src/index.ts`.
 - R3@1: Remove zombie CLI auth flags: eliminate `--clean` and `--debug` from the `pwa-nav auth` usage help string in `src/cli.ts` so documented CLI flags strictly match parsed arguments.
 - R4@1: Module encapsulation: unexport `isProse`, `isTransientName`, and `nestBranchIntoActionList` in `src/screens/screen-learn.ts`, keeping their logic private to the module without deleting them.
 - R5@1: Remove legacy click syntax: verify no consumers exist across tests, fixtures, docs, and screen maps, then remove the deprecated `target="id=value"` parsing branch from `src/tools/click.ts`.
