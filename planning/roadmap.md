@@ -22,4 +22,6 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 016 | assisted-auth-transition | done        | 007, 008 | —     | 16 |
 | 017 | code-audit-cleanup | done        | 006, 012, 016 | —      | 17 |
 | 018 | canonical-app-origin-mapping | done        | 002, 004, 005 | —     | 18 |
-
+| 019 | smart-url-app-resolution | todo | 005, 018 | design | 19 |
+| 020 | dynamic-workspace-storage | todo | 002, 018 | design | 20 |
+| 021 | automatic-auth-cookie-sync | todo | 002, 004, 016 | design | 21 |
