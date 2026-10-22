@@ -10,6 +10,7 @@ import {
   authTool as runAuthTool,
   statusTool,
   clickTool,
+  configTool,
   discoverTool,
   extractTool,
   findTool as runFindTool,
@@ -127,6 +128,8 @@ const open: ToolDef = {
       },
       launch: { type: "boolean", description: "Start the PWA runtime with the debugging port if nothing listens." },
       allowOrigin: { type: "boolean", description: "Add this URL's origin to the allow-list after a successful navigation." },
+      cacheDir: { type: "string", description: "Optional per-call cache directory override." },
+      workspaceDir: { type: "string", description: "Optional per-call workspace directory override." },
     },
     required: ["url"],
     additionalProperties: false,
@@ -137,7 +140,7 @@ const open: ToolDef = {
     const launch = flag(args, "launch");
     const allowOrigin = flag(args, "allowOrigin");
     try {
-      return await openTool({ url, launch, allowOrigin }, ctx);
+      return await openTool({ url, launch, allowOrigin, cacheDir: str(args, "cacheDir"), workspaceDir: str(args, "workspaceDir") }, ctx);
     } catch (error) {
       // No Firefox: ask the human (elicitation) before downloading; otherwise the error hints pwa_install_runtime.
       if (!launch || !(error instanceof FirefoxNotFoundError) || ctx.confirm === undefined) throw error;
@@ -182,6 +185,11 @@ const snapshot: ToolDef = {
       appName: { type: "string", description: "Optional human-readable app name." },
       access: { enum: ["public", "authenticated", "unknown"], description: "Screen access level (default: public)." },
       prune: { type: "boolean", description: "Prune missing elements from existing map (default: false)." },
+      cacheDir: { type: "string", description: "Optional per-call cache directory override." },
+      workspaceDir: { type: "string", description: "Optional per-call workspace directory override." },
+      rawTree: { type: "string", description: "Optional raw ARIA tree input for testing/offline." },
+      url: { type: "string", description: "Optional URL for offline snapshot." },
+      title: { type: "string", description: "Optional title for offline snapshot." },
     },
     additionalProperties: false,
   },
@@ -199,6 +207,11 @@ const snapshot: ToolDef = {
         appName: str(args, "appName"),
         access: str(args, "access"),
         prune: flag(args, "prune"),
+        rawTree: str(args, "rawTree"),
+        url: str(args, "url"),
+        title: str(args, "title"),
+        cacheDir: str(args, "cacheDir"),
+        workspaceDir: str(args, "workspaceDir"),
       },
       ctx,
     );
@@ -581,7 +594,44 @@ const discoverToolDef: ToolDef = {
   },
 };
 
+const configToolDef: ToolDef = {
+  name: "pwa_config",
+  description:
+    "Inspect or update runtime storage configuration (active cache directory, screens directory, workspace directory, and fallback mode) without restarting the MCP server.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      action: {
+        enum: ["get", "set"],
+        description: "Action to perform: 'get' to inspect current configuration, 'set' to update dynamic paths for the session. Defaults to 'get' if no paths provided.",
+      },
+      cacheDir: {
+        type: "string",
+        description: "Explicit cache directory path to set for this session (stores apps/, session.json, allow.json).",
+      },
+      workspaceDir: {
+        type: "string",
+        description: "Workspace root directory path to bind this session to (<workspaceDir>/.agent).",
+      },
+      screensDir: {
+        type: "string",
+        description: "Screens directory path to set for this session.",
+      },
+    },
+    additionalProperties: false,
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  async handler(args, ctx) {
+    const action = args["action"] === "set" || args["action"] === "get" ? args["action"] : undefined;
+    const cacheDir = str(args, "cacheDir");
+    const workspaceDir = str(args, "workspaceDir");
+    const screensDir = str(args, "screensDir");
+    return configTool({ action, cacheDir, workspaceDir, screensDir }, ctx);
+  },
+};
+
 export const TOOLS: readonly ToolDef[] = [
+  configToolDef,
   open,
   installRuntime,
   authToolDef,

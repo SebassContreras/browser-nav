@@ -5,7 +5,7 @@ import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
@@ -175,6 +175,7 @@ test("tools/list: names, schemas compile under Ajv 2020, annotations, no armed f
       "pwa_act",
       "pwa_auth",
       "pwa_click",
+      "pwa_config",
       "pwa_discover",
       "pwa_extract",
       "pwa_fill",
@@ -501,7 +502,7 @@ test("flow tools: listed with the flow's own inputSchema; humanOnly flows are no
     assert.match(flow.description ?? "", /^Run flow "search" on screen "search" of app "synthetic"/);
     assert.match(flow.description ?? "", /Search for a term\./);
     assert.ok(!(flow.description ?? "").includes("Query"), "element names never reach descriptions");
-    assert.equal(tools.length, 15);
+    assert.equal(tools.length, 16);
     const ajv = new Ajv2020({ allErrors: true, strict: true });
     for (const tool of tools) assert.doesNotThrow(() => ajv.compile(tool.inputSchema), tool.name);
     assert.match(client.getInstructions() ?? "", /dry-run/i);
@@ -510,7 +511,7 @@ test("flow tools: listed with the flow's own inputSchema; humanOnly flows are no
   // The demo map only has a humanOnly flow: no flow tool, but instructions + resource mention it.
   await withMcp({}, async ({ client }) => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 14);
+    assert.equal(tools.length, 15);
     assert.ok(!tools.some((t) => t.name.startsWith("flow_")));
     assert.match(client.getInstructions() ?? "", /Human-only flows exist.*login \(screen login\)/);
     const { resources } = await client.listResources();
@@ -633,7 +634,7 @@ test("startup tolerates missing, invalid, ambiguous and Ajv-invalid maps (no flo
   for (const [label, maps, expected] of cases) {
     await withMcp({ maps }, async ({ client, logs }) => {
       const { tools } = await client.listTools();
-      assert.equal(tools.length, 14, label);
+      assert.equal(tools.length, 15, label);
       assert.ok(logs.some((l) => expected.test(l)), `${label}: ${logs.join(" | ")}`);
       const { resources } = await client.listResources();
       assert.deepEqual(resources.map((r) => r.uri), ["pwa-nav://snapshot/latest"], label);
@@ -847,3 +848,79 @@ test("pwa_screenshot: captures screenshot to disk and returns path + dimensions 
 });
 
 
+
+test("initialize handshake auto-detects workspaceFolders when cacheDir is not explicitly pinned", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "pwa-nav-init-workspace-"));
+  const workspaceDir = join(dir, "my-ide-project");
+  await mkdir(workspaceDir, { recursive: true });
+
+  const logs: string[] = [];
+  const log = (line: string): void => {
+    logs.push(line);
+  };
+
+  const mcp = createMcpServer({
+    mode: "offline",
+    backendFactory: () => createBackend({ mode: "offline" }),
+    log,
+  });
+
+  const uri = pathToFileURL(workspaceDir).href;
+  const initRequest = {
+    method: "initialize",
+    params: {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "test-ide", version: "1.0" },
+      workspaceFolders: [{ uri }],
+    },
+  };
+
+  // Trigger initialization hook directly
+  interface Initializable { _oninitialize(req: unknown): Promise<unknown>; }
+  await (mcp as unknown as Initializable)._oninitialize(initRequest);
+
+  const expectedAgent = join(workspaceDir, ".agent");
+  assert.ok(logs.some((l) => l.includes("workspace auto-detected from initialize handshake")));
+  assert.ok(logs.some((l) => l.includes(expectedAgent)));
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("initialize handshake ignores workspaceFolders when cacheDir was explicitly pinned via options", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "pwa-nav-init-pinned-"));
+  const pinnedCache = join(dir, "pinned-cache");
+  const workspaceDir = join(dir, "ignored-project");
+  await mkdir(pinnedCache, { recursive: true });
+  await mkdir(workspaceDir, { recursive: true });
+
+  const logs: string[] = [];
+  const log = (line: string): void => {
+    logs.push(line);
+  };
+
+  const mcp = createMcpServer({
+    mode: "offline",
+    cacheDir: pinnedCache,
+    backendFactory: () => createBackend({ mode: "offline" }),
+    log,
+  });
+
+  const uri = pathToFileURL(workspaceDir).href;
+  const initRequest = {
+    method: "initialize",
+    params: {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "test-ide", version: "1.0" },
+      workspaceFolders: [{ uri }],
+    },
+  };
+
+  interface Initializable { _oninitialize(req: unknown): Promise<unknown>; }
+  await (mcp as unknown as Initializable)._oninitialize(initRequest);
+
+  assert.ok(!logs.some((l) => l.includes("workspace auto-detected from initialize handshake")));
+
+  await rm(dir, { recursive: true, force: true });
+});

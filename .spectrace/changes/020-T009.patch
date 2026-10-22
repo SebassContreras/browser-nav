@@ -1,0 +1,127 @@
+diff --git a/src/mcp/test/mcp-server.test.ts b/src/mcp/test/mcp-server.test.ts
+index a77bf2c..f9e6690 100644
+--- a/src/mcp/test/mcp-server.test.ts
++++ b/src/mcp/test/mcp-server.test.ts
+@@ -5,7 +5,7 @@ import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node
+ import { tmpdir } from "node:os";
+ import { dirname, join } from "node:path";
+ import { test } from "node:test";
+-import { fileURLToPath } from "node:url";
++import { fileURLToPath, pathToFileURL } from "node:url";
+ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+ import { McpError } from "@modelcontextprotocol/sdk/types.js";
+@@ -848,3 +848,77 @@ test("pwa_screenshot: captures screenshot to disk and returns path + dimensions
+ });
+ 
+ 
++
++test("initialize handshake auto-detects workspaceFolders when cacheDir is not explicitly pinned", async () => {
++  const dir = await mkdtemp(join(tmpdir(), "pwa-nav-init-workspace-"));
++  const workspaceDir = join(dir, "my-ide-project");
++  await mkdir(workspaceDir, { recursive: true });
++
++  const logs: string[] = [];
++  const log = (line: string): void => {
++    logs.push(line);
++  };
++
++  const mcp = createMcpServer({
++    mode: "offline",
++    backendFactory: () => new OfflineBackend(),
++    log,
++  });
++
++  const uri = pathToFileURL(workspaceDir).href;
++  const initRequest = {
++    method: "initialize",
++    params: {
++      protocolVersion: "2024-11-05",
++      capabilities: {},
++      clientInfo: { name: "test-ide", version: "1.0" },
++      workspaceFolders: [{ uri }],
++    },
++  };
++
++  // Trigger initialization hook directly
++  await (mcp as unknown as { _oninitialize: (req: unknown) => Promise<unknown> })._oninitialize(initRequest);
++
++  const expectedAgent = join(workspaceDir, ".agent");
++  assert.ok(logs.some((l) => l.includes("workspace auto-detected from initialize handshake")));
++  assert.ok(logs.some((l) => l.includes(expectedAgent)));
++
++  await rm(dir, { recursive: true, force: true });
++});
++
++test("initialize handshake ignores workspaceFolders when cacheDir was explicitly pinned via options", async () => {
++  const dir = await mkdtemp(join(tmpdir(), "pwa-nav-init-pinned-"));
++  const pinnedCache = join(dir, "pinned-cache");
++  const workspaceDir = join(dir, "ignored-project");
++  await mkdir(pinnedCache, { recursive: true });
++  await mkdir(workspaceDir, { recursive: true });
++
++  const logs: string[] = [];
++  const log = (line: string): void => {
++    logs.push(line);
++  };
++
++  const mcp = createMcpServer({
++    mode: "offline",
++    cacheDir: pinnedCache,
++    backendFactory: () => new OfflineBackend(),
++    log,
++  });
++
++  const uri = pathToFileURL(workspaceDir).href;
++  const initRequest = {
++    method: "initialize",
++    params: {
++      protocolVersion: "2024-11-05",
++      capabilities: {},
++      clientInfo: { name: "test-ide", version: "1.0" },
++      workspaceFolders: [{ uri }],
++    },
++  };
++
++  await (mcp as unknown as { _oninitialize: (req: unknown) => Promise<unknown> })._oninitialize(initRequest);
++
++  assert.ok(!logs.some((l) => l.includes("workspace auto-detected from initialize handshake")));
++
++  await rm(dir, { recursive: true, force: true });
++});
+diff --git a/src/tools/common.ts b/src/tools/common.ts
+index 8753e92..5654cdc 100644
+--- a/src/tools/common.ts
++++ b/src/tools/common.ts
+@@ -1,6 +1,5 @@
+ import { join } from "node:path";
+ import type { Backend } from "../backend/backend.js";
+-import { appSlugFromUrl } from "../backend/backend.js";
+ import { latestSnapshotId, load as loadSnapshot } from "../core/refs.js";
+ import { resolveAgentDir } from "../core/storage.js";
+ import { formatExtractLine } from "../ops/ops.js";
+@@ -55,19 +54,15 @@ export async function actionOutcome(
+     };
+   }
+ 
+-  const appSlug = snapshot?.url ? appSlugFromUrl(snapshot.url) : undefined;
+-  const screenMap = appSlug ? join(backend.agentDir, "apps", appSlug, "screens.json") : undefined;
+-
+   return {
+     ...(text !== undefined ? { text } : {}),
+     structured: {
+-      ok: true,
+-      armed: !isDryRun(ctx),
++      dryRun: isDryRun(ctx),
++      status: "ok",
+       ...(id === null ? {} : { snapshotId: id }),
+-      ...(snapshot?.url ? { url: snapshot.url } : {}),
+-      ...(appSlug ? { app: appSlug } : {}),
+-      ...(screenMap ? { screenMap } : {}),
+-      ...(openedBranch !== undefined ? { opens: openedBranch } : {}),
++      ...(openedBranch !== undefined ? { openedBranch } : {}),
++      ...(snapshot?.activeDialog !== undefined ? { activeDialog: snapshot.activeDialog } : {}),
++      ...(snapshot === null ? {} : { url: snapshot.url }),
+     },
+   };
+ }

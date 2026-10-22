@@ -1,0 +1,98 @@
+diff --git a/src/ops/config.ts b/src/ops/config.ts
+new file mode 100644
+index 0000000..0c00053
+--- /dev/null
++++ b/src/ops/config.ts
+@@ -0,0 +1,46 @@
++import { resolveEffectiveStorage, type EffectiveStorage, type StorageOptions } from "../core/storage.js";
++
++export interface ConfigOptions extends StorageOptions {
++  action?: "get" | "set" | undefined;
++}
++
++export interface ConfigResult {
++  active: EffectiveStorage;
++  previous?: EffectiveStorage | undefined;
++  updated: boolean;
++}
++
++/**
++ * Pure operation to inspect or update storage configuration.
++ */
++export function performConfig(
++  options: ConfigOptions,
++  currentContext: { cacheDir?: string | undefined; screensDir?: string | undefined; workspaceDir?: string | undefined } = {},
++  env: Record<string, string | undefined> = process.env,
++  cwd: string = process.cwd(),
++): ConfigResult {
++  const current = resolveEffectiveStorage(currentContext, env, cwd);
++
++  const isSet = options.action === "set" || (options.action === undefined && (options.cacheDir !== undefined || options.workspaceDir !== undefined || options.screensDir !== undefined));
++
++  if (!isSet) {
++    return {
++      active: current,
++      updated: false,
++    };
++  }
++
++  const updatedOptions: StorageOptions = {
++    cacheDir: options.cacheDir ?? currentContext.cacheDir,
++    workspaceDir: options.workspaceDir ?? currentContext.workspaceDir,
++    screensDir: options.screensDir ?? currentContext.screensDir,
++  };
++
++  const next = resolveEffectiveStorage(updatedOptions, env, cwd);
++
++  return {
++    active: next,
++    previous: current,
++    updated: true,
++  };
++}
+diff --git a/src/tools/config.ts b/src/tools/config.ts
+new file mode 100644
+index 0000000..60e2d56
+--- /dev/null
++++ b/src/tools/config.ts
+@@ -0,0 +1,40 @@
++import { performConfig, type ConfigOptions, type ConfigResult } from "../ops/config.js";
++import type { ToolContext, ToolOutcome } from "./types.js";
++
++export async function configTool(
++  args: ConfigOptions,
++  ctx: ToolContext,
++): Promise<ToolOutcome> {
++  const currentContext = {
++    cacheDir: ctx.screens.cacheDir ?? ctx.agentDir,
++    screensDir: ctx.screens.screensDir,
++  };
++
++  const result: ConfigResult = performConfig(args, currentContext);
++
++  if (result.updated) {
++    // Atomically synchronize the active session context
++    ctx.agentDir = result.active.agentDir;
++    ctx.screens.cacheDir = result.active.agentDir;
++    ctx.screens.screensDir = result.active.screensDir;
++  }
++
++  const lines = [
++    result.updated ? "Configuration updated:" : "Active configuration:",
++    `  mode: ${result.active.mode}`,
++    `  agentDir: ${result.active.agentDir}`,
++    `  screensDir: ${result.active.screensDir}`,
++    `  workspaceDir: ${result.active.workspaceDir ?? "none (outside project or global fallback)"}`,
++  ];
++
++  return {
++    text: lines.join("\n"),
++    structured: {
++      ...result,
++      agentDir: result.active.agentDir,
++      screensDir: result.active.screensDir,
++      workspaceDir: result.active.workspaceDir,
++      mode: result.active.mode,
++    },
++  };
++}

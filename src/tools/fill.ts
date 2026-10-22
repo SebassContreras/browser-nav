@@ -3,9 +3,9 @@ import { performFill } from "../ops/ops.js";
 import { parseTarget, resolveTarget } from "../screens/screen-resolve.js";
 import { actionOutcome, getBackend } from "./common.js";
 import { executeSemantic, screenAt, type SemanticContext } from "./semantic-exec.js";
-import { invalid, NO_INPUT_LINE, type ToolContext, type ToolOutcome } from "./types.js";
+import { invalid, NO_INPUT_LINE, type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
-export interface FillArgs {
+export interface FillArgs extends CommonToolOptions {
   target?: string;
   ref?: string;
   text: string;

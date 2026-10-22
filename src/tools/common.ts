@@ -1,19 +1,30 @@
-import { join } from "node:path";
 import type { Backend } from "../backend/backend.js";
-import { appSlugFromUrl } from "../backend/backend.js";
 import { latestSnapshotId, load as loadSnapshot } from "../core/refs.js";
+import { resolveAgentDir } from "../core/storage.js";
 import { formatExtractLine } from "../ops/ops.js";
-import { isDryRun, type BackendRequest, type ToolContext, type ToolOutcome } from "./types.js";
+import { isDryRun, type BackendRequest, type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
-export function getBackend(ctx: ToolContext, req: Partial<BackendRequest> = {}): Backend {
+export function getBackend(
+  ctx: ToolContext,
+  req: Partial<BackendRequest> & CommonToolOptions = {},
+): Backend {
   if (ctx.backend !== undefined) {
     return ctx.backend;
   }
+
+  const effectiveCacheDir =
+    req.cacheDir ??
+    (req.workspaceDir !== undefined ? resolveAgentDir({ workspaceDir: req.workspaceDir }) : undefined) ??
+    ctx.screens.cacheDir ??
+    ctx.agentDir;
+
   return ctx.backendFactory({
     armed: req.armed ?? ctx.armed,
     launch: req.launch,
     port: req.port ?? ctx.port,
     app: req.app ?? ctx.app,
+    cacheDir: effectiveCacheDir,
+    workspaceDir: req.workspaceDir,
   });
 }
 
@@ -42,16 +53,12 @@ export async function actionOutcome(
     };
   }
 
-  const appSlug = snapshot?.url ? appSlugFromUrl(snapshot.url) : undefined;
-  const screenMap = appSlug ? join(backend.agentDir, "apps", appSlug, "screens.json") : undefined;
-
   return {
     ...(text !== undefined ? { text } : {}),
     structured: {
       dryRun: isDryRun(ctx),
       status: "ok",
       ...(id === null ? {} : { snapshotId: id }),
-      ...(screenMap ? { screenMap } : {}),
       ...(openedBranch !== undefined ? { openedBranch } : {}),
       ...(snapshot?.activeDialog !== undefined ? { activeDialog: snapshot.activeDialog } : {}),
       ...(snapshot === null ? {} : { url: snapshot.url }),

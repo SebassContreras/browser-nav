@@ -5,9 +5,9 @@ import { DEFAULT_SNAPSHOT_PATH, formatExtractLine, performLiveSnapshot, performS
 import { getBackend } from "./common.js";
 import { learnTool } from "./learn.js";
 import { screenTool } from "./screen.js";
-import { invalid, type ToolContext, type ToolOutcome } from "./types.js";
+import { invalid, type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
-export interface SnapshotArgs {
+export interface SnapshotArgs extends CommonToolOptions {
   interactive?: boolean;
   all?: boolean;
   json?: boolean;
@@ -83,7 +83,8 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
     );
   }
 
-  const outPath = out ?? (ctx.backend ? join(ctx.backend.agentDir, "snapshot.json") : DEFAULT_SNAPSHOT_PATH);
+  const effectiveAgentDir = args.cacheDir ?? (args.workspaceDir ? join(args.workspaceDir, ".agent") : ctx.backend?.agentDir ?? ctx.screens.cacheDir ?? ctx.agentDir);
+  const outPath = out ?? (effectiveAgentDir ? join(effectiveAgentDir, "snapshot.json") : DEFAULT_SNAPSHOT_PATH);
 
   // Offline ARIA tree normalizer path
   let rawTree: string | null = passedRawTree ?? null;
@@ -99,7 +100,7 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
       outPath,
       url: url ?? "",
       title: title ?? "",
-      agentDir: ctx.agentDir,
+      agentDir: effectiveAgentDir ?? ctx.agentDir,
       quiet: json,
     });
     return {

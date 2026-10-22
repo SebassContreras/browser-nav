@@ -1,0 +1,58 @@
+diff --git a/src/mcp/mcp-tools.ts b/src/mcp/mcp-tools.ts
+index 2d6cd38..87da546 100644
+--- a/src/mcp/mcp-tools.ts
++++ b/src/mcp/mcp-tools.ts
+@@ -581,7 +581,44 @@ const discoverToolDef: ToolDef = {
+   },
+ };
+ 
++const configToolDef: ToolDef = {
++  name: "pwa_config",
++  description:
++    "Inspect or update runtime storage configuration (active cache directory, screens directory, workspace directory, and fallback mode) without restarting the MCP server.",
++  inputSchema: {
++    type: "object",
++    properties: {
++      action: {
++        enum: ["get", "set"],
++        description: "Action to perform: 'get' to inspect current configuration, 'set' to update dynamic paths for the session. Defaults to 'get' if no paths provided.",
++      },
++      cacheDir: {
++        type: "string",
++        description: "Explicit cache directory path to set for this session (stores apps/, session.json, allow.json).",
++      },
++      workspaceDir: {
++        type: "string",
++        description: "Workspace root directory path to bind this session to (<workspaceDir>/.agent).",
++      },
++      screensDir: {
++        type: "string",
++        description: "Screens directory path to set for this session.",
++      },
++    },
++    additionalProperties: false,
++  },
++  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
++  async handler(args, ctx) {
++    const action = args["action"] === "set" || args["action"] === "get" ? args["action"] : undefined;
++    const cacheDir = str(args, "cacheDir");
++    const workspaceDir = str(args, "workspaceDir");
++    const screensDir = str(args, "screensDir");
++    return configTool({ action, cacheDir, workspaceDir, screensDir }, ctx);
++  },
++};
++
+ export const TOOLS: readonly ToolDef[] = [
++  configToolDef,
+   open,
+   installRuntime,
+   authToolDef,
+diff --git a/src/tools/index.ts b/src/tools/index.ts
+index c6e89b0..02df7b7 100644
+--- a/src/tools/index.ts
++++ b/src/tools/index.ts
+@@ -20,3 +20,4 @@ export * from "./runtime.js";
+ export * from "./status.js";
+ export * from "./profile.js";
+ export * from "./discover.js";
++export * from "./config.js";

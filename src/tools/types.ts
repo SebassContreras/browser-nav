@@ -7,6 +7,8 @@ export interface BackendRequest {
   launch?: boolean;
   port?: number;
   app?: string;
+  cacheDir?: string;
+  workspaceDir?: string;
 }
 
 export type BackendFactory = (request: BackendRequest) => Backend;
@@ -18,6 +20,13 @@ export interface ScreenSource {
   screensDir?: string | undefined;
   /** Resolved `--cache-dir` (env PWA_NAV_CACHE_DIR). */
   cacheDir?: string;
+  /** Workspace directory if bound to a project root. */
+  workspaceDir?: string | undefined;
+}
+
+export interface CommonToolOptions {
+  cacheDir?: string | undefined;
+  workspaceDir?: string | undefined;
 }
 
 export interface ToolContext {

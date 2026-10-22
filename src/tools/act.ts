@@ -3,10 +3,10 @@ import type { ActOp } from "../ops/ops.js";
 import { isSemanticToken, parseFlowInputs, parseSemanticAct, resolveFlow, resolveTarget, type ParsedTarget } from "../screens/screen-resolve.js";
 import { actionOutcome, getBackend } from "./common.js";
 import { executeSemantic, screenAt, type Planned, type SemanticContext } from "./semantic-exec.js";
-import { invalid, NO_INPUT_LINE, type ToolContext, type ToolOutcome } from "./types.js";
+import { invalid, NO_INPUT_LINE, type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 import { PwaNavError } from "../core/errors.js";
 
-export interface ActArgs {
+export interface ActArgs extends CommonToolOptions {
   ops: readonly string[];
   inputs?: Record<string, string>;
   snapshotId?: string;

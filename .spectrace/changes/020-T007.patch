@@ -1,0 +1,113 @@
+diff --git a/src/tools/snapshot.ts b/src/tools/snapshot.ts
+index 87c1b70..0440848 100644
+--- a/src/tools/snapshot.ts
++++ b/src/tools/snapshot.ts
+@@ -83,7 +83,8 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
+     );
+   }
+ 
+-  const outPath = out ?? (ctx.backend ? join(ctx.backend.agentDir, "snapshot.json") : DEFAULT_SNAPSHOT_PATH);
++  const effectiveAgentDir = args.cacheDir ?? (args.workspaceDir ? join(args.workspaceDir, ".agent") : ctx.backend?.agentDir ?? ctx.screens.cacheDir ?? ctx.agentDir);
++  const outPath = out ?? (effectiveAgentDir ? join(effectiveAgentDir, "snapshot.json") : DEFAULT_SNAPSHOT_PATH);
+ 
+   // Offline ARIA tree normalizer path
+   let rawTree: string | null = passedRawTree ?? null;
+@@ -99,7 +100,7 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
+       outPath,
+       url: url ?? "",
+       title: title ?? "",
+-      agentDir: ctx.agentDir,
++      agentDir: effectiveAgentDir ?? ctx.agentDir,
+       quiet: json,
+     });
+     return {
+diff --git a/src/tools/test/config.test.ts b/src/tools/test/config.test.ts
+index 0e533e7..378289a 100644
+--- a/src/tools/test/config.test.ts
++++ b/src/tools/test/config.test.ts
+@@ -1,12 +1,15 @@
+ import assert from "node:assert/strict";
+ import { describe, it } from "node:test";
+-import { mkdir, rm } from "node:fs/promises";
++import { mkdir, rm, writeFile } from "node:fs/promises";
++import { existsSync } from "node:fs";
+ import { join } from "node:path";
+ import { tmpdir } from "node:os";
+ import { randomUUID } from "node:crypto";
+ import { configTool } from "../config.js";
+-import type { ToolContext } from "../types.js";
+-import { OfflineBackend } from "../../backend/backend.js";
++import { openTool } from "../open.js";
++import { snapshotTool } from "../snapshot.js";
++import type { ToolContext, BackendRequest } from "../types.js";
++import { OfflineBackend, type Backend } from "../../backend/backend.js";
+ 
+ async function withTmp(fn: (dir: string) => Promise<void>): Promise<void> {
+   const dir = join(tmpdir(), `pwa-nav-config-test-${randomUUID()}`);
+@@ -20,7 +23,9 @@ async function withTmp(fn: (dir: string) => Promise<void>): Promise<void> {
+ 
+ function makeMockContext(initialDir: string): ToolContext {
+   return {
+-    backendFactory: () => new OfflineBackend(),
++    backendFactory: (req: BackendRequest): Backend => {
++      return new OfflineBackend({ agentDir: req.cacheDir ?? initialDir });
++    },
+     armed: false,
+     mode: "offline",
+     screens: { cacheDir: initialDir, screensDir: join(initialDir, "screens") },
+@@ -73,4 +78,55 @@ describe("configTool and performConfig", () => {
+       assert.equal(ctx.screens.cacheDir, expectedAgentDir);
+     });
+   });
++
++  describe("per-call workspace overrides across tools", () => {
++    it("openTool targets overridden workspaceDir without altering session context", async () => {
++      await withTmp(async (dir) => {
++        const defaultAgent = join(dir, "default-agent");
++        const overrideWorkspace = join(dir, "override-project");
++        await mkdir(defaultAgent, { recursive: true });
++        await mkdir(overrideWorkspace, { recursive: true });
++
++        const ctx = makeMockContext(defaultAgent);
++
++        const openRes = await openTool(
++          { url: "https://example.com", workspaceDir: overrideWorkspace },
++          ctx,
++        );
++
++        assert.equal(openRes.structured["url"], "https://example.com");
++        const expectedOverrideAgent = join(overrideWorkspace, ".agent");
++        assert.ok(existsSync(join(expectedOverrideAgent, "session.json")));
++        assert.ok(!existsSync(join(defaultAgent, "session.json")));
++
++        // Global context remains unchanged
++        assert.equal(ctx.agentDir, defaultAgent);
++        assert.equal(ctx.screens.cacheDir, defaultAgent);
++      });
++    });
++
++    it("snapshotTool targets overridden cacheDir without altering session context", async () => {
++      await withTmp(async (dir) => {
++        const defaultAgent = join(dir, "default-agent");
++        const overrideCache = join(dir, "override-cache");
++        await mkdir(defaultAgent, { recursive: true });
++        await mkdir(overrideCache, { recursive: true });
++
++        const ctx = makeMockContext(defaultAgent);
++
++        const snapRes = await snapshotTool(
++          { rawTree: "- link 'Home'", url: "https://example.com", title: "Test", cacheDir: overrideCache },
++          ctx,
++        );
++
++        assert.ok(snapRes.structured["snapshotId"]);
++        assert.ok(existsSync(join(overrideCache, "snapshot.json")));
++        assert.ok(!existsSync(join(defaultAgent, "snapshot.json")));
++
++        // Global context remains unchanged
++        assert.equal(ctx.agentDir, defaultAgent);
++        assert.equal(ctx.screens.cacheDir, defaultAgent);
++      });
++    });
++  });
+ });

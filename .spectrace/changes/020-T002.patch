@@ -1,0 +1,85 @@
+diff --git a/src/core/test/storage.test.ts b/src/core/test/storage.test.ts
+index 4eb34a1..83e8e3c 100644
+--- a/src/core/test/storage.test.ts
++++ b/src/core/test/storage.test.ts
+@@ -4,7 +4,13 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
+ import { join, resolve } from "node:path";
+ import { tmpdir } from "node:os";
+ import { randomUUID } from "node:crypto";
+-import { findProjectRoot, resolveAgentDir, resolveScreensDir } from "../storage.js";
++import {
++  findProjectRoot,
++  resolveAgentDir,
++  resolveScreensDir,
++  resolveWorkspaceAgentDir,
++  resolveEffectiveStorage,
++} from "../storage.js";
+ 
+ async function withTmp(fn: (dir: string) => Promise<void>): Promise<void> {
+   const dir = join(tmpdir(), `pwa-nav-storage-${randomUUID()}`);
+@@ -124,4 +130,65 @@ describe("storage and root detection", () => {
+       assert.ok(existsSync(join(absCustom, "refs", `${snapId}.json`)));
+     });
+   });
++
++  it("resolves workspace agent dir cleanly with resolveWorkspaceAgentDir", () => {
++    assert.equal(resolveWorkspaceAgentDir("/my/project"), resolve("/my/project", ".agent"));
++  });
++
++  it("resolves agentDir from explicit workspaceDir", () => {
++    assert.equal(resolveAgentDir({ workspaceDir: "/workspace/root" }), resolve("/workspace/root", ".agent"));
++  });
++
++  it("prioritizes cacheDir over workspaceDir when both are given", () => {
++    assert.equal(
++      resolveAgentDir({ cacheDir: "/custom/cache", workspaceDir: "/workspace/root" }),
++      resolve("/custom/cache"),
++    );
++  });
++
++  describe("resolveEffectiveStorage", () => {
++    it("resolves mode 'custom' when cacheDir is provided", () => {
++      const res = resolveEffectiveStorage({ cacheDir: "/custom/cache" }, {}, "/cwd");
++      assert.equal(res.agentDir, resolve("/custom/cache"));
++      assert.equal(res.screensDir, join(resolve("/custom/cache"), "screens"));
++      assert.equal(res.mode, "custom");
++      assert.equal(res.workspaceDir, null);
++    });
++
++    it("resolves mode 'workspace' when workspaceDir is provided", () => {
++      const res = resolveEffectiveStorage({ workspaceDir: "/workspace/project" }, {}, "/cwd");
++      assert.equal(res.agentDir, resolve("/workspace/project", ".agent"));
++      assert.equal(res.screensDir, join(resolve("/workspace/project", ".agent"), "screens"));
++      assert.equal(res.workspaceDir, resolve("/workspace/project"));
++      assert.equal(res.mode, "workspace");
++    });
++
++    it("resolves mode 'custom' when PWA_NAV_CACHE_DIR environment variable is set", () => {
++      const res = resolveEffectiveStorage({}, { PWA_NAV_CACHE_DIR: "/env/cache" }, "/cwd");
++      assert.equal(res.agentDir, resolve("/env/cache"));
++      assert.equal(res.mode, "custom");
++    });
++
++    it("resolves mode 'workspace' when inside project root with package.json", async () => {
++      await withTmp(async (root) => {
++        await writeFile(join(root, "package.json"), "{}");
++        const sub = join(root, "src");
++        await mkdir(sub, { recursive: true });
++
++        const res = resolveEffectiveStorage({}, {}, sub);
++        assert.equal(res.agentDir, join(root, ".agent"));
++        assert.equal(res.workspaceDir, root);
++        assert.equal(res.mode, "workspace");
++      });
++    });
++
++    it("resolves mode 'fallback' to ~/.pwa-nav when outside any project", async () => {
++      await withTmp(async (isolated) => {
++        const res = resolveEffectiveStorage({}, {}, isolated);
++        assert.equal(res.mode, "fallback");
++        assert.equal(res.workspaceDir, null);
++        assert.ok(res.agentDir.endsWith(".pwa-nav"));
++      });
++    });
++  });
+ });

@@ -19,6 +19,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import type { ValidateFunction } from "ajv/dist/2020.js";
 import type { ScreenSource } from "../tools/index.js";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { isPwaNavError, PwaNavError } from "../core/errors.js";
 import { resolveAgentDir, resolveScreensDir } from "../core/storage.js";
 import { agentPath } from "../backend/backend.js";
@@ -177,6 +178,45 @@ export function createMcpServer(options: McpServerOptions): Server {
   // Yes/no question to the human through MCP elicitation, only when the client supports it.
   // Any elicitation failure (timeout, interrupted, half-implemented client) counts as "no answer":
   // the caller then returns its error with a hint instead of aborting the whole tool call.
+  // Hook _oninitialize to auto-detect workspaceFolders or rootUri from MCP client handshake (spec 020)
+  const originalOnInitialize = (server as unknown as { _oninitialize: (req: unknown) => Promise<unknown> })._oninitialize.bind(server);
+  (server as unknown as { _oninitialize: (req: unknown) => Promise<unknown> })._oninitialize = async (request: unknown): Promise<unknown> => {
+    const res = await originalOnInitialize(request);
+    if (options.cacheDir === undefined) {
+      const requestObj = request as { params?: Record<string, unknown> } | undefined;
+      const params = requestObj ? requestObj.params : undefined;
+      let candidateFolder: string | undefined;
+
+      if (params && Array.isArray(params["workspaceFolders"]) && params["workspaceFolders"].length > 0) {
+        const first = params["workspaceFolders"][0] as { uri?: string } | string;
+        const uri = typeof first === "string" ? first : typeof first.uri === "string" ? first.uri : undefined;
+        if (typeof uri === "string" && uri.startsWith("file://")) {
+          try {
+            candidateFolder = fileURLToPath(uri);
+          } catch {
+            // ignore malformed uri
+          }
+        }
+      } else if (params && typeof params["rootUri"] === "string" && params["rootUri"].startsWith("file://")) {
+        try {
+          candidateFolder = fileURLToPath(params["rootUri"]);
+        } catch {
+          // ignore malformed uri
+        }
+      }
+
+      if (candidateFolder) {
+        const newAgentDir = resolveAgentDir({ workspaceDir: candidateFolder });
+        baseCtx.agentDir = newAgentDir;
+        screens.cacheDir = newAgentDir;
+        screens.screensDir = resolveScreensDir({ cacheDir: newAgentDir });
+        screens.workspaceDir = candidateFolder;
+        log(`pwa-nav-mcp: workspace auto-detected from initialize handshake -> ${candidateFolder} (.agent: ${newAgentDir})`);
+      }
+    }
+    return res;
+  };
+
   const confirm = async (message: string): Promise<boolean> => {
     try {
       const result = await server.elicitInput(

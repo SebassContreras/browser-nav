@@ -4,9 +4,9 @@ import { FileAppRegistry, normalizeOrigin } from "../core/app-registry.js";
 import { resolveNavigationTarget } from "../core/target-resolution.js";
 import { performOpen } from "../ops/ops.js";
 import { getBackend } from "./common.js";
-import { invalid, type ToolContext, type ToolOutcome } from "./types.js";
+import { invalid, type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
-export interface OpenArgs {
+export interface OpenArgs extends CommonToolOptions {
   url: string;
   launch?: boolean;
   allowOrigin?: boolean;
@@ -15,7 +15,7 @@ export interface OpenArgs {
 }
 
 export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOutcome> {
-  const { url: rawUrl, launch = false, allowOrigin = false, port, app: explicitApp } = args;
+  const { url: rawUrl, launch = false, allowOrigin = false, port, app: explicitApp, cacheDir, workspaceDir } = args;
   if (!rawUrl || rawUrl.length === 0) {
     throw invalid("missing <url>.");
   }
@@ -24,7 +24,7 @@ export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOu
   }
 
   // Pre-navigation target resolution and validation (fail-fast without spawning processes or tabs)
-  const probeBackend = getBackend(ctx, { armed: false, launch: false, port, app: explicitApp });
+  const probeBackend = getBackend(ctx, { armed: false, launch: false, port, app: explicitApp, cacheDir, workspaceDir });
   const preRegistry = new FileAppRegistry(probeBackend.agentDir);
   const resolved = await resolveNavigationTarget(rawUrl, preRegistry);
 
@@ -32,7 +32,7 @@ export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOu
   const targetUrl = resolved.url;
   const effectiveApp = explicitApp ?? initialTargetSlug;
 
-  const backend = getBackend(ctx, { armed: false, launch, port, app: effectiveApp });
+  const backend = getBackend(ctx, { armed: false, launch, port, app: effectiveApp, cacheDir, workspaceDir });
   const session = await performOpen(targetUrl, { backend, allowOrigin });
   const registry = new FileAppRegistry(backend.agentDir);
   const barrier = isLoginBarrier(session.url);

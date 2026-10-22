@@ -20,3 +20,4 @@ export * from "./runtime.js";
 export * from "./status.js";
 export * from "./profile.js";
 export * from "./discover.js";
+export * from "./config.js";
