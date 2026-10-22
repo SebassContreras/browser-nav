@@ -12,6 +12,7 @@ import {
   clickTool,
   configTool,
   discoverTool,
+  downloadTool,
   extractTool,
   findTool as runFindTool,
   invalid,
@@ -269,6 +270,39 @@ const fill: ToolDef = {
       return fillTool({ target: picked.target, text, dryRun: isDryRun(ctx) }, ctx);
     }
     return fillTool({ ref: picked.ref, text, snapshotId: picked.snapshotId, dryRun: isDryRun(ctx) }, ctx);
+  },
+};
+
+const download: ToolDef = {
+  name: "pwa_download",
+  description:
+    "Download a remote media asset or extract an in-page SVG/image/video to disk. " +
+    "Never runs automatically; execute strictly on explicit request. " +
+    "Pass 'url' to download directly, or 'target' / 'ref' to extract an in-page element.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      url: {
+        type: "string",
+        description: "Direct URL of the media, image, or video to download.",
+      },
+      target: TARGET_PROP,
+      ref: REF_PROP,
+      out: {
+        type: "string",
+        description: "Optional output file or directory destination (defaults to ./downloads/<filename>).",
+      },
+    },
+    additionalProperties: false,
+  },
+  annotations: ACTION_HINTS,
+  async handler(args, ctx) {
+    const url = typeof args["url"] === "string" ? args["url"] : undefined;
+    const target = typeof args["target"] === "string" ? args["target"] : undefined;
+    const ref = typeof args["ref"] === "string" ? args["ref"] : undefined;
+    const out = typeof args["out"] === "string" ? args["out"] : undefined;
+
+    return downloadTool({ url, target, ref, out, dryRun: !ctx.armed }, ctx);
   },
 };
 
@@ -639,6 +673,7 @@ export const TOOLS: readonly ToolDef[] = [
   click,
   fill,
   upload,
+  download,
   screenshotToolDef,
   extract,
   findToolDef,

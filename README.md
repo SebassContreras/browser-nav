@@ -215,6 +215,7 @@ If you linked globally, you can also specify the binary command directly:
 | `pwa_click` | Clicks elements by semantic `@id` (e.g. `@submit-btn`) or ref (`e1`). |
 | `pwa_fill` | Types text into inputs, textareas, and rich `contenteditable` editors. |
 | `pwa_upload` | Safely uploads local files to `<input type="file">`. |
+| `pwa_download` | On-demand download of remote media assets or in-page SVG/image/video extraction. |
 | `pwa_wait` | Deterministically waits for background AI generation or DOM conditions (no arbitrary sleeps). |
 | `pwa_learn` | Autonomously learns and persists new screen maps into `screens/<app>.screens.json`. |
 | `pwa_act` | Executes batched mutations (e.g. `fill:@input=query`, `click:@submit`) in a single BiDi turn. |

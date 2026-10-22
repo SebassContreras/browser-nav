@@ -26,3 +26,4 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 020 | dynamic-workspace-storage | done        | 002, 018 | —      | 20 |
 | 021 | automatic-auth-cookie-sync | done        | 002, 004, 016 | —      | 21 |
 | 022 | audit-cleanup-and-refactor | done        | 006, 017, 019, 020 | —     | 22 |
+| 023 | asset-and-media-download | done        | 002, 004, 020 | —     | 23 |

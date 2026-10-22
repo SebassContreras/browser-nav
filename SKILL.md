@@ -42,6 +42,7 @@ Both CLI and MCP delegate 100% of their operations to the unified Tools Service 
 | **Click element** | `pwa-nav click <target> [--dry-run]` | `pwa_click` (`target`) | Target can be semantic `'@id'` or ephemeral `eN`. Direct browser execution. |
 | **Fill input** | `pwa-nav fill <target> <text> [--dry-run]` | `pwa_fill` (`target`, `text`) | Rejects sensitive fields (exit 11). Direct browser execution. |
 | **Upload files** | `pwa-nav upload <target> <path...> [--dry-run]` | `pwa_upload` (`target`, `files`) | Sets files on file inputs. Safe paths only. |
+| **Download asset** | `pwa-nav download <url|@id|ref> [--out <path>]` | `pwa_download` (`url`, `target`, `ref`, `out`) | Explicit on-demand download of remote files or in-page SVG/image/media extraction. |
 | **Capture screenshot** | `pwa-nav screenshot [--out <path>]` | `pwa_screenshot` (`path`, `format`) | Saves binary PNG to disk. **NEVER use for navigation or state inspection** (breaks text-only agents). |
 | **Batch actions** | `pwa-nav act <ops...> [--dry-run]` | `pwa_act` (`ops`) | Combines clicks, fills, uploads, and flows in a single turn. |
 | **Read page content** | `pwa-nav extract [--mode all\|text\|links] [--query <str>] [--role <str>]` | `pwa_extract` (`mode`, `query`, `role`, `offset`, `limit`) | Read-only; supports query and role filtering, offset pagination. |

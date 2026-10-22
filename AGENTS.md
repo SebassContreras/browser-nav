@@ -85,6 +85,7 @@ Agents operate through two complementary navigation layers:
    - `pwa-nav click '@sign-in'` or MCP `pwa_click({ target: "@sign-in" })` (direct live click).
    - `pwa-nav fill '@email' "user@example.com"` or MCP `pwa_fill({ target: "@email", text: "..." })`.
    - `pwa-nav upload '@resume' ./file.pdf` (safe paths only).
+   - `pwa-nav download '@logo'` or MCP `pwa_download({ url: "..." })` (on-demand only).
    - `pwa-nav act flow:login-flow username="alice"` (single-screen flow).
    - `pwa-nav journey checkout-journey term="shoes"` (multi-screen declarative user journey across route transitions).
 4. **Action Trees & Nested Branches (`opens`)**: When an action triggers a modal or subdialog (e.g. clicking `@crear-publicacion` opens the post composer), the screen map captures this inside `action.opens`. The action result immediately describes the opened modal and its available controls. Targets declared inside `opens` (e.g. `@editor-post`, `@boton-publicar`) are directly addressable for subsequent `click` or `fill` operations.

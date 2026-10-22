@@ -1,0 +1,189 @@
+diff --git a/src/cli.ts b/src/cli.ts
+index 688b3b4..a217901 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -45,6 +45,7 @@ import {
+   fillTool,
+   renderScreenViewForBackend,
+   uploadTool,
++  downloadTool,
+   validateLearnFlags,
+   NO_INPUT_LINE,
+   type ScreenSource,
+@@ -67,6 +68,7 @@ function usage(): string {
+     "  pwa-nav click --snapshot <id> [--dry-run] <ref>   |   click [--dry-run] @<id>",
+     "  pwa-nav fill --snapshot <id> [--dry-run] <ref> <text>   |   fill [--dry-run] @<id> <text>",
+     "  pwa-nav upload --snapshot <id> [--dry-run] <ref> <path>...   |   upload [--dry-run] @<id> <path>...",
++    "  pwa-nav download <url|@id|ref> [--out <path>] [--dry-run]",
+     "  pwa-nav screenshot [--out <path>] [--format png|jpeg|webp]",
+     "  pwa-nav extract --snapshot <id> --mode text|links [--query <str>] [--role <str>] [--offset <n>] [--limit <n>]",
+     "  pwa-nav find [<query>] [--role <str>] [--dialog] [--offset <n>] [--limit <n>] [--snapshot <id>]",
+@@ -632,6 +634,48 @@ async function cmdFill(rest: string[]): Promise<void> {
+   noInputNote(live, armed);
+ }
+ 
++
++async function cmdDownload(rest: string[]): Promise<void> {
++  const { values, positionals } = strictParse("download", rest, {
++    out: { type: "string" },
++    snapshot: { type: "string" },
++    "dry-run": { type: "boolean" },
++    armed: { type: "boolean" },
++    port: { type: "string" },
++    "cache-dir": { type: "string" },
++    help: { type: "boolean", short: "h" },
++  });
++  printHelpAndExit(values.help);
++  const targetOrUrl = positionals[0];
++  if (!targetOrUrl) {
++    throw invalid("usage: pwa-nav download <url|@id|ref> [--out <path>] [--dry-run]");
++  }
++  const isUrl = targetOrUrl.startsWith("http://") || targetOrUrl.startsWith("https://");
++  const isTarget = targetOrUrl.startsWith("@");
++  const live = resolveLive(values);
++  const armed = isArmed(values);
++  const backend = makeBackend(live, { armed });
++
++  const result = await downloadTool(
++    {
++      url: isUrl ? targetOrUrl : undefined,
++      target: isTarget ? targetOrUrl : undefined,
++      ref: !isUrl && !isTarget ? targetOrUrl : undefined,
++      out: values.out,
++      dryRun: !armed,
++    },
++    {
++      backendFactory: () => backend,
++      backend,
++      armed,
++      mode: live ? "bidi" : "offline",
++      port: values.port ? Number(values.port) : undefined,
++      screens: { cacheDir: values["cache-dir"] },
++    },
++  );
++  console.log(result.text ?? "");
++}
++
+ async function cmdUpload(rest: string[]): Promise<void> {
+   const { values, positionals } = strictParse("upload", rest, ACTION_OPTIONS);
+   printHelpAndExit(values.help);
+@@ -1086,6 +1130,8 @@ async function main(): Promise<void> {
+       return cmdFill(rest);
+     case "upload":
+       return cmdUpload(rest);
++    case "download":
++      return cmdDownload(rest);
+     case "screenshot":
+       return cmdScreenshot(rest);
+     case "extract":
+diff --git a/src/mcp/mcp-tools.ts b/src/mcp/mcp-tools.ts
+index 043fcab..39951eb 100644
+--- a/src/mcp/mcp-tools.ts
++++ b/src/mcp/mcp-tools.ts
+@@ -12,6 +12,7 @@ import {
+   clickTool,
+   configTool,
+   discoverTool,
++  downloadTool,
+   extractTool,
+   findTool as runFindTool,
+   invalid,
+@@ -272,6 +273,39 @@ const fill: ToolDef = {
+   },
+ };
+ 
++const download: ToolDef = {
++  name: "pwa_download",
++  description:
++    "Download a remote media asset or extract an in-page SVG/image/video to disk. " +
++    "Never runs automatically; execute strictly on explicit request. " +
++    "Pass 'url' to download directly, or 'target' / 'ref' to extract an in-page element.",
++  inputSchema: {
++    type: "object",
++    properties: {
++      url: {
++        type: "string",
++        description: "Direct URL of the media, image, or video to download.",
++      },
++      target: TARGET_PROP,
++      ref: REF_PROP,
++      out: {
++        type: "string",
++        description: "Optional output file or directory destination (defaults to ./downloads/<filename>).",
++      },
++    },
++    additionalProperties: false,
++  },
++  annotations: ACTION_HINTS,
++  async handler(args, ctx) {
++    const url = typeof args["url"] === "string" ? args["url"] : undefined;
++    const target = typeof args["target"] === "string" ? args["target"] : undefined;
++    const ref = typeof args["ref"] === "string" ? args["ref"] : undefined;
++    const out = typeof args["out"] === "string" ? args["out"] : undefined;
++
++    return downloadTool({ url, target, ref, out, dryRun: !ctx.armed }, ctx);
++  },
++};
++
+ const upload: ToolDef = {
+   name: "pwa_upload",
+   description:
+@@ -639,6 +673,7 @@ export const TOOLS: readonly ToolDef[] = [
+   click,
+   fill,
+   upload,
++  download,
+   screenshotToolDef,
+   extract,
+   findToolDef,
+diff --git a/src/mcp/test/mcp-download.test.ts b/src/mcp/test/mcp-download.test.ts
+new file mode 100644
+index 0000000..856cf71
+--- /dev/null
++++ b/src/mcp/test/mcp-download.test.ts
+@@ -0,0 +1,36 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import { resolve } from "node:path";
++import { Client } from "@modelcontextprotocol/sdk/client/index.js";
++import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
++import { createMcpServer } from "../mcp-server.js";
++import { OfflineBackend } from "../../backend/backend.js";
++
++test("mcp-server: exposes pwa_download tool in tool list", async () => {
++  const backend = new OfflineBackend({ agentDir: resolve("./.agent") });
++  const server = createMcpServer({
++    backendFactory: () => backend,
++    mode: "offline",
++    armed: false,
++  });
++
++  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
++  await server.connect(serverTransport);
++  const client = new Client({ name: "test-client", version: "1.0.0" }, { capabilities: {} });
++  await client.connect(clientTransport);
++
++  const tools = await client.listTools();
++  const downloadTool = tools.tools.find((t) => t.name === "pwa_download");
++  assert.ok(downloadTool, "pwa_download tool must be present in MCP tool list");
++  assert.match(downloadTool.description ?? "", /Download a remote media asset/);
++
++  // Call pwa_download with url in dry-run mode
++  const res = await client.callTool({
++    name: "pwa_download",
++    arguments: { url: "https://example.com/logo.svg" },
++  });
++  assert.match((res.content[0] as any).text, /download (dry-run|ok)/);
++
++  await client.close();
++  await server.close();
++});
+diff --git a/src/tools/index.ts b/src/tools/index.ts
+index 02df7b7..76b7ee3 100644
+--- a/src/tools/index.ts
++++ b/src/tools/index.ts
+@@ -21,3 +21,4 @@ export * from "./status.js";
+ export * from "./profile.js";
+ export * from "./discover.js";
+ export * from "./config.js";
++export * from "./download.js";

@@ -1,0 +1,367 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 640aec3..29cc305 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -85,6 +85,7 @@ Agents operate through two complementary navigation layers:
+    - `pwa-nav click '@sign-in'` or MCP `pwa_click({ target: "@sign-in" })` (direct live click).
+    - `pwa-nav fill '@email' "user@example.com"` or MCP `pwa_fill({ target: "@email", text: "..." })`.
+    - `pwa-nav upload '@resume' ./file.pdf` (safe paths only).
++   - `pwa-nav download '@logo'` or MCP `pwa_download({ url: "..." })` (on-demand only).
+    - `pwa-nav act flow:login-flow username="alice"` (single-screen flow).
+    - `pwa-nav journey checkout-journey term="shoes"` (multi-screen declarative user journey across route transitions).
+ 4. **Action Trees & Nested Branches (`opens`)**: When an action triggers a modal or subdialog (e.g. clicking `@crear-publicacion` opens the post composer), the screen map captures this inside `action.opens`. The action result immediately describes the opened modal and its available controls. Targets declared inside `opens` (e.g. `@editor-post`, `@boton-publicar`) are directly addressable for subsequent `click` or `fill` operations.
+diff --git a/README.md b/README.md
+index fc65918..1d79e13 100644
+--- a/README.md
++++ b/README.md
+@@ -215,6 +215,7 @@ If you linked globally, you can also specify the binary command directly:
+ | `pwa_click` | Clicks elements by semantic `@id` (e.g. `@submit-btn`) or ref (`e1`). |
+ | `pwa_fill` | Types text into inputs, textareas, and rich `contenteditable` editors. |
+ | `pwa_upload` | Safely uploads local files to `<input type="file">`. |
++| `pwa_download` | On-demand download of remote media assets or in-page SVG/image/video extraction. |
+ | `pwa_wait` | Deterministically waits for background AI generation or DOM conditions (no arbitrary sleeps). |
+ | `pwa_learn` | Autonomously learns and persists new screen maps into `screens/<app>.screens.json`. |
+ | `pwa_act` | Executes batched mutations (e.g. `fill:@input=query`, `click:@submit`) in a single BiDi turn. |
+diff --git a/SKILL.md b/SKILL.md
+index a3727b9..9f1b86b 100644
+--- a/SKILL.md
++++ b/SKILL.md
+@@ -42,6 +42,7 @@ Both CLI and MCP delegate 100% of their operations to the unified Tools Service
+ | **Click element** | `pwa-nav click <target> [--dry-run]` | `pwa_click` (`target`) | Target can be semantic `'@id'` or ephemeral `eN`. Direct browser execution. |
+ | **Fill input** | `pwa-nav fill <target> <text> [--dry-run]` | `pwa_fill` (`target`, `text`) | Rejects sensitive fields (exit 11). Direct browser execution. |
+ | **Upload files** | `pwa-nav upload <target> <path...> [--dry-run]` | `pwa_upload` (`target`, `files`) | Sets files on file inputs. Safe paths only. |
++| **Download asset** | `pwa-nav download <url|@id|ref> [--out <path>]` | `pwa_download` (`url`, `target`, `ref`, `out`) | Explicit on-demand download of remote files or in-page SVG/image/media extraction. |
+ | **Capture screenshot** | `pwa-nav screenshot [--out <path>]` | `pwa_screenshot` (`path`, `format`) | Saves binary PNG to disk. **NEVER use for navigation or state inspection** (breaks text-only agents). |
+ | **Batch actions** | `pwa-nav act <ops...> [--dry-run]` | `pwa_act` (`ops`) | Combines clicks, fills, uploads, and flows in a single turn. |
+ | **Read page content** | `pwa-nav extract [--mode all\|text\|links] [--query <str>] [--role <str>]` | `pwa_extract` (`mode`, `query`, `role`, `offset`, `limit`) | Read-only; supports query and role filtering, offset pagination. |
+diff --git a/src/browser/dom-asset-extractor.ts b/src/browser/dom-asset-extractor.ts
+index 2bc3b9d..76d4b3a 100644
+--- a/src/browser/dom-asset-extractor.ts
++++ b/src/browser/dom-asset-extractor.ts
+@@ -89,9 +89,9 @@ export async function extractAssetFromDom(
+     EXTRACT_ASSET_SCRIPT,
+     [{ type: "string", value: selectorOrQuery }],
+     true,
+-  )) as Record<string, unknown>;
++  )) as Record<string, unknown> | null;
+ 
+-  if (!result || typeof result !== "object") {
++  if (result === null || typeof result !== "object") {
+     throw new PwaNavError("not_actionable", `failed to inspect DOM element: ${selectorOrQuery}`);
+   }
+ 
+diff --git a/src/browser/test/dom-asset-extractor.test.ts b/src/browser/test/dom-asset-extractor.test.ts
+index 97a5e1a..78825f7 100644
+--- a/src/browser/test/dom-asset-extractor.test.ts
++++ b/src/browser/test/dom-asset-extractor.test.ts
+@@ -6,12 +6,15 @@ import type { BidiClient } from "../../bidi/protocol.js";
+ 
+ test("dom-asset-extractor: extracts SVG markup successfully", async () => {
+   const fakeClient = {
+-    callFunction: async () => ({
+-      kind: "svg",
+-      content: "<svg><path d='M0 0h10v10H0z'/></svg>",
+-      mimeType: "image/svg+xml",
+-      suggestedName: "logo.svg",
+-    }),
++    callFunction: async () => {
++      await Promise.resolve();
++      return {
++        kind: "svg",
++        content: "<svg><path d='M0 0h10v10H0z'/></svg>",
++        mimeType: "image/svg+xml",
++        suggestedName: "logo.svg",
++      };
++    },
+   } as unknown as BidiClient;
+ 
+   const res = await extractAssetFromDom(fakeClient, "ctx-1", "#logo");
+@@ -22,11 +25,14 @@ test("dom-asset-extractor: extracts SVG markup successfully", async () => {
+ 
+ test("dom-asset-extractor: extracts media src URL successfully", async () => {
+   const fakeClient = {
+-    callFunction: async () => ({
+-      kind: "url",
+-      sourceUrl: "https://example.com/assets/video.mp4",
+-      suggestedName: "video.mp4",
+-    }),
++    callFunction: async () => {
++      await Promise.resolve();
++      return {
++        kind: "url",
++        sourceUrl: "https://example.com/assets/video.mp4",
++        suggestedName: "video.mp4",
++      };
++    },
+   } as unknown as BidiClient;
+ 
+   const res = await extractAssetFromDom(fakeClient, "ctx-1", "video");
+@@ -37,9 +43,12 @@ test("dom-asset-extractor: extracts media src URL successfully", async () => {
+ 
+ test("dom-asset-extractor: throws not_actionable when element is not found", async () => {
+   const fakeClient = {
+-    callFunction: async () => ({
+-      error: "element_not_found",
+-    }),
++    callFunction: async () => {
++      await Promise.resolve();
++      return {
++        error: "element_not_found",
++      };
++    },
+   } as unknown as BidiClient;
+ 
+   await assert.rejects(
+@@ -50,9 +59,12 @@ test("dom-asset-extractor: throws not_actionable when element is not found", asy
+ 
+ test("dom-asset-extractor: throws not_actionable when element has no media", async () => {
+   const fakeClient = {
+-    callFunction: async () => ({
+-      error: "unsupported_media_element",
+-    }),
++    callFunction: async () => {
++      await Promise.resolve();
++      return {
++        error: "unsupported_media_element",
++      };
++    },
+   } as unknown as BidiClient;
+ 
+   await assert.rejects(
+diff --git a/src/cli.ts b/src/cli.ts
+index a217901..7cd50e6 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -668,7 +668,7 @@ async function cmdDownload(rest: string[]): Promise<void> {
+       backendFactory: () => backend,
+       backend,
+       armed,
+-      mode: live ? "bidi" : "offline",
++      mode: live.mode,
+       port: values.port ? Number(values.port) : undefined,
+       screens: { cacheDir: values["cache-dir"] },
+     },
+diff --git a/src/core/download-security.ts b/src/core/download-security.ts
+index 543ac78..a199c03 100644
+--- a/src/core/download-security.ts
++++ b/src/core/download-security.ts
+@@ -1,4 +1,4 @@
+-import { basename, isAbsolute, join, resolve } from "node:path";
++import { basename, join, resolve } from "node:path";
+ import { PwaNavError } from "./errors.js";
+ import { isPathInside } from "./gate.js";
+ 
+diff --git a/src/mcp/test/mcp-download.test.ts b/src/mcp/test/mcp-download.test.ts
+index 856cf71..bc46df4 100644
+--- a/src/mcp/test/mcp-download.test.ts
++++ b/src/mcp/test/mcp-download.test.ts
+@@ -25,11 +25,14 @@ test("mcp-server: exposes pwa_download tool in tool list", async () => {
+   assert.match(downloadTool.description ?? "", /Download a remote media asset/);
+ 
+   // Call pwa_download with url in dry-run mode
+-  const res = await client.callTool({
++  const res = (await client.callTool({
+     name: "pwa_download",
+     arguments: { url: "https://example.com/logo.svg" },
+-  });
+-  assert.match((res.content[0] as any).text, /download (dry-run|ok)/);
++  })) as {
++    content: { type: string; text?: string }[];
++  };
++  const textContent = res.content.map((c) => c.text ?? "").join("\n");
++  assert.match(textContent, /download (dry-run|ok)/);
+ 
+   await client.close();
+   await server.close();
+diff --git a/src/mcp/test/mcp-server.test.ts b/src/mcp/test/mcp-server.test.ts
+index 1e099bf..1e7da6a 100644
+--- a/src/mcp/test/mcp-server.test.ts
++++ b/src/mcp/test/mcp-server.test.ts
+@@ -177,6 +177,7 @@ test("tools/list: names, schemas compile under Ajv 2020, annotations, no armed f
+       "pwa_click",
+       "pwa_config",
+       "pwa_discover",
++      "pwa_download",
+       "pwa_extract",
+       "pwa_fill",
+       "pwa_find",
+@@ -502,7 +503,7 @@ test("flow tools: listed with the flow's own inputSchema; humanOnly flows are no
+     assert.match(flow.description ?? "", /^Run flow "search" on screen "search" of app "synthetic"/);
+     assert.match(flow.description ?? "", /Search for a term\./);
+     assert.ok(!(flow.description ?? "").includes("Query"), "element names never reach descriptions");
+-    assert.equal(tools.length, 16);
++    assert.equal(tools.length, 17);
+     const ajv = new Ajv2020({ allErrors: true, strict: true });
+     for (const tool of tools) assert.doesNotThrow(() => ajv.compile(tool.inputSchema), tool.name);
+     assert.match(client.getInstructions() ?? "", /dry-run/i);
+@@ -511,7 +512,7 @@ test("flow tools: listed with the flow's own inputSchema; humanOnly flows are no
+   // The demo map only has a humanOnly flow: no flow tool, but instructions + resource mention it.
+   await withMcp({}, async ({ client }) => {
+     const { tools } = await client.listTools();
+-    assert.equal(tools.length, 15);
++    assert.equal(tools.length, 16);
+     assert.ok(!tools.some((t) => t.name.startsWith("flow_")));
+     assert.match(client.getInstructions() ?? "", /Human-only flows exist.*login \(screen login\)/);
+     const { resources } = await client.listResources();
+@@ -634,7 +635,7 @@ test("startup tolerates missing, invalid, ambiguous and Ajv-invalid maps (no flo
+   for (const [label, maps, expected] of cases) {
+     await withMcp({ maps }, async ({ client, logs }) => {
+       const { tools } = await client.listTools();
+-      assert.equal(tools.length, 15, label);
++      assert.equal(tools.length, 16, label);
+       assert.ok(logs.some((l) => expected.test(l)), `${label}: ${logs.join(" | ")}`);
+       const { resources } = await client.listResources();
+       assert.deepEqual(resources.map((r) => r.uri), ["pwa-nav://snapshot/latest"], label);
+diff --git a/src/mcp/test/mcp.bidi.stdio.test.ts b/src/mcp/test/mcp.bidi.stdio.test.ts
+index b124cc0..e07b022 100644
+--- a/src/mcp/test/mcp.bidi.stdio.test.ts
++++ b/src/mcp/test/mcp.bidi.stdio.test.ts
+@@ -197,6 +197,7 @@ test("stdio+bidi: tools/resources, open blocked then allowed, snapshot, dry-run
+         "pwa_click",
+         "pwa_config",
+         "pwa_discover",
++        "pwa_download",
+         "pwa_extract",
+         "pwa_fill",
+         "pwa_find",
+@@ -332,7 +333,7 @@ test("stdio+bidi: ambiguous screens dir logs one stderr line and starts without
+     try {
+       await client.connect(transport);
+       const { tools } = await client.listTools();
+-      assert.equal(tools.length, 15);
++      assert.equal(tools.length, 16);
+       assert.deepEqual((await client.listResources()).resources.map((r) => r.uri), ["pwa-nav://snapshot/latest"]);
+       assert.match(stderr, /2 screen maps/);
+     } finally {
+diff --git a/src/mcp/test/mcp.stdio.test.ts b/src/mcp/test/mcp.stdio.test.ts
+index 6fb5544..01d7c26 100644
+--- a/src/mcp/test/mcp.stdio.test.ts
++++ b/src/mcp/test/mcp.stdio.test.ts
+@@ -29,7 +29,7 @@ test("stdio: lists tools, calls an offline tool, exits cleanly on close", async
+   try {
+     await client.connect(transport);
+     const { tools } = await client.listTools();
+-    assert.equal(tools.length, 15);
++    assert.equal(tools.length, 16);
+     const opened = (await client.callTool({
+       name: "pwa_open",
+       arguments: { url: "http://localhost:8080/login" },
+diff --git a/src/tools/download.ts b/src/tools/download.ts
+index b5d8e21..939521d 100644
+--- a/src/tools/download.ts
++++ b/src/tools/download.ts
+@@ -9,8 +9,8 @@ import { OfflineBackend } from "../backend/backend.js";
+ import { PwaNavError } from "../core/errors.js";
+ import { resolveDownloadDestination, sanitizeFilename } from "../core/download-security.js";
+ import { extractAssetFromDom } from "../browser/dom-asset-extractor.js";
+-import { getBackend } from "./common.js";
+ import { invalid, type ToolContext, type ToolOutcome } from "./types.js";
++import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+ 
+ export interface DownloadArgs {
+   url?: string;
+@@ -49,7 +49,7 @@ export async function downloadTool(args: DownloadArgs, ctx: ToolContext): Promis
+     if (isDryRun) {
+       return {
+         text: `download dry-run: would download ${url} -> ${dest}`,
+-        data: { kind: "dry-run", sourceUrl: url, path: dest },
++        structured: { kind: "dry-run", sourceUrl: url, path: dest },
+       };
+     }
+ 
+@@ -58,20 +58,20 @@ export async function downloadTool(args: DownloadArgs, ctx: ToolContext): Promis
+     // Download via fetch streaming
+     const resp = await fetch(url);
+     if (!resp.ok) {
+-      throw new PwaNavError("failure", `failed to download ${url}: HTTP ${resp.status} ${resp.statusText}`);
++      throw new PwaNavError("not_actionable", `failed to download ${url}: HTTP ${String(resp.status)} ${resp.statusText}`);
+     }
+ 
+     if (!resp.body) {
+-      throw new PwaNavError("failure", `empty response body downloading ${url}`);
++      throw new PwaNavError("not_actionable", `empty response body downloading ${url}`);
+     }
+ 
+-    const nodeStream = Readable.fromWeb(resp.body as any);
++    const nodeStream = Readable.fromWeb(resp.body as NodeReadableStream<Uint8Array>);
+     const fileStream = createWriteStream(dest);
+     await pipeline(nodeStream, fileStream);
+ 
+     return {
+       text: `download ok: ${url} -> ${dest}`,
+-      data: { kind: "saved", sourceUrl: url, path: dest },
++      structured: { kind: "saved", sourceUrl: url, path: dest },
+     };
+   }
+ 
+@@ -84,14 +84,14 @@ export async function downloadTool(args: DownloadArgs, ctx: ToolContext): Promis
+     if (isDryRun) {
+       return {
+         text: `download dry-run: would extract asset from ${selectorOrRef} -> ${dest}`,
+-        data: { kind: "dry-run", path: dest },
++        structured: { kind: "dry-run", path: dest },
+       };
+     }
+     await mkdir(dirname(dest), { recursive: true });
+     await writeFile(dest, `<svg xmlns="http://www.w3.org/2000/svg"><text>${selectorOrRef}</text></svg>`, "utf8");
+     return {
+       text: `download ok: extracted asset from ${selectorOrRef} -> ${dest}`,
+-      data: { kind: "saved", path: dest },
++      structured: { kind: "saved", path: dest },
+     };
+   }
+ 
+@@ -105,7 +105,7 @@ export async function downloadTool(args: DownloadArgs, ctx: ToolContext): Promis
+     if (isDryRun) {
+       return {
+         text: `download dry-run: would extract ${asset.kind} from ${selectorOrRef} -> ${dest}`,
+-        data: { kind: "dry-run", path: dest, sourceUrl: asset.sourceUrl },
++        structured: { kind: "dry-run", path: dest, sourceUrl: asset.sourceUrl },
+       };
+     }
+ 
+@@ -115,25 +115,25 @@ export async function downloadTool(args: DownloadArgs, ctx: ToolContext): Promis
+       await writeFile(dest, asset.content, "utf8");
+       return {
+         text: `download ok: extracted SVG from ${selectorOrRef} -> ${dest}`,
+-        data: { kind: "saved", path: dest, mimeType: "image/svg+xml" },
++        structured: { kind: "saved", path: dest, mimeType: "image/svg+xml" },
+       };
+     }
+ 
+     if (asset.sourceUrl) {
+       const resp = await fetch(asset.sourceUrl);
+       if (!resp.ok) {
+-        throw new PwaNavError("failure", `failed to download extracted url ${asset.sourceUrl}: HTTP ${resp.status}`);
++        throw new PwaNavError("not_actionable", `failed to download extracted url ${asset.sourceUrl}: HTTP ${String(resp.status)}`);
+       }
+       if (!resp.body) {
+-        throw new PwaNavError("failure", `empty body downloading ${asset.sourceUrl}`);
++        throw new PwaNavError("not_actionable", `empty body downloading ${asset.sourceUrl}`);
+       }
+-      const nodeStream = Readable.fromWeb(resp.body as any);
++      const nodeStream = Readable.fromWeb(resp.body as NodeReadableStream<Uint8Array>);
+       const fileStream = createWriteStream(dest);
+       await pipeline(nodeStream, fileStream);
+ 
+       return {
+         text: `download ok: extracted and saved ${asset.sourceUrl} -> ${dest}`,
+-        data: { kind: "saved", path: dest, sourceUrl: asset.sourceUrl },
++        structured: { kind: "saved", path: dest, sourceUrl: asset.sourceUrl },
+       };
+     }
+ 
+diff --git a/src/tools/test/download.test.ts b/src/tools/test/download.test.ts
+index 999750d..267b285 100644
+--- a/src/tools/test/download.test.ts
++++ b/src/tools/test/download.test.ts
+@@ -33,7 +33,8 @@ test("downloadTool: dry-run on direct URL previews path without fetching", async
+   const ctx = createTestContext(false);
+   const outcome = await downloadTool({ url: "https://example.com/asset.png" }, ctx);
+   assert.match(outcome.text ?? "", /download dry-run: would download https:\/\/example\.com\/asset\.png/);
+-  assert.equal((outcome.data as any).kind, "dry-run");
++  const data = outcome.structured as { kind: string } | undefined;
++  assert.equal(data?.kind, "dry-run");
+ });
+ 
+ test("downloadTool: offline element extraction creates mock file when armed", async () => {

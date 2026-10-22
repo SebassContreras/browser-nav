@@ -45,6 +45,7 @@ import {
   fillTool,
   renderScreenViewForBackend,
   uploadTool,
+  downloadTool,
   validateLearnFlags,
   NO_INPUT_LINE,
   type ScreenSource,
@@ -67,6 +68,7 @@ function usage(): string {
     "  pwa-nav click --snapshot <id> [--dry-run] <ref>   |   click [--dry-run] @<id>",
     "  pwa-nav fill --snapshot <id> [--dry-run] <ref> <text>   |   fill [--dry-run] @<id> <text>",
     "  pwa-nav upload --snapshot <id> [--dry-run] <ref> <path>...   |   upload [--dry-run] @<id> <path>...",
+    "  pwa-nav download <url|@id|ref> [--out <path>] [--dry-run]",
     "  pwa-nav screenshot [--out <path>] [--format png|jpeg|webp]",
     "  pwa-nav extract --snapshot <id> --mode text|links [--query <str>] [--role <str>] [--offset <n>] [--limit <n>]",
     "  pwa-nav find [<query>] [--role <str>] [--dialog] [--offset <n>] [--limit <n>] [--snapshot <id>]",
@@ -632,6 +634,48 @@ async function cmdFill(rest: string[]): Promise<void> {
   noInputNote(live, armed);
 }
 
+
+async function cmdDownload(rest: string[]): Promise<void> {
+  const { values, positionals } = strictParse("download", rest, {
+    out: { type: "string" },
+    snapshot: { type: "string" },
+    "dry-run": { type: "boolean" },
+    armed: { type: "boolean" },
+    port: { type: "string" },
+    "cache-dir": { type: "string" },
+    help: { type: "boolean", short: "h" },
+  });
+  printHelpAndExit(values.help);
+  const targetOrUrl = positionals[0];
+  if (!targetOrUrl) {
+    throw invalid("usage: pwa-nav download <url|@id|ref> [--out <path>] [--dry-run]");
+  }
+  const isUrl = targetOrUrl.startsWith("http://") || targetOrUrl.startsWith("https://");
+  const isTarget = targetOrUrl.startsWith("@");
+  const live = resolveLive(values);
+  const armed = isArmed(values);
+  const backend = makeBackend(live, { armed });
+
+  const result = await downloadTool(
+    {
+      url: isUrl ? targetOrUrl : undefined,
+      target: isTarget ? targetOrUrl : undefined,
+      ref: !isUrl && !isTarget ? targetOrUrl : undefined,
+      out: values.out,
+      dryRun: !armed,
+    },
+    {
+      backendFactory: () => backend,
+      backend,
+      armed,
+      mode: live.mode,
+      port: values.port ? Number(values.port) : undefined,
+      screens: { cacheDir: values["cache-dir"] },
+    },
+  );
+  console.log(result.text ?? "");
+}
+
 async function cmdUpload(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("upload", rest, ACTION_OPTIONS);
   printHelpAndExit(values.help);
@@ -1086,6 +1130,8 @@ async function main(): Promise<void> {
       return cmdFill(rest);
     case "upload":
       return cmdUpload(rest);
+    case "download":
+      return cmdDownload(rest);
     case "screenshot":
       return cmdScreenshot(rest);
     case "extract":
