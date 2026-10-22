@@ -1,0 +1,186 @@
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import type { ExtractedCookie } from "./cookie-extractor.js";
+
+export interface BiDiStorageClient {
+  send(method: string, params: Record<string, unknown>): Promise<unknown>;
+}
+
+export interface SyncOptions {
+  cookies: ExtractedCookie[];
+  targetProfileDir?: string;
+  bidiClient?: BiDiStorageClient;
+  sourceOrigin?: string;
+}
+
+export interface SyncResult {
+  syncedCount: number;
+  injectedViaBiDi: boolean;
+  seededIntoProfile: boolean;
+}
+
+/**
+ * Ensures standard Firefox moz_cookies schema exists in the target database.
+ */
+function ensureMozCookiesSchema(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS moz_cookies (
+      id INTEGER PRIMARY KEY,
+      name TEXT,
+      value TEXT,
+      host TEXT,
+      path TEXT,
+      expiry INTEGER,
+      lastAccessed INTEGER,
+      creationTime INTEGER,
+      isSecure INTEGER,
+      isHttpOnly INTEGER,
+      inBrowserElement INTEGER,
+      sameSite INTEGER,
+      rawSameSite INTEGER,
+      schemeMap INTEGER
+    );
+  `);
+}
+
+/**
+ * Maps W3C SameSite string to Firefox internal integer.
+ */
+function sameSiteToInt(sameSite?: "strict" | "lax" | "none"): number {
+  if (sameSite === "strict") return 2;
+  if (sameSite === "lax") return 1;
+  return 0;
+}
+
+/**
+ * CookieSyncService orchestrates cookie injection via BiDi (zero-restart)
+ * or cold-seeding directly into the PWA's SQLite profile before startup.
+ */
+export class CookieSyncService {
+  /**
+   * Seeds extracted cookies directly into a target profile directory's cookies.sqlite.
+   */
+  seedProfileDatabase(targetProfileDir: string, cookies: ExtractedCookie[]): Promise<number> {
+    if (cookies.length === 0) {
+      return Promise.resolve(0);
+    }
+
+    mkdirSync(targetProfileDir, { recursive: true });
+    const dbPath = join(targetProfileDir, "cookies.sqlite");
+    const db = new DatabaseSync(dbPath);
+
+    try {
+      ensureMozCookiesSchema(db);
+
+      const insertStmt = db.prepare(`
+        INSERT OR REPLACE INTO moz_cookies (
+          name, value, host, path, expiry, lastAccessed, creationTime, isSecure, isHttpOnly, sameSite
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const nowMicro = Date.now() * 1000;
+      let count = 0;
+
+      for (const c of cookies) {
+        insertStmt.run(
+          c.name,
+          c.value,
+          c.domain,
+          c.path || "/",
+          c.expiry ?? 0,
+          nowMicro,
+          nowMicro,
+          c.secure ? 1 : 0,
+          c.httpOnly ? 1 : 0,
+          sameSiteToInt(c.sameSite),
+        );
+        count++;
+      }
+
+      return Promise.resolve(count);
+    } finally {
+      db.close();
+    }
+  }
+
+  /**
+   * Injects extracted cookies dynamically into an active WebDriver BiDi session.
+   */
+  async injectViaBiDi(
+    bidiClient: BiDiStorageClient,
+    cookies: ExtractedCookie[],
+    sourceOrigin?: string,
+  ): Promise<number> {
+    if (cookies.length === 0) {
+      return 0;
+    }
+
+    let count = 0;
+
+    for (const c of cookies) {
+      try {
+        const cookieParams: Record<string, unknown> = {
+          name: c.name,
+          value: {
+            type: "string",
+            value: c.value,
+          },
+          domain: c.domain,
+          path: c.path || "/",
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          sameSite: c.sameSite,
+        };
+
+        if (c.expiry && c.expiry > 0) {
+          cookieParams.expiry = c.expiry;
+        }
+
+        const partition = sourceOrigin
+          ? {
+              type: "storageKey",
+              sourceOrigin,
+            }
+          : undefined;
+
+        await bidiClient.send("storage.setCookie", {
+          cookie: cookieParams,
+          ...(partition ? { partition } : {}),
+        });
+
+        count++;
+      } catch {
+        // Continue best-effort injection for remaining cookies
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * High-level sync entry point. Applies BiDi injection if client is active,
+   * otherwise seeds the profile database.
+   */
+  async sync(options: SyncOptions): Promise<SyncResult> {
+    const { cookies, targetProfileDir, bidiClient, sourceOrigin } = options;
+
+    let injectedViaBiDi = false;
+    let seededIntoProfile = false;
+    let syncedCount = 0;
+
+    if (bidiClient) {
+      syncedCount = await this.injectViaBiDi(bidiClient, cookies, sourceOrigin);
+      injectedViaBiDi = syncedCount > 0;
+    } else if (targetProfileDir) {
+      syncedCount = await this.seedProfileDatabase(targetProfileDir, cookies);
+      seededIntoProfile = syncedCount > 0;
+    }
+
+    return {
+      syncedCount,
+      injectedViaBiDi,
+      seededIntoProfile,
+    };
+  }
+}

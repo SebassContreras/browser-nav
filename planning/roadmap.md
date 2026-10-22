@@ -24,4 +24,4 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 018 | canonical-app-origin-mapping | done        | 002, 004, 005 | —     | 18 |
 | 019 | smart-url-app-resolution | done        | 005, 018 | —      | 19 |
 | 020 | dynamic-workspace-storage | done        | 002, 018 | —      | 20 |
-| 021 | automatic-auth-cookie-sync | todo | 002, 004, 016 | design | 21 |
+| 021 | automatic-auth-cookie-sync | done        | 002, 004, 016 | —      | 21 |

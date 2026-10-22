@@ -1,0 +1,54 @@
+diff --git a/src/browser/provisioner.ts b/src/browser/provisioner.ts
+index 844e28f..57ffe3e 100644
+--- a/src/browser/provisioner.ts
++++ b/src/browser/provisioner.ts
+@@ -11,6 +11,9 @@ import {
+ import { type AppIconService, DefaultAppIconService } from "./app-icon.js";
+ import { type AppShortcutService, WindowsShortcutService } from "./app-shortcut.js";
+ import type { AppRegistry } from "../core/app-registry.js";
++import { locateDefaultFirefoxProfile } from "./firefox-profile-discovery.js";
++import { FirefoxCookieExtractor } from "./cookie-extractor.js";
++import { CookieSyncService } from "./cookie-sync.js";
+ 
+ /**
+  * Domain specification and runtime configuration for an isolated standalone PWA.
+@@ -21,6 +24,7 @@ export interface ProvisionedPwa {
+   profileDir: string;
+   iconPath?: string | null;
+   shortcutPath?: string | null;
++  cookiesSeeded?: number;
+ }
+ 
+ /**
+@@ -125,12 +129,31 @@ export class DefaultPwaProvisioner implements PwaProvisioner {
+       // Icon and shortcut generation are non-blocking to preserve resilience
+     }
+ 
++    let cookiesSeeded = 0;
++    try {
++      const sourceProfile = locateDefaultFirefoxProfile();
++      if (sourceProfile && sourceProfile !== profileDir) {
++        const extractor = new FirefoxCookieExtractor();
++        const cookies = await extractor.extractCookies({
++          profileDir: sourceProfile,
++          targetDomains: [url],
++        });
++        if (cookies.length > 0) {
++          const syncService = new CookieSyncService();
++          cookiesSeeded = await syncService.seedProfileDatabase(profileDir, cookies);
++        }
++      }
++    } catch {
++      // Cookie seeding is best-effort and non-blocking
++    }
++
+     return {
+       url,
+       appSlug,
+       profileDir,
+       iconPath,
+       shortcutPath,
++      cookiesSeeded,
+     };
+   }
+ 
