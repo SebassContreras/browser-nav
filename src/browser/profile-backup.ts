@@ -86,7 +86,7 @@ export function isVolatileProfilePath(relPath: string): boolean {
 /**
  * Parses compatibility.ini to extract LastVersion if present.
  */
-export async function readFirefoxCompatibilityVersion(
+async function readFirefoxCompatibilityVersion(
   profileDir: string,
 ): Promise<string | undefined> {
   try {

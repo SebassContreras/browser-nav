@@ -25,7 +25,7 @@ stdout carries protocol frames only. Logs go to stderr (`pwa-nav-mcp ready (back
 |---|---|---|---|
 | `--port <n>` | - | 9222 | BiDi port, integer 1024-65535. |
 | `--dry-run` | `PWA_NAV_DRY_RUN=1` | off | Run in dry-run mode (previews mutations). Direct active execution (armed) is default. |
-| `--armed` | `PWA_NAV_ARMED=1` | on | Retained for backward compatibility (active mode is default). |
+| `--armed` | - | on | Retained for backward compatibility (active mode is default). |
 | `--screens-dir <dir>` | `PWA_NAV_SCREENS_DIR` | `<cache-dir>/screens` | Screen-map directory. |
 | `--screen-map <file>` | - | - | Explicit screen-map file. |
 | `--cache-dir <dir>` | `PWA_NAV_CACHE_DIR` | `<projectRoot>/.agent` or `~/.pwa-nav` | Cache, snapshot, session and allow-list directory. |

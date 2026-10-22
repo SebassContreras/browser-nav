@@ -25,3 +25,4 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 019 | smart-url-app-resolution | done        | 005, 018 | —      | 19 |
 | 020 | dynamic-workspace-storage | done        | 002, 018 | —      | 20 |
 | 021 | automatic-auth-cookie-sync | done        | 002, 004, 016 | —      | 21 |
+| 022 | audit-cleanup-and-refactor | done        | 006, 017, 019, 020 | —     | 22 |

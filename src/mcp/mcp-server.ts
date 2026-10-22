@@ -35,7 +35,7 @@ export const SERVER_VERSION = "0.1.0";
 
 export interface McpServerOptions {
   backendFactory: BackendFactory;
-  /** Operator-level arming (--armed / PWA_NAV_ARMED). Default false = dry-run. */
+  /** Operator-level arming (default true = armed, false = dry-run via --dry-run or PWA_NAV_DRY_RUN=1). */
   armed?: boolean;
   /** Which backend the factory builds; gates offline-only refusals and the dryRun flag. */
   mode?: "offline" | "bidi";

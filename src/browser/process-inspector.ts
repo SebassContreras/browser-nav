@@ -50,7 +50,7 @@ export function isPidAlive(pid: number): boolean {
   }
 }
 
-export class WindowsProcessInspector implements ProcessInspector {
+class WindowsProcessInspector implements ProcessInspector {
   private readonly runCmd: CommandRunner;
 
   constructor(runCmd: CommandRunner = defaultCommandRunner) {
@@ -110,7 +110,7 @@ export class WindowsProcessInspector implements ProcessInspector {
   }
 }
 
-export class PosixProcessInspector implements ProcessInspector {
+class PosixProcessInspector implements ProcessInspector {
   private readonly runCmd: CommandRunner;
 
   constructor(runCmd: CommandRunner = defaultCommandRunner) {
