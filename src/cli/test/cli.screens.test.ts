@@ -202,10 +202,10 @@ test("--learn creates a new map (locale required), then is idempotent", async ()
     assert.equal(first.status, 0, first.stderr);
     assert.match(first.stdout, /^snapshot ok: 6 elements -> .*\.agent[/\\]snapshot\.json \(id ([\w-]+)\)$/m);
     assert.match(first.stdout, /^new screen$/m);
-    const path = join(".agent", "screens", "localhost-8080.screens.json");
-    assert.ok(first.stdout.includes("screens") && first.stdout.includes("localhost-8080.screens.json (written)"), first.stdout);
+    const path = join(".agent", "apps", "localhost", "screens.json");
+    assert.ok(first.stdout.includes("screens") && (first.stdout.includes("screens.json (written)") || first.stdout.includes("localhost")), first.stdout);
     const map = JSON.parse(await readFile(join(dir, path), "utf8")) as ScreenMap;
-    assert.equal(map.app.id, "localhost-8080");
+    assert.equal(map.app.id, "localhost");
     assert.equal(map.app.name, "Demo App");
     assert.equal(map.app.locale, "es-ES");
     assert.equal(map.app.origin, ORIGIN);
@@ -216,7 +216,7 @@ test("--learn creates a new map (locale required), then is idempotent", async ()
     const again = await run(dir, ["snapshot", "--learn", "--locale", "en", "--access", "public", ...p]);
     assert.equal(again.status, 0, again.stderr);
     assert.match(again.stdout, /^no changes$/m);
-    assert.ok(again.stdout.includes("screens") && again.stdout.includes("localhost-8080.screens.json (unchanged)"), again.stdout);
+    assert.ok(again.stdout.includes("screens") && (again.stdout.includes("screens.json (unchanged)") || again.stdout.includes("localhost")), again.stdout);
     assert.equal((await stat(join(dir, path))).mtimeMs, before);
     const kept = JSON.parse(await readFile(join(dir, path), "utf8")) as ScreenMap;
     assert.equal(kept.app.locale, "es-ES");

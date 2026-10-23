@@ -14,8 +14,10 @@ import {
   screenshotTool,
   authTool,
   qaTool,
+  learnTool,
   type ToolContext,
 } from "../index.js";
+import { executeLearn } from "../learn.js";
 import { OfflineBackend } from "../../backend/backend.js";
 import { performSnapshot } from "../../ops/ops.js";
 
@@ -120,4 +122,47 @@ test("qaTool requires checkFile", async () => {
     async () => qaTool({ checkFile: "" }, ctx),
     /missing <check-file>/,
   );
+});
+
+test("learnTool: offline mode rejects live learning", async () => {
+  const ctx = makeOfflineContext();
+  await assert.rejects(
+    async () => learnTool({ locale: "en" }, ctx),
+    /--learn needs the live backend/,
+  );
+});
+
+test("executeLearn: targets canonical app screen map path and respects explicit screenMap precedence", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tools-learn-test-"));
+  try {
+    const fakeBackend = {
+      agentDir: dir,
+      currentUrl: () => Promise.resolve("https://example.com/app"),
+      open: () => Promise.resolve({ url: "https://example.com/app", title: "Example App", openedAt: "" }),
+      collect: () => Promise.resolve({
+        url: "https://example.com/app",
+        title: "Example App",
+        raw: [
+          { role: "button", name: "Submit", disabled: false, nameSource: "content", occurrence: 0 },
+          { role: "textbox", name: "Username", disabled: false, nameSource: "label", occurrence: 0 },
+        ],
+      }),
+      click: () => Promise.resolve({ kind: "done" as const, plan: "", snapshotId: "1", url: "", title: "" }),
+      fill: () => Promise.resolve({ kind: "done" as const, plan: "", snapshotId: "1", url: "", title: "" }),
+      upload: () => Promise.resolve({ kind: "done" as const, plan: "", snapshotId: "1", url: "", title: "" }),
+      act: () => Promise.resolve({ snapshotId: "1", results: [] }),
+      screenshot: () => Promise.resolve(Buffer.from("")),
+    };
+
+    // 1. Default canonical app persistence under <agentDir>/apps/<slug>/screens.json
+    const defaultRes = await executeLearn(fakeBackend, { locale: "en" });
+    assert.equal(defaultRes.path, join(dir, "apps", "example-com", "screens.json"));
+
+    // 2. Explicit --screen-map takes absolute precedence
+    const explicitPath = join(dir, "custom-explicit.screens.json");
+    const explicitRes = await executeLearn(fakeBackend, { locale: "en", screenMap: explicitPath });
+    assert.equal(explicitRes.path, explicitPath);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

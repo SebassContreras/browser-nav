@@ -169,3 +169,11 @@ test("FileAppRegistry: registers origin atomically and persists to disk", async 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("resolveCanonicalSlug: uniformly strips leading www. and handles apex and www origins identically", () => {
+  const config = {};
+  assert.equal(resolveCanonicalSlug("https://www.linkedin.com/feed", config), "linkedin-com");
+  assert.equal(resolveCanonicalSlug("https://linkedin.com/feed", config), "linkedin-com");
+  assert.equal(resolveCanonicalSlug("www.mercadona.es", config), "mercadona-es");
+  assert.equal(resolveCanonicalSlug("mercadona.es", config), "mercadona-es");
+});

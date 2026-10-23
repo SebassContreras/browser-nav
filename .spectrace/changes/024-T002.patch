@@ -1,0 +1,23 @@
+diff --git a/src/core/test/storage.test.ts b/src/core/test/storage.test.ts
+index 2242ee4..257ff09 100644
+--- a/src/core/test/storage.test.ts
++++ b/src/core/test/storage.test.ts
+@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
+ import {
+   findProjectRoot,
+   resolveAgentDir,
++  resolveAppScreenMapPath,
+   resolveScreensDir,
+   resolveWorkspaceAgentDir,
+   resolveEffectiveStorage,
+@@ -190,5 +191,10 @@ describe("storage and root detection", () => {
+         assert.ok(res.agentDir.endsWith(".pwa-nav"));
+       });
+     });
++
++    it("resolveAppScreenMapPath produces canonical path under apps/<appSlug>/screens.json", () => {
++      const canonical = resolveAppScreenMapPath(join("mock", "agent"), "my-app");
++      assert.equal(canonical, join("mock", "agent", "apps", "my-app", "screens.json"));
++    });
+   });
+ });

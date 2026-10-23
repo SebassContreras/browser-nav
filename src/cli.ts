@@ -530,7 +530,7 @@ function screenSourceOf(values: { "screen-map"?: string; "screens-dir"?: string 
   const screensDir = requireNonEmpty("--screens-dir", values["screens-dir"]);
   return {
     ...(screenMap === undefined ? {} : { screenMap }),
-    screensDir: screensDir ?? (agentDir ? resolveScreensDir({ cacheDir: agentDir }) : undefined),
+    ...(screensDir === undefined ? {} : { screensDir }),
     ...(agentDir === undefined ? {} : { cacheDir: agentDir }),
   };
 }

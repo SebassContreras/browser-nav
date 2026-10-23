@@ -287,8 +287,8 @@ export function selectMap(
   );
   const origin = parseHttpUrl(url).origin;
   const hits = entries.filter((entry) => originOf(entry.map.app.origin) === origin);
-  const [only, second] = hits;
-  if (only === undefined) {
+
+  if (hits.length === 0) {
     const mapped = entries.map((entry) => entry.map.app.origin);
     throw new PwaNavError("unmapped_screen", `no screen map for origin ${origin}`, {
       hint:
@@ -297,12 +297,24 @@ export function selectMap(
         "; run: snapshot --learn",
     });
   }
-  if (second !== undefined) {
+
+  // If there are multiple hits for the same origin, prioritize canonical app path:
+  // e.g. <agentDir>/apps/<slug>/screens.json over legacy <agentDir>/screens/<app>.screens.json
+  if (hits.length > 1) {
+    const appDirHit = hits.find((h) => /[/\\]apps[/\\][^/\\]+[/\\]screens\.json$/i.test(h.path));
+    if (appDirHit !== undefined) {
+      return appDirHit.map;
+    }
     throw new PwaNavError(
       "invalid_args",
       `several screen maps cover origin ${origin}: ${hits.map((entry) => entry.path).join(", ")}`,
       { hint: "keep one map per origin or pass --screen-map <file>" },
     );
   }
-  return only.map;
+
+  const first = hits[0];
+  if (first === undefined) {
+    throw new PwaNavError("unmapped_screen", `no screen map for origin ${origin}`);
+  }
+  return first.map;
 }

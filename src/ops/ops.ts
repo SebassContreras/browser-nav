@@ -37,11 +37,11 @@ import {
 import type { Screen, ScreenMap } from "../screens/screen-map.js";
 import { loadExplicitMap, loadScreenMapsFromDir, resolveScreensDir } from "../screens/screen-match.js";
 import { resolveAgentDir } from "../core/storage.js";
-import { learnScreen, slugify } from "../screens/screen-learn.js";
+import { learnScreen } from "../screens/screen-learn.js";
 import { learnIntoFile } from "../screens/screen-store.js";
 import { collectAllTargets } from "../screens/screen-resolve.js";
 import { PwaNavError } from "../core/errors.js";
-import { resolveAppTarget } from "../backend/backend.js";
+import { appSlugFromUrl, resolveAppTarget } from "../backend/backend.js";
 
 // Re-exported so existing callers keep their imports.
 export { ensureParentDir, isHttpUrl, loadSession, parseSession };
@@ -140,8 +140,7 @@ export async function autoCollaborateScreen(
     }
     const page = new URL(pageUrl);
     const origin = page.origin;
-    const rawHostname = page.hostname.replace(/^www\./, "");
-    const appId = slugify(rawHostname) || "app";
+    const appId = appSlugFromUrl(pageUrl) || "app";
     const appDir = join(backend.agentDir, "apps", appId);
     let screenMapPath = options?.screenMapPath;
     let existingMap: ScreenMap | undefined;

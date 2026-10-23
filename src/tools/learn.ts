@@ -1,6 +1,7 @@
 import { join } from "node:path";
-import type { Backend } from "../backend/backend.js";
+import { appSlugFromUrl, type Backend } from "../backend/backend.js";
 import { PwaNavError } from "../core/errors.js";
+import { resolveAppScreenMapPath } from "../core/storage.js";
 import { captureLiveSnapshot } from "../ops/ops.js";
 import { learnScreen, slugify } from "../screens/screen-learn.js";
 import type { Screen, ScreenMap } from "../screens/screen-map.js";
@@ -87,10 +88,12 @@ export async function executeLearn(backend: Backend, o: LearnArgs): Promise<Lear
     if (o.locale === undefined) {
       throw new PwaNavError("invalid_args", LOCALE_REQUIRED);
     }
-    const appId = o.appId ?? (slugify(`${page.hostname}${page.port === "" ? "" : `-${page.port}`}`) || "app");
+    const appId = o.appId ?? (appSlugFromUrl(snapshot.url) || slugify(page.hostname) || "app");
     app = { id: appId, name: o.appName ?? (snapshot.title === "" ? appId : snapshot.title), origin, locale: o.locale };
     if (o.screenMap === undefined) {
-      path = join(dir, `${appId}.screens.json`);
+      path = o.screensDir !== undefined
+        ? join(dir, `${appId}.screens.json`)
+        : resolveAppScreenMapPath(backend.agentDir, appId);
     }
   }
 

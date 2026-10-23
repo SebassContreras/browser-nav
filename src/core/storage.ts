@@ -58,6 +58,14 @@ export function getGlobalDataDir(): string {
 }
 
 /**
+ * Resolves the canonical screen map path for a specific application slug:
+ * <agentDir>/apps/<appSlug>/screens.json
+ */
+export function resolveAppScreenMapPath(agentDir: string, appSlug: string): string {
+  return join(agentDir, "apps", appSlug, "screens.json");
+}
+
+/**
  * Resolves the agent data directory given an explicit workspace directory.
  * Maps <workspaceDir> to <workspaceDir>/.agent.
  */

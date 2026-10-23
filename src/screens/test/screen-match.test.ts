@@ -197,6 +197,19 @@ describe("selectMap", () => {
     assert.equal(err.code, "invalid_args");
     assert.match(err.message, /one\.screens\.json.*two\.screens\.json/);
   });
+
+  it("prioritizes canonical apps/<slug>/screens.json over legacy screens/<app>.screens.json without collision error", () => {
+    const canonicalMap = mapOf("http://a.test", [["canonical", "/"]]);
+    const legacyMap = mapOf("http://a.test", [["legacy", "/"]]);
+    const selected = selectMap(
+      [
+        { path: ".agent/screens/legacy-app.screens.json", map: legacyMap },
+        { path: ".agent/apps/app-a/screens.json", map: canonicalMap },
+      ],
+      "http://a.test/",
+    );
+    assert.equal(selected, canonicalMap);
+  });
 });
 
 describe("screens dir", () => {
