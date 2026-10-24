@@ -290,3 +290,38 @@ test("describeResolved omits values", async () => {
     'fill @q: searchbox "Query" (field, occurrence 0)',
   );
 });
+
+test("resolveTarget: scoped pattern resolution (@pattern(query)>@action)", () => {
+  const screenWithPattern: Screen = {
+    ...search,
+    patterns: [
+      {
+        id: "contact",
+        containerRole: "list",
+        itemRole: "listitem",
+        actions: [
+          {
+            id: "delete-btn",
+            role: "button",
+            name: "Delete contact",
+            kind: "button",
+            effect: "ui-state",
+            locator: loc("button", "Delete contact"),
+          },
+        ],
+      },
+    ],
+  };
+
+  const parsed = parseTarget("@contact(Fede)>@delete-btn");
+  assert.equal(parsed.kind, "id");
+  assert.equal(parsed.id, "contact");
+    assert.equal(parsed.query, "Fede");
+    assert.equal(parsed.scopedId, "delete-btn");
+
+    const resolved = resolveTarget(screenWithPattern, parsed, "click");
+    assert.equal(resolved.id, "contact-delete-btn");
+    assert.equal(resolved.kind, "action");
+    assert.equal(resolved.name, "Delete contact");
+    assert.equal(resolved.role, "button");
+});

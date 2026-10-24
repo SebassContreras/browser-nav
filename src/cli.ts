@@ -8,7 +8,6 @@
 // Option parsing: node:util parseArgs (strict, per-command tables); every usage error
 // is PwaNavError("invalid_args") -> exit 2.
 import { fstatSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 import { createBackend, DEFAULT_PORT } from "./backend/backend-factory.js";
@@ -18,41 +17,26 @@ import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
 import { statusTool } from "./tools/status.js";
 import { profileBackupTool, profileRestoreTool } from "./tools/profile.js";
 import { discoverTool } from "./tools/discover.js";
-import { readEnv, resolveAgentDir, resolveScreensDir } from "./core/storage.js";
-import {
-
-  loadSession,
-  parseActOp,
-  performAct,
-  performAuthRelay,
-  performClick,
-  performExtract,
-  performFill,
-  performFind,
-  performLiveSnapshot,
-  performScreenshot,
-  performSnapshot,
-  performUpload,
-  performWait,
-} from "./ops/ops.js";
-import type { ActOp, ExtractMode } from "./ops/ops.js";
-import { runCheck } from "./ops/qa.js";
+import { readEnv, resolveAgentDir } from "./core/storage.js";
 import {
   actTool,
+  authTool,
   clickTool,
-  openTool,
-  executeLearn,
-  fillTool,
-  renderScreenViewForBackend,
-  uploadTool,
   downloadTool,
-  validateLearnFlags,
-  NO_INPUT_LINE,
+  extractTool,
+  fillTool,
+  findTool,
+  journeyTool,
+  openTool,
+  qaTool,
+  screenshotTool,
+  snapshotTool,
+  uploadTool,
+  waitTool,
   type ScreenSource,
-  type SemanticContext,
+  type ToolContext,
 } from "./tools/index.js";
 import { isSemanticToken, parseFlowInputs } from "./screens/screen-resolve.js";
-import { performJourney } from "./ops/journey.js";
 
 function usage(): string {
   return [
@@ -76,7 +60,7 @@ function usage(): string {
     "  pwa-nav wait --query <str> [--state visible|hidden|enabled] [--timeout <ms|s>] [--interval <ms|s>]",
     "  pwa-nav act --snapshot <id> [--dry-run] <op>...   |   act [--dry-run] <semantic-op>...",
     "  pwa-nav journey <name> [key=value...] [--dry-run] [--screen-map <file>] [--screens-dir <dir>]",
-    "  pwa-nav auth [<app-or-url>] [--port <n>] [--timeout <s|ms>]",
+    "  pwa-nav auth [<app-or-url>] [--clean] [--port <n>] [--timeout <s|ms>]",
     "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
     "  pwa-nav profile backup <app> [--out <file>]",
     "  pwa-nav profile restore <app> <file> [--force]",
@@ -382,6 +366,14 @@ async function cmdOpen(rest: string[]): Promise<void> {
   );
 }
 
+function requireSnapshotId(value: string | undefined): string {
+  const snapshotId = requireNonEmpty("--snapshot", value);
+  if (snapshotId === undefined) {
+    throw invalid("missing --snapshot <id>.");
+  }
+  return snapshotId;
+}
+
 async function cmdSnapshot(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("snapshot", rest, {
     ...LIVE_OPTIONS,
@@ -428,44 +420,11 @@ async function cmdSnapshot(rest: string[]): Promise<void> {
     const stray = learnOnly.find(([, present]) => present);
     if (stray !== undefined) throw invalid(`${stray[0]} requires --learn.`);
   }
-  if (values.screen === true || values.learn === true) {
-    const screenSource = screenSourceOf(values, live.agentDir);
-    if (values.screen === true && values.learn === true) {
-      throw invalid("--screen and --learn are mutually exclusive.");
-    }
-    const mode = values.screen === true ? "--screen" : "--learn";
-    if (inputPath !== undefined || asJson || values.all === true || (values.screen === true && values.interactive === true)) {
-      throw invalid(`${mode} cannot be combined with --input, --json${values.screen === true ? ", -i" : ""} or --all.`);
-    }
-    if (values.screen === true) {
-      const text = await renderScreenViewForBackend(makeBackend(live), screenSource);
-      console.log(text);
-      return;
-    }
-    if (live.mode === "offline") {
-      throw invalid("--learn needs the live backend (--backend bidi).");
-    }
-    const locale = requireNonEmpty("--locale", values.locale);
-    const access = requireNonEmpty("--access", values.access);
-    const appId = requireNonEmpty("--app-id", values["app-id"]);
-    const appName = requireNonEmpty("--app-name", values["app-name"]);
-    validateLearnFlags({ locale, access, appId });
-    await executeLearn(makeBackend(live), {
-      ...screenSource,
-      outPath,
-      prune: values.prune === true,
-      ...(locale === undefined ? {} : { locale }),
-      ...(access === undefined ? {} : { access }),
-      ...(appId === undefined ? {} : { appId }),
-      ...(appName === undefined ? {} : { appName }),
-    });
-    return;
-  }
 
-  // Offline normalizer path: explicit --input, piped stdin, or --backend offline.
-  let rawTree: string | null = null;
+  // Handle stdin piping if present for offline/normalizer
+  let rawTree: string | undefined = undefined;
   if (inputPath !== undefined) {
-    rawTree = await readFile(inputPath, "utf8");
+    // will be read by snapshotTool from inputPath
   } else if (live.mode === "offline") {
     if (process.stdin.isTTY) {
       throw new PwaNavError(
@@ -477,46 +436,48 @@ async function cmdSnapshot(rest: string[]): Promise<void> {
     rawTree = await readStdin();
   } else if (stdinHasPipe()) {
     const piped = await readStdin();
-    rawTree = piped.trim().length > 0 ? piped : null;
+    rawTree = piped.trim().length > 0 ? piped : undefined;
   }
 
-  if (rawTree === null) {
-    const backend = makeBackend(live);
-    const query = requireNonEmpty("--query", values.query);
-    const role = requireNonEmpty("--role", values.role);
-    const snapshot = await performLiveSnapshot(backend, {
-      outPath,
-      quiet: asJson,
-      includeAll: values.all === true,
-      ...(query !== undefined ? { query } : {}),
-      ...(role !== undefined ? { role } : {}),
-    });
-    if (values.screenshot === true) {
-      await performScreenshot({ backend });
-    }
-    if (asJson) {
-      console.log(JSON.stringify(snapshot));
-    } else if (query !== undefined || role !== undefined) {
-      for (const el of snapshot.elements) {
-        console.log(`${el.ref} ${el.role}${el.disabled === true ? " [disabled]" : ""} "${el.name}"${el.value ? `: ${el.value}` : ""}`);
-      }
-    }
-    return;
-  }
+  const ctx = toolContextOf(values, live, false);
+  const result = await snapshotTool(
+    {
+      interactive: values.interactive === true,
+      all: values.all === true,
+      json: asJson,
+      input: inputPath,
+      url: urlOverride,
+      title: requireNonEmpty("--title", values.title),
+      out: outPath,
+      query: requireNonEmpty("--query", values.query),
+      role: requireNonEmpty("--role", values.role),
+      screen: values.screen === true,
+      learn: values.learn === true,
+      prune: values.prune === true,
+      locale: requireNonEmpty("--locale", values.locale),
+      access: requireNonEmpty("--access", values.access),
+      appId: requireNonEmpty("--app-id", values["app-id"]),
+      appName: requireNonEmpty("--app-name", values["app-name"]),
+      screenshot: values.screenshot === true,
+      rawTree,
+    },
+    ctx,
+  );
 
-  const session = await loadSession(join(live.agentDir, "session.json"));
-  const url = urlOverride ?? session?.url ?? "";
-  const title = values.title ?? session?.title ?? "";
-  // -i is accepted for contract compatibility: the MCP backend supplies an
-  // interactive-only tree; file/stdin input is assumed pre-filtered.
-  const snapshot = await performSnapshot(rawTree, { url, title, outPath, quiet: asJson, agentDir: live.agentDir });
-  if (asJson) {
-    console.log(JSON.stringify(snapshot));
+  const query = requireNonEmpty("--query", values.query);
+  const role = requireNonEmpty("--role", values.role);
+  if (!asJson && (query !== undefined || role !== undefined) && "snapshot" in result.structured) {
+    const snap = (result.structured as { snapshot: { elements: Array<{ ref: string; role: string; disabled?: boolean; name: string; value?: string }> } }).snapshot;
+    for (const el of snap.elements) {
+      console.log(`${el.ref} ${el.role}${el.disabled === true ? " [disabled]" : ""} "${el.name}"${el.value ? `: ${el.value}` : ""}`);
+    }
+  } else if (result.text) {
+    console.log(result.text);
   }
 }
 
-// Shared by click/fill/act. Actions are ARMED by default (active execution).
-// Pass `--dry-run` (or env PWA_NAV_DRY_RUN=1) to preview mutations without executing.
+// Shared by click/fill/act. In CLI mode, actions run in dry-run mode by default.
+// Pass `--armed` to execute active mutations against the live browser.
 const ACTION_OPTIONS = {
   ...LIVE_OPTIONS,
   ...SCREEN_OPTIONS,
@@ -542,110 +503,105 @@ function screenSourceOf(values: { "screen-map"?: string; "screens-dir"?: string 
   };
 }
 
-// Common guard for @id targets: live backend only, no --snapshot.
-function semanticContext(values: {
-  snapshot?: string;
-  armed?: boolean;
-  "dry-run"?: boolean;
-  "screen-map"?: string;
-  "screens-dir"?: string;
-  "cache-dir"?: string;
-  backend?: string;
-  port?: string;
-  context?: string;
-}): SemanticContext {
-  if (values.snapshot !== undefined) {
-    throw invalid("--snapshot is not used with @id targets (they resolve on a fresh snapshot).");
-  }
-  const live = resolveLive(values);
-  if (live.mode === "offline") {
-    throw invalid("@id targets need the live backend (--backend bidi).");
-  }
-  const armed = isArmed(values);
-  return { ...screenSourceOf(values, live.agentDir), backend: makeBackend(live, { armed }), armed };
-}
 
-function noInputNote(live: LiveConfig, armed: boolean): void {
-  if (live.mode === "bidi" && !armed) {
-    console.log(NO_INPUT_LINE);
-  }
-}
 
-function requireSnapshotId(value: string | undefined): string {
-  const snapshotId = requireNonEmpty("--snapshot", value);
-  if (snapshotId === undefined) {
-    throw invalid("missing --snapshot <id>.");
-  }
-  return snapshotId;
+
+
+function toolContextOf(
+  values: {
+    backend?: string;
+    port?: string;
+    context?: string;
+    "cache-dir"?: string;
+    app?: string;
+    "screen-map"?: string;
+    "screens-dir"?: string;
+    armed?: boolean;
+    "dry-run"?: boolean;
+    [key: string]: unknown;
+  },
+  live: LiveConfig,
+  armed: boolean,
+): ToolContext {
+  const screens = screenSourceOf(values, live.agentDir);
+  const backend = makeBackend(live, { armed });
+  return {
+    backendFactory: (req) => makeBackend(live, { armed: req.armed, launch: req.launch }),
+    backend,
+    armed,
+    mode: live.mode,
+    screens,
+    port: live.port,
+    app: live.app,
+    agentDir: live.agentDir,
+  };
 }
 
 async function cmdClick(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("click", rest, ACTION_OPTIONS);
   printHelpAndExit(values.help);
-  const semanticRef = positionals[0];
-  if (semanticRef?.startsWith("@") === true) {
-    if (positionals.length !== 1) throw invalid("missing <ref>.");
-    const ctx = semanticContext(values);
-    await clickTool(
-      { target: semanticRef, dryRun: !ctx.armed },
-      {
-        backendFactory: () => ctx.backend,
-        backend: ctx.backend,
-        armed: ctx.armed,
-        mode: "bidi",
-        screens: ctx,
-      },
-    );
-    return;
-  }
-  const snapshotId = requireSnapshotId(values.snapshot);
-  const ref = positionals[0];
-  if (ref === undefined || positionals.length !== 1) {
+  const rawTarget = positionals[0];
+  if (rawTarget === undefined || positionals.length !== 1) {
     throw invalid("missing <ref>.");
   }
+  const isSemantic = rawTarget.startsWith("@");
+  if (isSemantic && values.snapshot !== undefined) {
+    throw invalid("--snapshot is not used with @id targets (they resolve on a fresh snapshot).");
+  }
   const live = resolveLive(values);
+  if (isSemantic && live.mode === "offline") {
+    throw invalid("@id targets need the live backend (--backend bidi).");
+  }
   const armed = isArmed(values);
-  await performClick(snapshotId, ref, { backend: makeBackend(live, { armed }), armed });
-  noInputNote(live, armed);
+  const snapshotId = !isSemantic ? requireSnapshotId(values.snapshot) : undefined;
+  const ctx = toolContextOf(values, live, armed);
+
+  await clickTool(
+    {
+      target: isSemantic ? rawTarget : undefined,
+      ref: !isSemantic ? rawTarget : undefined,
+      snapshotId,
+      dryRun: !armed,
+    },
+    ctx,
+  );
 }
 
 async function cmdFill(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("fill", rest, ACTION_OPTIONS);
   printHelpAndExit(values.help);
-  const semanticRef = positionals[0];
-  if (semanticRef?.startsWith("@") === true) {
-    const semanticText = positionals[1];
-    if (semanticText === undefined || positionals.length !== 2) throw invalid("missing <ref> <text>.");
-    const ctx = semanticContext(values);
-    await fillTool(
-      { target: semanticRef, text: semanticText, dryRun: !ctx.armed },
-      {
-        backendFactory: () => ctx.backend,
-        backend: ctx.backend,
-        armed: ctx.armed,
-        mode: "bidi",
-        screens: ctx,
-      },
-    );
-    return;
-  }
-  const snapshotId = requireSnapshotId(values.snapshot);
-  const ref = positionals[0];
+  const rawTarget = positionals[0];
   const text = positionals[1];
-  if (ref === undefined || text === undefined || positionals.length !== 2) {
-    throw invalid("missing <ref> <text>.");
+  if (rawTarget === undefined || text === undefined || positionals.length !== 2) {
+    throw invalid(rawTarget?.startsWith("@") ? "missing <ref> <text>." : "missing <ref> <text>.");
+  }
+  const isSemantic = rawTarget.startsWith("@");
+  if (isSemantic && values.snapshot !== undefined) {
+    throw invalid("--snapshot is not used with @id targets (they resolve on a fresh snapshot).");
   }
   const live = resolveLive(values);
+  if (isSemantic && live.mode === "offline") {
+    throw invalid("@id targets need the live backend (--backend bidi).");
+  }
   const armed = isArmed(values);
-  await performFill(snapshotId, ref, text, { backend: makeBackend(live, { armed }), armed });
-  noInputNote(live, armed);
-}
+  const snapshotId = !isSemantic ? requireSnapshotId(values.snapshot) : undefined;
+  const ctx = toolContextOf(values, live, armed);
 
+  await fillTool(
+    {
+      target: isSemantic ? rawTarget : undefined,
+      ref: !isSemantic ? rawTarget : undefined,
+      text,
+      snapshotId,
+      dryRun: !armed,
+    },
+    ctx,
+  );
+}
 
 async function cmdDownload(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("download", rest, {
     out: { type: "string" },
-    snapshot: { type: "string" },
     "dry-run": { type: "boolean" },
     armed: { type: "boolean" },
     port: { type: "string" },
@@ -661,7 +617,7 @@ async function cmdDownload(rest: string[]): Promise<void> {
   const isTarget = targetOrUrl.startsWith("@");
   const live = resolveLive(values);
   const armed = isArmed(values);
-  const backend = makeBackend(live, { armed });
+  const ctx = toolContextOf(values, live, armed);
 
   const result = await downloadTool(
     {
@@ -671,14 +627,7 @@ async function cmdDownload(rest: string[]): Promise<void> {
       out: values.out,
       dryRun: !armed,
     },
-    {
-      backendFactory: () => backend,
-      backend,
-      armed,
-      mode: live.mode,
-      port: values.port ? Number(values.port) : undefined,
-      screens: { cacheDir: values["cache-dir"] },
-    },
+    ctx,
   );
   console.log(result.text ?? "");
 }
@@ -686,67 +635,61 @@ async function cmdDownload(rest: string[]): Promise<void> {
 async function cmdUpload(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("upload", rest, ACTION_OPTIONS);
   printHelpAndExit(values.help);
-  const semanticRef = positionals[0];
-  if (semanticRef?.startsWith("@") === true) {
-    const files = positionals.slice(1);
-    if (files.length === 0) throw invalid("missing <ref> <path>.");
-    const ctx = semanticContext(values);
-    await uploadTool(
-      { target: semanticRef, files, dryRun: !ctx.armed },
-      {
-        backendFactory: () => ctx.backend,
-        backend: ctx.backend,
-        armed: ctx.armed,
-        mode: "bidi",
-        screens: ctx,
-      },
-    );
-    return;
-  }
-  const snapshotId = requireSnapshotId(values.snapshot);
-  const ref = positionals[0];
+  const rawTarget = positionals[0];
   const files = positionals.slice(1);
-  if (ref === undefined || files.length === 0) {
+  if (rawTarget === undefined || files.length === 0) {
     throw invalid("missing <ref> <path>.");
   }
+  const isSemantic = rawTarget.startsWith("@");
+  if (isSemantic && values.snapshot !== undefined) {
+    throw invalid("--snapshot is not used with @id targets (they resolve on a fresh snapshot).");
+  }
   const live = resolveLive(values);
+  if (isSemantic && live.mode === "offline") {
+    throw invalid("@id targets need the live backend (--backend bidi).");
+  }
   const armed = isArmed(values);
-  await performUpload(snapshotId, ref, files, { backend: makeBackend(live, { armed }), armed });
-  noInputNote(live, armed);
+  const snapshotId = !isSemantic ? requireSnapshotId(values.snapshot) : undefined;
+  const ctx = toolContextOf(values, live, armed);
+
+  await uploadTool(
+    {
+      target: isSemantic ? rawTarget : undefined,
+      ref: !isSemantic ? rawTarget : undefined,
+      files,
+      snapshotId,
+      dryRun: !armed,
+    },
+    ctx,
+  );
 }
 
 async function cmdAct(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("act", rest, ACTION_OPTIONS);
   printHelpAndExit(values.help);
-  if (positionals.some(isSemanticToken)) {
-    const ctx = semanticContext(values);
-    await actTool(
-      { ops: positionals, dryRun: !ctx.armed },
-      {
-        backendFactory: () => ctx.backend,
-        backend: ctx.backend,
-        armed: ctx.armed,
-        mode: "bidi",
-        screens: ctx,
-      },
-    );
-    return;
+  const isSemantic = positionals.some(isSemanticToken);
+  if (isSemantic && values.snapshot !== undefined) {
+    throw invalid("--snapshot is not used with @id targets (they resolve on a fresh snapshot).");
   }
-  const snapshotId = requireSnapshotId(values.snapshot);
-  if (positionals.length === 0) {
+  const live = resolveLive(values);
+  if (isSemantic && live.mode === "offline") {
+    throw invalid("@id targets need the live backend (--backend bidi).");
+  }
+  const armed = isArmed(values);
+  const snapshotId = !isSemantic ? requireSnapshotId(values.snapshot) : undefined;
+  if (!isSemantic && positionals.length === 0) {
     throw invalid("missing <op>... (expected fill:<ref>=<text>, click:<ref>, or upload:<ref>=<path>).");
   }
-  const ops: ActOp[] = positionals.map((token) => {
-    try {
-      return parseActOp(token);
-    } catch (error) {
-      throw invalid(error instanceof Error ? error.message : String(error));
-    }
-  });
-  const live = resolveLive(values);
-  const armed = isArmed(values);
-  await performAct(snapshotId, ops, { backend: makeBackend(live, { armed }), armed });
-  noInputNote(live, armed);
+  const ctx = toolContextOf(values, live, armed);
+
+  await actTool(
+    {
+      ops: positionals,
+      snapshotId,
+      dryRun: !armed,
+    },
+    ctx,
+  );
 }
 
 async function cmdScreenshot(rest: string[]): Promise<void> {
@@ -765,16 +708,20 @@ async function cmdScreenshot(rest: string[]): Promise<void> {
     format = rawFormat;
   }
   const live = resolveLive(values);
-  const backend = makeBackend(live);
-  await performScreenshot({
-    backend,
-    ...(outPath !== undefined ? { outPath } : {}),
-    ...(format !== undefined ? { format } : {}),
-  });
+  const ctx = toolContextOf(values, live, false);
+  const result = await screenshotTool(
+    {
+      ...(outPath !== undefined ? { outPath } : {}),
+      ...(format !== undefined ? { format } : {}),
+    },
+    ctx,
+  );
+  console.log(result.text ?? "");
 }
 
 async function cmdExtract(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("extract", rest, {
+    ...LIVE_OPTIONS,
     snapshot: { type: "string" },
     mode: { type: "string" },
     query: { type: "string" },
@@ -808,14 +755,26 @@ async function cmdExtract(rest: string[]): Promise<void> {
   if (limit !== undefined && (isNaN(limit) || limit < 1)) {
     throw invalid(`invalid --limit: ${limitStr ?? ""} (expected positive integer).`);
   }
-  const lines = await performExtract(snapshotId, mode satisfies ExtractMode, {
-    query,
-    role,
-    offset,
-    limit,
-  });
-  for (const line of lines) {
-    console.log(line);
+  const live = resolveLive(values);
+  const ctx = toolContextOf(values, live, false);
+  const result = await extractTool(
+    {
+      snapshotId,
+      mode: mode,
+      query,
+      role,
+      offset,
+      limit,
+    },
+    ctx,
+  );
+  const lines = result.structured["lines"];
+  if (Array.isArray(lines)) {
+    for (const line of lines as string[]) {
+      console.log(line);
+    }
+  } else if (result.text) {
+    console.log(result.text);
   }
 }
 
@@ -830,7 +789,6 @@ async function cmdFind(rest: string[]): Promise<void> {
   });
   printHelpAndExit(values.help);
   const live = resolveLive(values);
-  const backend = makeBackend(live);
   const snapshotId = requireNonEmpty("--snapshot", values.snapshot);
   const query = positionals[0];
   const role = requireNonEmpty("--role", values.role);
@@ -845,22 +803,31 @@ async function cmdFind(rest: string[]): Promise<void> {
   if (limit !== undefined && (isNaN(limit) || limit < 1)) {
     throw invalid(`invalid --limit: ${limitStr ?? ""} (expected positive integer).`);
   }
-  const result = await performFind(snapshotId, {
-    backend,
-    query,
-    role,
-    inDialog,
-    offset,
-    limit,
-  });
-  if (result.activeDialog) {
-    console.log(`[active modal: "${result.activeDialog.title}" (${result.activeDialog.elementCount.toString()} elements)]`);
+  const ctx = toolContextOf(values, live, false);
+  const result = await findTool(
+    {
+      snapshotId,
+      query,
+      role,
+      inDialog,
+      offset,
+      limit,
+    },
+    ctx,
+  );
+  const structured = result.structured as { activeDialog?: { title: string; elementCount: number }; lines: string[] } | undefined;
+  if (structured?.activeDialog) {
+    console.log(`[active modal: "${structured.activeDialog.title}" (${structured.activeDialog.elementCount.toString()} elements)]`);
   }
-  for (const line of result.lines) {
-    console.log(line);
-  }
-  if (result.lines.length === 0) {
-    console.log("0 matching elements.");
+  if (structured?.lines) {
+    for (const line of structured.lines) {
+      console.log(line);
+    }
+    if (structured.lines.length === 0) {
+      console.log("0 matching elements.");
+    }
+  } else if (result.text) {
+    console.log(result.text);
   }
 }
 
@@ -906,14 +873,17 @@ async function cmdWait(rest: string[]): Promise<void> {
     }
   }
   const live = resolveLive(values);
-  const backend = makeBackend(live);
-  await performWait(target, {
-    backend,
-    query,
-    state,
-    timeoutMs,
-    intervalMs,
-  });
+  const ctx = toolContextOf(values, live, false);
+  await waitTool(
+    {
+      target,
+      query,
+      state,
+      timeoutMs,
+      intervalMs,
+    },
+    ctx,
+  );
 }
 
 async function cmdJourney(rest: string[]): Promise<void> {
@@ -929,13 +899,18 @@ async function cmdJourney(rest: string[]): Promise<void> {
   }
   const live = resolveLive(values);
   const armed = isArmed(values);
-  const backend = makeBackend(live, { armed });
-  await performJourney(journeyName, inputs, {
-    backend,
-    armed,
-    screenMap: values["screen-map"],
-    screensDir: values["screens-dir"] ?? resolveScreensDir({ cacheDir: backend.agentDir }),
-  });
+  const ctx = toolContextOf(values, live, armed);
+  const result = await journeyTool(
+    {
+      journey: journeyName,
+      inputs,
+      dryRun: !armed,
+      screenMap: values["screen-map"],
+      screensDir: values["screens-dir"],
+    },
+    ctx,
+  );
+  console.log(result.text ?? "");
 }
 
 async function cmdQa(rest: string[]): Promise<void> {
@@ -947,27 +922,33 @@ async function cmdQa(rest: string[]): Promise<void> {
   if (subcommand !== "run" || checkFile === undefined || extra !== undefined) {
     throw invalid("missing <check-file>.");
   }
-  // Explicit: checks are fixture-driven and always run on the offline backend.
-  const result = await runCheck(checkFile);
-  if (!result.pass) {
+  const ctx = toolContextOf({}, { mode: "offline", port: DEFAULT_PORT, agentDir: resolveAgentDir({}) }, false);
+  const result = await qaTool({ checkFile }, ctx);
+  const structured = result.structured as { pass: boolean; failedStep: number | null; evidenceDir: string };
+  if (!structured.pass) {
     throw new Error(
-      `qa failed at step ${result.failedStep?.toString() ?? "?"} (evidence: ${result.evidenceDir})`,
+      `qa failed at step ${structured.failedStep?.toString() ?? "?"} (evidence: ${structured.evidenceDir})`,
     );
   }
 }
 
 async function cmdAuth(rest: string[]): Promise<void> {
   const { values, positionals } = strictParse("auth", rest, {
+    clean: { type: "boolean" },
     port: { type: "string" },
     timeout: { type: "string" },
     help: { type: "boolean", short: "h" },
   });
   printHelpAndExit(values.help);
   const target = positionals[0];
-  const port = values.port !== undefined ? Number(values.port) : undefined;
   const timeoutMs = values.timeout !== undefined ? Number(values.timeout) * 1000 : undefined;
+  const port = values.port !== undefined ? Number(values.port) : undefined;
+  const clean = values.clean === true;
 
-  await performAuthRelay({ appOrUrl: target, port, timeoutMs });
+  const result = await authTool({ app: target, clean, timeoutMs, port }, { mode: "bidi" });
+  if (result.text) {
+    console.log(result.text);
+  }
 }
 
 async function cmdStatus(rest: string[]): Promise<void> {
@@ -1161,7 +1142,10 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
+  let message = error instanceof Error ? error.message : String(error);
+  if (error instanceof PwaNavError && error.code === "invalid_args" && !message.includes("Usage:")) {
+    message = message + "\n\n" + usage();
+  }
   console.error(`error: ${message}`);
   if (error instanceof PwaNavError && error.hint !== undefined) {
     console.error(`hint: ${error.hint}`);

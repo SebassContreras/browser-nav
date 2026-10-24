@@ -68,7 +68,7 @@ export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOu
   const textLines = [`open ok: ${session.url} -> ${sessionPath}`];
   if (barrier) {
     textLines.push(
-      "Login barrier detected (e.g. Google accounts login). Use auth clean to switch to clean mode for manual user login, then auth debug to resume automation.",
+      "Login barrier detected (e.g. Google accounts login). Run 'browser-nav auth <app>' (or browser_auth) to perform assisted login, then resume automation.",
     );
   }
 
@@ -80,7 +80,7 @@ export async function openTool(args: OpenArgs, ctx: ToolContext): Promise<ToolOu
       ...(barrier
         ? {
             loginBarrier: true,
-            hint: "Login barrier detected (e.g. Google accounts login). Use auth clean to switch to clean mode for manual user login, then auth debug to resume automation.",
+            hint: "Login barrier detected (e.g. Google accounts login). Run 'browser-nav auth <app>' (or browser_auth) to perform assisted login, then resume automation.",
           }
         : {}),
     },

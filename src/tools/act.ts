@@ -117,15 +117,15 @@ export async function actTool(args: ActArgs, ctx: ToolContext): Promise<ToolOutc
     throw invalid("inputs only applies to flow:<id> ops.");
   }
 
-  const parsed: ActOp[] = ops.map((token, index) => {
+  const parsed: ActOp[] = ops.map((token) => {
     try {
       return parseActOp(token);
-    } catch {
-      throw invalid(`invalid op at ops[${index.toString()}] (expected click:<ref> or fill:<ref>=<text>).`);
+    } catch (error) {
+      throw invalid(error instanceof Error ? error.message : String(error));
     }
   });
 
   const next = await performAct(snapshotId, parsed, { backend, armed: effectiveCtx.armed });
-  if (!effectiveCtx.armed) console.log(NO_INPUT_LINE);
+  if (effectiveCtx.mode === "bidi" && !effectiveCtx.armed) console.log(NO_INPUT_LINE);
   return actionOutcome(effectiveCtx, backend, next, ops.join(", "));
 }

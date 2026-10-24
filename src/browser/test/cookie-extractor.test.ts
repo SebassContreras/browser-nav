@@ -113,12 +113,14 @@ describe("Cookie Extractor and Domain Matching", () => {
 
         // Assert
         assert.equal(cookies.length, 1);
-        assert.equal(cookies[0].name, "SID");
-        assert.equal(cookies[0].value, "session123");
-        assert.equal(cookies[0].domain, ".google.com");
-        assert.equal(cookies[0].httpOnly, true);
-        assert.equal(cookies[0].secure, true);
-        assert.equal(cookies[0].sameSite, "lax");
+        const first = cookies[0];
+        assert.ok(first !== undefined);
+        assert.equal(first.name, "SID");
+        assert.equal(first.value, "session123");
+        assert.equal(first.domain, ".google.com");
+        assert.equal(first.httpOnly, true);
+        assert.equal(first.secure, true);
+        assert.equal(first.sameSite, "lax");
       } finally {
         rmSync(testDir, { recursive: true, force: true });
       }

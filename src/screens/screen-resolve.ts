@@ -236,19 +236,33 @@ export function resolveTarget(
     const occurrence = targetObj.occurrence ?? 0;
     
     if (targetObj.scopedId) {
-      const scopedField = (pattern.fields ?? []).find((f) => f.id === targetObj.scopedId);
-      const scopedAction = (pattern.actions ?? []).find((a) => a.id === targetObj.scopedId);
-      
+      let scopedField = (pattern.fields ?? []).find((f) => f.id === targetObj.scopedId);
+      let scopedAction = (pattern.actions ?? []).find((a) => a.id === targetObj.scopedId);
+
+      // Search inside action opens branches
+      if (!scopedField && !scopedAction && pattern.actions) {
+        for (const act of pattern.actions) {
+          if (act.opens?.fields) {
+            scopedField = act.opens.fields.find((f) => f.id === targetObj.scopedId);
+            if (scopedField) break;
+          }
+          if (act.opens?.actions) {
+            scopedAction = act.opens.actions.find((a) => a.id === targetObj.scopedId);
+            if (scopedAction) break;
+          }
+        }
+      }
+
       if (scopedField) {
         resolved = {
           id: `${id}-${targetObj.scopedId}`,
           kind: "field",
           role: scopedField.role,
           name: scopedField.name,
-          locator: { role: scopedField.role, name: scopedField.name, occurrence }, // the occurrence might apply to the parent or child? Let's apply it to the child for now
+          locator: { role: scopedField.role, name: scopedField.name, occurrence },
           sensitive: scopedField.sensitive,
           agentFillable: scopedField.agentFillable,
-          requiresSensitive: false, // Could expand this if scoped actions require scoped fields
+          requiresSensitive: false,
         };
       } else if (scopedAction) {
         resolved = {
@@ -264,12 +278,6 @@ export function resolveTarget(
       } else {
         throw new PwaNavError("unknown_target", `unknown scoped target @${targetObj.scopedId} inside @${id}`);
       }
-      
-      // We must instruct the locator to find the parent first, but Locator doesn't support parent scoping natively yet. 
-      // For now we just resolve the nested role/name. But wait, if we just pass the nested role/name, we lose the query constraint.
-      // If we can't augment Locator right now without backend changes, we can set the container in the locator if needed, or fallback.
-      // Since Locator doesn't support nested query currently, we'll just encode the query in the name if possible, or leave a FIXME.
-      // Wait, `pwa_nav` backend uses `refs.ts` which uses `Locators`. If we can't change the backend in 20 min, we can't implement scoping natively in BiDi!
     } else {
       resolved = {
         id,

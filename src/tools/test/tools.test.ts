@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
   openTool,
+  downloadTool,
   clickTool,
   fillTool,
   uploadTool,
@@ -143,8 +144,8 @@ test("executeLearn: targets canonical app screen map path and respects explicit 
         url: "https://example.com/app",
         title: "Example App",
         raw: [
-          { role: "button", name: "Submit", disabled: false, nameSource: "content", occurrence: 0 },
-          { role: "textbox", name: "Username", disabled: false, nameSource: "label", occurrence: 0 },
+          { role: "button", name: "Submit", disabled: undefined, nameSource: "content" as const, occurrence: 0 },
+          { role: "textbox", name: "Username", disabled: undefined, nameSource: "label" as const, occurrence: 0 },
         ],
       }),
       click: () => Promise.resolve({ kind: "done" as const, plan: "", snapshotId: "1", url: "", title: "" }),
@@ -162,6 +163,82 @@ test("executeLearn: targets canonical app screen map path and respects explicit 
     const explicitPath = join(dir, "custom-explicit.screens.json");
     const explicitRes = await executeLearn(fakeBackend, { locale: "en", screenMap: explicitPath });
     assert.equal(explicitRes.path, explicitPath);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+
+
+test("downloadTool enforces safety gate and kill switch", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tools-download-gate-test-"));
+  const prevKillEnv = process.env.PWA_NAV_KILL_SWITCH;
+  try {
+    const backend = new OfflineBackend({ agentDir: dir });
+    const ctx: ToolContext = {
+      backendFactory: () => backend,
+      backend,
+      armed: true,
+      mode: "offline",
+      screens: { cacheDir: dir },
+      agentDir: dir,
+    };
+
+    // Kill switch enforcement via env var
+    const killFile = join(dir, "kill");
+    await writeFile(killFile, "halt", "utf8");
+    process.env.PWA_NAV_KILL_SWITCH = killFile;
+    await assert.rejects(
+      () => downloadTool({ url: "https://example.com/file.png" }, ctx),
+      (err: unknown) => typeof err === "object" && err !== null && "code" in err && err.code === "kill_switch",
+    );
+    delete process.env.PWA_NAV_KILL_SWITCH;
+    await unlink(killFile);
+
+    // Unallowed origin without consent
+    await assert.rejects(
+      () => downloadTool({ url: "https://unauthorized-origin.com/file.png" }, ctx),
+      (err: unknown) => typeof err === "object" && err !== null && "code" in err && err.code === "origin_blocked",
+    );
+  } finally {
+    if (prevKillEnv !== undefined) {
+      process.env.PWA_NAV_KILL_SWITCH = prevKillEnv;
+    } else {
+      delete process.env.PWA_NAV_KILL_SWITCH;
+    }
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("backend-factory: creates backend with app port lookup from FileInstanceRegistry", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "backend-app-test-"));
+  try {
+    const { FileInstanceRegistry } = await import("../../browser/instance-registry.js");
+    const { createBackend } = await import("../../backend/backend-factory.js");
+    const registry = new FileInstanceRegistry({ cacheDir: dir });
+    await registry.register({
+      appSlug: "my-app",
+      url: "https://my-app.test", profileDir: join(dir, "profile"), startedAt: new Date().toISOString(),
+      port: 9333,
+      pid: 1234,
+    });
+
+    // createBackend with app resolves port 9333
+    const backend = createBackend({
+      mode: "bidi",
+      app: "my-app",
+      cacheDir: dir,
+    });
+    assert.equal((backend as unknown as { port: number }).port, 9333);
+
+    // Explicit port takes precedence over registry app
+    const backendExplicit = createBackend({
+      mode: "bidi",
+      app: "my-app",
+      port: 9444,
+      cacheDir: dir,
+    });
+    assert.equal((backendExplicit as unknown as { port: number }).port, 9444);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

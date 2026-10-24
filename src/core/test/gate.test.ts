@@ -285,7 +285,7 @@ test("loadAllowList: recognizes origins mapped inside apps without flat origins 
 
     // Act & Assert navigation gate treats them as authorized without throwing
     await assert.doesNotReject(
-      assertNavigationAllowed({ url: "https://notebook.google.com/test", agentDir: dir }),
+      assertNavigationAllowed({ url: "https://notebook.google.com/test", allowOrigin: false, agentDir: dir }),
     );
   } finally {
     await rm(dir, { recursive: true, force: true });

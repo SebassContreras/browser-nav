@@ -74,7 +74,7 @@ export async function fillTool(args: FillArgs, ctx: ToolContext): Promise<ToolOu
     throw invalid("missing --snapshot <id> and no stored snapshot exists.", "run: snapshot first");
   }
   const nextId = await performFill(id, rawRef, text, { backend, armed: effectiveCtx.armed });
-  if (!effectiveCtx.armed) {
+  if (effectiveCtx.mode === "bidi" && !effectiveCtx.armed) {
     console.log(NO_INPUT_LINE);
   }
   return actionOutcome(effectiveCtx, backend, nextId, rawRef);

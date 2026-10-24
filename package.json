@@ -23,7 +23,8 @@
     "build": "tsc -p tsconfig.build.json && node -e \"import('node:fs').then(fs => fs.copyFileSync('SKILL.md', 'dist/SKILL.md'))\"",
     "lint": "eslint .",
     "smoke": "node ./scripts/smoke.ts",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",

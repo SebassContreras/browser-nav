@@ -68,12 +68,16 @@ Default=0
 
       // Assert
       assert.equal(profiles.length, 2);
-      assert.equal(profiles[0].name, "default-release");
-      assert.equal(profiles[0].isDefault, true);
-      assert.equal(profiles[0].path, join(testDir, "Profiles", "abc123.default-release"));
+      const p0 = profiles[0];
+      const p1 = profiles[1];
+      assert.ok(p0 !== undefined);
+      assert.ok(p1 !== undefined);
+      assert.equal(p0.name, "default-release");
+      assert.equal(p0.isDefault, true);
+      assert.equal(p0.path, join(testDir, "Profiles", "abc123.default-release"));
 
-      assert.equal(profiles[1].name, "dev-edition");
-      assert.equal(profiles[1].isDefault, false);
+      assert.equal(p1.name, "dev-edition");
+      assert.equal(p1.isDefault, false);
     } finally {
       rmSync(testDir, { recursive: true, force: true });
     }
@@ -96,8 +100,10 @@ Locked=1
 
       // Assert
       assert.equal(profiles.length, 1);
-      assert.equal(profiles[0].isDefault, true);
-      assert.equal(profiles[0].path, join(testDir, "Profiles", "xyz456.default-release"));
+      const inst0 = profiles[0];
+      assert.ok(inst0 !== undefined);
+      assert.equal(inst0.isDefault, true);
+      assert.equal(inst0.path, join(testDir, "Profiles", "xyz456.default-release"));
     } finally {
       rmSync(testDir, { recursive: true, force: true });
     }

@@ -35,6 +35,8 @@ export const SERVER_VERSION = "0.1.0";
 
 export interface McpServerOptions {
   backendFactory: BackendFactory;
+  /** BiDi debugging port. */
+  port?: number;
   /** Operator-level arming (default true = armed, false = dry-run via --dry-run or PWA_NAV_DRY_RUN=1). */
   armed?: boolean;
   /** Which backend the factory builds; gates offline-only refusals and the dryRun flag. */
@@ -250,6 +252,7 @@ export function createMcpServer(options: McpServerOptions): Server {
     mode: options.mode ?? "bidi",
     screens,
     agentDir: effectiveAgentDir,
+    ...(options.port === undefined ? {} : { port: options.port }),
     ...(options.runtimeInstaller === undefined ? {} : { runtimeInstaller: options.runtimeInstaller }),
   };
   const contextForCall = (): ToolContext =>

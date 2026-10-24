@@ -1,0 +1,114 @@
+diff --git a/src/mcp/mcp-tools.ts b/src/mcp/mcp-tools.ts
+index 62ee6f8..9b0fe82 100644
+--- a/src/mcp/mcp-tools.ts
++++ b/src/mcp/mcp-tools.ts
+@@ -62,7 +62,7 @@ export interface ToolDef {
+   handler: (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolOutcome>;
+ }
+ 
+-const TARGET_PATTERN = "^@[a-z0-9]+(-[a-z0-9]+)*$";
++const TARGET_PATTERN = "^@[a-z0-9]+(?:-[a-z0-9]+)*(?:\\([^)]+\\))?(?:>@[a-z0-9]+(?:-[a-z0-9]+)*)?(?:\\[\\d+\\])?$";
+ 
+ const TARGET_PROP = {
+   type: "string",
+diff --git a/src/screens/screen-resolve.ts b/src/screens/screen-resolve.ts
+index 0ada221..986dfa3 100644
+--- a/src/screens/screen-resolve.ts
++++ b/src/screens/screen-resolve.ts
+@@ -236,19 +236,33 @@ export function resolveTarget(
+     const occurrence = targetObj.occurrence ?? 0;
+     
+     if (targetObj.scopedId) {
+-      const scopedField = (pattern.fields ?? []).find((f) => f.id === targetObj.scopedId);
+-      const scopedAction = (pattern.actions ?? []).find((a) => a.id === targetObj.scopedId);
+-      
++      let scopedField = (pattern.fields ?? []).find((f) => f.id === targetObj.scopedId);
++      let scopedAction = (pattern.actions ?? []).find((a) => a.id === targetObj.scopedId);
++
++      // Search inside action opens branches
++      if (!scopedField && !scopedAction && pattern.actions) {
++        for (const act of pattern.actions) {
++          if (act.opens?.fields) {
++            scopedField = act.opens.fields.find((f) => f.id === targetObj.scopedId);
++            if (scopedField) break;
++          }
++          if (act.opens?.actions) {
++            scopedAction = act.opens.actions.find((a) => a.id === targetObj.scopedId);
++            if (scopedAction) break;
++          }
++        }
++      }
++
+       if (scopedField) {
+         resolved = {
+           id: `${id}-${targetObj.scopedId}`,
+           kind: "field",
+           role: scopedField.role,
+           name: scopedField.name,
+-          locator: { role: scopedField.role, name: scopedField.name, occurrence }, // the occurrence might apply to the parent or child? Let's apply it to the child for now
++          locator: { role: scopedField.role, name: scopedField.name, occurrence },
+           sensitive: scopedField.sensitive,
+           agentFillable: scopedField.agentFillable,
+-          requiresSensitive: false, // Could expand this if scoped actions require scoped fields
++          requiresSensitive: false,
+         };
+       } else if (scopedAction) {
+         resolved = {
+@@ -264,12 +278,6 @@ export function resolveTarget(
+       } else {
+         throw new PwaNavError("unknown_target", `unknown scoped target @${targetObj.scopedId} inside @${id}`);
+       }
+-      
+-      // We must instruct the locator to find the parent first, but Locator doesn't support parent scoping natively yet. 
+-      // For now we just resolve the nested role/name. But wait, if we just pass the nested role/name, we lose the query constraint.
+-      // If we can't augment Locator right now without backend changes, we can set the container in the locator if needed, or fallback.
+-      // Since Locator doesn't support nested query currently, we'll just encode the query in the name if possible, or leave a FIXME.
+-      // Wait, `pwa_nav` backend uses `refs.ts` which uses `Locators`. If we can't change the backend in 20 min, we can't implement scoping natively in BiDi!
+     } else {
+       resolved = {
+         id,
+diff --git a/src/screens/test/screen-resolve.test.ts b/src/screens/test/screen-resolve.test.ts
+index daa50b4..92b66d2 100644
+--- a/src/screens/test/screen-resolve.test.ts
++++ b/src/screens/test/screen-resolve.test.ts
+@@ -290,3 +290,40 @@ test("describeResolved omits values", async () => {
+     'fill @q: searchbox "Query" (field, occurrence 0)',
+   );
+ });
++
++test("resolveTarget: scoped pattern resolution (@pattern(query)>@action)", () => {
++  const screenWithPattern: Screen = {
++    ...search,
++    patterns: [
++      {
++        id: "contact",
++        containerRole: "list",
++        itemRole: "listitem",
++        actions: [
++          {
++            id: "delete-btn",
++            role: "button",
++            name: "Delete contact",
++            kind: "button",
++            effect: "ui-state",
++            locator: loc("button", "Delete contact"),
++          },
++        ],
++      },
++    ],
++  };
++
++  const parsed = parseTarget("@contact(Fede)>@delete-btn");
++  assert.equal(parsed.kind, "id");
++  if (parsed.kind === "id") {
++    assert.equal(parsed.id, "contact");
++    assert.equal(parsed.query, "Fede");
++    assert.equal(parsed.scopedId, "delete-btn");
++
++    const resolved = resolveTarget(screenWithPattern, parsed, "click");
++    assert.equal(resolved.id, "contact-delete-btn");
++    assert.equal(resolved.kind, "action");
++    assert.equal(resolved.name, "Delete contact");
++    assert.equal(resolved.role, "button");
++  }
++});

@@ -1,0 +1,313 @@
+diff --git a/src/backend/backend-factory.ts b/src/backend/backend-factory.ts
+index b3d0483..b4cd1a9 100644
+--- a/src/backend/backend-factory.ts
++++ b/src/backend/backend-factory.ts
+@@ -24,9 +24,12 @@ function resolveAppPort(agentDir: string, appSlug: string): number | undefined {
+   try {
+     const registryPath = join(agentDir, "instances.json");
+     const raw = readFileSync(registryPath, "utf8");
+-    const parsed = JSON.parse(raw) as Record<string, PwaInstance>;
+-    if (parsed && typeof parsed === "object" && parsed[appSlug] && typeof parsed[appSlug].port === "number") {
+-      return parsed[appSlug].port;
++    const parsed: unknown = JSON.parse(raw);
++    if (parsed && typeof parsed === "object") {
++      const entry = (parsed as Record<string, PwaInstance | undefined>)[appSlug];
++      if (typeof entry?.port === "number") {
++        return entry.port;
++      }
+     }
+   } catch {
+     // Registry missing or unreadable, fallback to undefined
+diff --git a/src/cli.ts b/src/cli.ts
+index bf1fd5c..02c21ef 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -8,7 +8,6 @@
+ // Option parsing: node:util parseArgs (strict, per-command tables); every usage error
+ // is PwaNavError("invalid_args") -> exit 2.
+ import { fstatSync } from "node:fs";
+-import { readFile } from "node:fs/promises";
+ import { join } from "node:path";
+ import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
+ import { createBackend, DEFAULT_PORT } from "./backend/backend-factory.js";
+@@ -18,28 +17,23 @@ import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
+ import { statusTool } from "./tools/status.js";
+ import { profileBackupTool, profileRestoreTool } from "./tools/profile.js";
+ import { discoverTool } from "./tools/discover.js";
+-import { readEnv, resolveAgentDir, resolveScreensDir } from "./core/storage.js";
++import { readEnv, resolveAgentDir } from "./core/storage.js";
+ import {
+   actTool,
+   authTool,
+   clickTool,
+   downloadTool,
+-  executeLearn,
+   extractTool,
+   fillTool,
+   findTool,
+   journeyTool,
+   openTool,
+   qaTool,
+-  renderScreenViewForBackend,
+   screenshotTool,
+   snapshotTool,
+   uploadTool,
+-  validateLearnFlags,
+   waitTool,
+-  NO_INPUT_LINE,
+   type ScreenSource,
+-  type SemanticContext,
+   type ToolContext,
+ } from "./tools/index.js";
+ import { isSemanticToken, parseFlowInputs } from "./screens/screen-resolve.js";
+@@ -472,7 +466,7 @@ async function cmdSnapshot(rest: string[]): Promise<void> {
+ 
+   const query = requireNonEmpty("--query", values.query);
+   const role = requireNonEmpty("--role", values.role);
+-  if (!asJson && (query !== undefined || role !== undefined) && result.structured && typeof result.structured === "object" && "snapshot" in result.structured) {
++  if (!asJson && (query !== undefined || role !== undefined) && "snapshot" in result.structured) {
+     const snap = (result.structured as { snapshot: { elements: Array<{ ref: string; role: string; disabled?: boolean; name: string; value?: string }> } }).snapshot;
+     for (const el of snap.elements) {
+       console.log(`${el.ref} ${el.role}${el.disabled === true ? " [disabled]" : ""} "${el.name}"${el.value ? `: ${el.value}` : ""}`);
+@@ -509,34 +503,9 @@ function screenSourceOf(values: { "screen-map"?: string; "screens-dir"?: string
+   };
+ }
+ 
+-// Common guard for @id targets: live backend only, no --snapshot.
+-function semanticContext(values: {
+-  snapshot?: string;
+-  armed?: boolean;
+-  "dry-run"?: boolean;
+-  "screen-map"?: string;
+-  "screens-dir"?: string;
+-  "cache-dir"?: string;
+-  backend?: string;
+-  port?: string;
+-  context?: string;
+-}): SemanticContext {
+-  if (values.snapshot !== undefined) {
+-    throw invalid("--snapshot is not used with @id targets (they resolve on a fresh snapshot).");
+-  }
+-  const live = resolveLive(values);
+-  if (live.mode === "offline") {
+-    throw invalid("@id targets need the live backend (--backend bidi).");
+-  }
+-  const armed = isArmed(values);
+-  return { ...screenSourceOf(values, live.agentDir), backend: makeBackend(live, { armed }), armed };
+-}
+ 
+-function noInputNote(live: LiveConfig, armed: boolean): void {
+-  if (live.mode === "bidi" && !armed) {
+-    console.log(NO_INPUT_LINE);
+-  }
+-}
++
++
+ 
+ function toolContextOf(
+   values: {
+@@ -557,7 +526,7 @@ function toolContextOf(
+   const screens = screenSourceOf(values, live.agentDir);
+   const backend = makeBackend(live, { armed });
+   return {
+-    backendFactory: (req) => makeBackend(live, { armed: req.armed ?? armed, launch: req.launch }),
++    backendFactory: (req) => makeBackend(live, { armed: req.armed, launch: req.launch }),
+     backend,
+     armed,
+     mode: live.mode,
+@@ -791,7 +760,7 @@ async function cmdExtract(rest: string[]): Promise<void> {
+   const result = await extractTool(
+     {
+       snapshotId,
+-      mode: mode as "text" | "links",
++      mode: mode,
+       query,
+       role,
+       offset,
+@@ -799,8 +768,9 @@ async function cmdExtract(rest: string[]): Promise<void> {
+     },
+     ctx,
+   );
+-  if (result.structured && typeof result.structured === "object" && "lines" in result.structured && Array.isArray((result.structured as { lines: string[] }).lines)) {
+-    for (const line of (result.structured as { lines: string[] }).lines) {
++  const lines = result.structured["lines"];
++  if (Array.isArray(lines)) {
++    for (const line of lines as string[]) {
+       console.log(line);
+     }
+   } else if (result.text) {
+@@ -970,7 +940,6 @@ async function cmdAuth(rest: string[]): Promise<void> {
+   });
+   printHelpAndExit(values.help);
+   const target = positionals[0];
+-  const port = values.port !== undefined ? Number(values.port) : undefined;
+   const timeoutMs = values.timeout !== undefined ? Number(values.timeout) * 1000 : undefined;
+ 
+   const result = await authTool({ app: target, timeoutMs }, { mode: "bidi" });
+diff --git a/src/core/test/storage.test.ts b/src/core/test/storage.test.ts
+index b2e805e..e173e90 100644
+--- a/src/core/test/storage.test.ts
++++ b/src/core/test/storage.test.ts
+@@ -187,6 +187,7 @@ describe("storage and root detection", () => {
+ 
+     it("resolves mode 'fallback' to ~/.browser-nav (or existing ~/.pwa-nav) when outside any project", async () => {
+       await withTmp(async (isolated) => {
++        await Promise.resolve();
+         const res = resolveEffectiveStorage({}, {}, isolated);
+         assert.equal(res.mode, "fallback");
+         assert.equal(res.workspaceDir, null);
+diff --git a/src/screens/test/screen-resolve.test.ts b/src/screens/test/screen-resolve.test.ts
+index 92b66d2..5e23a72 100644
+--- a/src/screens/test/screen-resolve.test.ts
++++ b/src/screens/test/screen-resolve.test.ts
+@@ -315,8 +315,7 @@ test("resolveTarget: scoped pattern resolution (@pattern(query)>@action)", () =>
+ 
+   const parsed = parseTarget("@contact(Fede)>@delete-btn");
+   assert.equal(parsed.kind, "id");
+-  if (parsed.kind === "id") {
+-    assert.equal(parsed.id, "contact");
++  assert.equal(parsed.id, "contact");
+     assert.equal(parsed.query, "Fede");
+     assert.equal(parsed.scopedId, "delete-btn");
+ 
+@@ -325,5 +324,4 @@ test("resolveTarget: scoped pattern resolution (@pattern(query)>@action)", () =>
+     assert.equal(resolved.kind, "action");
+     assert.equal(resolved.name, "Delete contact");
+     assert.equal(resolved.role, "button");
+-  }
+ });
+diff --git a/src/tools/act.ts b/src/tools/act.ts
+index d751c89..f1b358f 100644
+--- a/src/tools/act.ts
++++ b/src/tools/act.ts
+@@ -117,7 +117,7 @@ export async function actTool(args: ActArgs, ctx: ToolContext): Promise<ToolOutc
+     throw invalid("inputs only applies to flow:<id> ops.");
+   }
+ 
+-  const parsed: ActOp[] = ops.map((token, index) => {
++  const parsed: ActOp[] = ops.map((token) => {
+     try {
+       return parseActOp(token);
+     } catch (error) {
+diff --git a/src/tools/download.ts b/src/tools/download.ts
+index 4d9c85e..fe0d0fe 100644
+--- a/src/tools/download.ts
++++ b/src/tools/download.ts
+@@ -5,7 +5,7 @@ import { pipeline } from "node:stream/promises";
+ import { createWriteStream } from "node:fs";
+ import { withTopLevelContext } from "../bidi/session.js";
+ import { endpointFor } from "../browser/bidi-backend.js";
+-import { agentPath, loadSession, OfflineBackend } from "../backend/backend.js";
++import { OfflineBackend } from "../backend/backend.js";
+ import { PwaNavError } from "../core/errors.js";
+ import { resolveDownloadDestination, sanitizeFilename } from "../core/download-security.js";
+ import { extractAssetFromDom } from "../browser/dom-asset-extractor.js";
+diff --git a/src/tools/test/auth-sync.test.ts b/src/tools/test/auth-sync.test.ts
+index c973595..0cffda9 100644
+--- a/src/tools/test/auth-sync.test.ts
++++ b/src/tools/test/auth-sync.test.ts
+@@ -24,7 +24,7 @@ describe("authTool and automated auth sync", () => {
+ 
+     // Assert
+     assert.ok(outcome.text !== undefined && outcome.text.length > 0);
+-    const structured = outcome.structured as Record<string, unknown>;
++    const structured = outcome.structured;
+     assert.equal(structured["siteId"], "linkedin");
+     assert.ok(typeof structured["status"] === "string" && structured["status"].length > 0);
+   });
+diff --git a/src/tools/test/tools.test.ts b/src/tools/test/tools.test.ts
+index f26d6c3..e1315da 100644
+--- a/src/tools/test/tools.test.ts
++++ b/src/tools/test/tools.test.ts
+@@ -1,10 +1,11 @@
+ import assert from "node:assert/strict";
+-import { mkdtemp, rm } from "node:fs/promises";
++import { mkdtemp, rm, writeFile, unlink } from "node:fs/promises";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { test } from "node:test";
+ import {
+   openTool,
++  downloadTool,
+   clickTool,
+   fillTool,
+   uploadTool,
+@@ -167,3 +168,78 @@ test("executeLearn: targets canonical app screen map path and respects explicit
+   }
+ });
+ 
++
++
++test("downloadTool enforces safety gate and kill switch", async () => {
++  const dir = await mkdtemp(join(tmpdir(), "tools-download-gate-test-"));
++  const prevKillEnv = process.env.PWA_NAV_KILL_SWITCH;
++  try {
++    const backend = new OfflineBackend({ agentDir: dir });
++    const ctx: ToolContext = {
++      backendFactory: () => backend,
++      backend,
++      armed: true,
++      mode: "offline",
++      screens: { cacheDir: dir },
++      agentDir: dir,
++    };
++
++    // Kill switch enforcement via env var
++    const killFile = join(dir, "kill");
++    await writeFile(killFile, "halt", "utf8");
++    process.env.PWA_NAV_KILL_SWITCH = killFile;
++    await assert.rejects(
++      () => downloadTool({ url: "https://example.com/file.png" }, ctx),
++      (err: unknown) => typeof err === "object" && err !== null && "code" in err && err.code === "kill_switch",
++    );
++    delete process.env.PWA_NAV_KILL_SWITCH;
++    await unlink(killFile);
++
++    // Unallowed origin without consent
++    await assert.rejects(
++      () => downloadTool({ url: "https://unauthorized-origin.com/file.png" }, ctx),
++      (err: unknown) => typeof err === "object" && err !== null && "code" in err && err.code === "origin_blocked",
++    );
++  } finally {
++    if (prevKillEnv !== undefined) {
++      process.env.PWA_NAV_KILL_SWITCH = prevKillEnv;
++    } else {
++      delete process.env.PWA_NAV_KILL_SWITCH;
++    }
++    await rm(dir, { recursive: true, force: true });
++  }
++});
++
++test("backend-factory: creates backend with app port lookup from FileInstanceRegistry", async () => {
++  const dir = await mkdtemp(join(tmpdir(), "backend-app-test-"));
++  try {
++    const { FileInstanceRegistry } = await import("../../browser/instance-registry.js");
++    const { createBackend } = await import("../../backend/backend-factory.js");
++    const registry = new FileInstanceRegistry({ cacheDir: dir });
++    await registry.register({
++      appSlug: "my-app",
++      url: "https://my-app.test", profileDir: join(dir, "profile"), startedAt: new Date().toISOString(),
++      port: 9333,
++      pid: 1234,
++    });
++
++    // createBackend with app resolves port 9333
++    const backend = createBackend({
++      mode: "bidi",
++      app: "my-app",
++      cacheDir: dir,
++    });
++    assert.equal((backend as unknown as { port: number }).port, 9333);
++
++    // Explicit port takes precedence over registry app
++    const backendExplicit = createBackend({
++      mode: "bidi",
++      app: "my-app",
++      port: 9444,
++      cacheDir: dir,
++    });
++    assert.equal((backendExplicit as unknown as { port: number }).port, 9444);
++  } finally {
++    await rm(dir, { recursive: true, force: true });
++  }
++});

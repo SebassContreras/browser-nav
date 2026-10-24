@@ -1,0 +1,190 @@
+diff --git a/package.json b/package.json
+index 2a31adc..38c13c2 100644
+--- a/package.json
++++ b/package.json
+@@ -23,7 +23,8 @@
+     "build": "tsc -p tsconfig.build.json && node -e \"import('node:fs').then(fs => fs.copyFileSync('SKILL.md', 'dist/SKILL.md'))\"",
+     "lint": "eslint .",
+     "smoke": "node ./scripts/smoke.ts",
+-    "test": "tsx --test \"src/**/*.test.ts\""
++    "test": "tsx --test \"src/**/*.test.ts\"",
++    "typecheck": "tsc --noEmit -p tsconfig.json"
+   },
+   "dependencies": {
+     "@modelcontextprotocol/sdk": "1.31.0",
+diff --git a/src/browser/test/cookie-extractor.test.ts b/src/browser/test/cookie-extractor.test.ts
+index b1f68b8..8d38cf5 100644
+--- a/src/browser/test/cookie-extractor.test.ts
++++ b/src/browser/test/cookie-extractor.test.ts
+@@ -113,12 +113,14 @@ describe("Cookie Extractor and Domain Matching", () => {
+ 
+         // Assert
+         assert.equal(cookies.length, 1);
+-        assert.equal(cookies[0].name, "SID");
+-        assert.equal(cookies[0].value, "session123");
+-        assert.equal(cookies[0].domain, ".google.com");
+-        assert.equal(cookies[0].httpOnly, true);
+-        assert.equal(cookies[0].secure, true);
+-        assert.equal(cookies[0].sameSite, "lax");
++        const first = cookies[0];
++        assert.ok(first !== undefined);
++        assert.equal(first.name, "SID");
++        assert.equal(first.value, "session123");
++        assert.equal(first.domain, ".google.com");
++        assert.equal(first.httpOnly, true);
++        assert.equal(first.secure, true);
++        assert.equal(first.sameSite, "lax");
+       } finally {
+         rmSync(testDir, { recursive: true, force: true });
+       }
+diff --git a/src/browser/test/cookie-sync.test.ts b/src/browser/test/cookie-sync.test.ts
+index 2a45163..77d634a 100644
+--- a/src/browser/test/cookie-sync.test.ts
++++ b/src/browser/test/cookie-sync.test.ts
+@@ -64,12 +64,14 @@ describe("CookieSyncService", () => {
+       db.close();
+ 
+       assert.equal(rows.length, 2);
+-      assert.equal(rows[0].name, "LI_AT");
+-      assert.equal(rows[0].value, "linkedin_token_abc");
+-      assert.equal(rows[0].host, ".linkedin.com");
+-      assert.equal(rows[0].isSecure, 1);
+-      assert.equal(rows[0].isHttpOnly, 1);
+-      assert.equal(rows[0].sameSite, 1); // lax = 1
++      const row0 = rows[0];
++      assert.ok(row0 !== undefined);
++      assert.equal(row0.name, "LI_AT");
++      assert.equal(row0.value, "linkedin_token_abc");
++      assert.equal(row0.host, ".linkedin.com");
++      assert.equal(row0.isSecure, 1);
++      assert.equal(row0.isHttpOnly, 1);
++      assert.equal(row0.sameSite, 1); // lax = 1
+     } finally {
+       rmSync(testDir, { recursive: true, force: true });
+     }
+@@ -113,8 +115,10 @@ describe("CookieSyncService", () => {
+     assert.equal(result.seededIntoProfile, false);
+ 
+     assert.equal(sentCalls.length, 1);
+-    assert.equal(sentCalls[0].method, "storage.setCookie");
+-    const cookieParam = sentCalls[0].params.cookie as Record<string, unknown>;
++    const call0 = sentCalls[0];
++    assert.ok(call0 !== undefined);
++    assert.equal(call0.method, "storage.setCookie");
++    const cookieParam = call0.params.cookie as Record<string, unknown>;
+     assert.equal(cookieParam.name, "SID");
+     assert.deepEqual(cookieParam.value, { type: "string", value: "google_sid_value" });
+     assert.equal(cookieParam.domain, ".google.com");
+@@ -122,7 +126,7 @@ describe("CookieSyncService", () => {
+     assert.equal(cookieParam.httpOnly, true);
+     assert.equal(cookieParam.sameSite, "lax");
+ 
+-    const partition = sentCalls[0].params.partition as Record<string, unknown>;
++    const partition = call0.params.partition as Record<string, unknown>;
+     assert.equal(partition.type, "storageKey");
+     assert.equal(partition.sourceOrigin, "https://notebook.google.com");
+   });
+diff --git a/src/browser/test/firefox-profile-discovery.test.ts b/src/browser/test/firefox-profile-discovery.test.ts
+index 17851d1..053336d 100644
+--- a/src/browser/test/firefox-profile-discovery.test.ts
++++ b/src/browser/test/firefox-profile-discovery.test.ts
+@@ -68,12 +68,16 @@ Default=0
+ 
+       // Assert
+       assert.equal(profiles.length, 2);
+-      assert.equal(profiles[0].name, "default-release");
+-      assert.equal(profiles[0].isDefault, true);
+-      assert.equal(profiles[0].path, join(testDir, "Profiles", "abc123.default-release"));
+-
+-      assert.equal(profiles[1].name, "dev-edition");
+-      assert.equal(profiles[1].isDefault, false);
++      const p0 = profiles[0];
++      const p1 = profiles[1];
++      assert.ok(p0 !== undefined);
++      assert.ok(p1 !== undefined);
++      assert.equal(p0.name, "default-release");
++      assert.equal(p0.isDefault, true);
++      assert.equal(p0.path, join(testDir, "Profiles", "abc123.default-release"));
++
++      assert.equal(p1.name, "dev-edition");
++      assert.equal(p1.isDefault, false);
+     } finally {
+       rmSync(testDir, { recursive: true, force: true });
+     }
+@@ -96,8 +100,10 @@ Locked=1
+ 
+       // Assert
+       assert.equal(profiles.length, 1);
+-      assert.equal(profiles[0].isDefault, true);
+-      assert.equal(profiles[0].path, join(testDir, "Profiles", "xyz456.default-release"));
++      const inst0 = profiles[0];
++      assert.ok(inst0 !== undefined);
++      assert.equal(inst0.isDefault, true);
++      assert.equal(inst0.path, join(testDir, "Profiles", "xyz456.default-release"));
+     } finally {
+       rmSync(testDir, { recursive: true, force: true });
+     }
+diff --git a/src/core/test/gate.test.ts b/src/core/test/gate.test.ts
+index ad6e68e..ccb4161 100644
+--- a/src/core/test/gate.test.ts
++++ b/src/core/test/gate.test.ts
+@@ -285,7 +285,7 @@ test("loadAllowList: recognizes origins mapped inside apps without flat origins
+ 
+     // Act & Assert navigation gate treats them as authorized without throwing
+     await assert.doesNotReject(
+-      assertNavigationAllowed({ url: "https://notebook.google.com/test", agentDir: dir }),
++      assertNavigationAllowed({ url: "https://notebook.google.com/test", allowOrigin: false, agentDir: dir }),
+     );
+   } finally {
+     await rm(dir, { recursive: true, force: true });
+diff --git a/src/core/test/storage.test.ts b/src/core/test/storage.test.ts
+index 0ad55a8..b2e805e 100644
+--- a/src/core/test/storage.test.ts
++++ b/src/core/test/storage.test.ts
+@@ -186,7 +186,7 @@ describe("storage and root detection", () => {
+     });
+ 
+     it("resolves mode 'fallback' to ~/.browser-nav (or existing ~/.pwa-nav) when outside any project", async () => {
+-      await withTmp((isolated) => {
++      await withTmp(async (isolated) => {
+         const res = resolveEffectiveStorage({}, {}, isolated);
+         assert.equal(res.mode, "fallback");
+         assert.equal(res.workspaceDir, null);
+diff --git a/src/tools/test/auth-sync.test.ts b/src/tools/test/auth-sync.test.ts
+index 93dc039..c973595 100644
+--- a/src/tools/test/auth-sync.test.ts
++++ b/src/tools/test/auth-sync.test.ts
+@@ -23,9 +23,10 @@ describe("authTool and automated auth sync", () => {
+     const outcome = await authTool({ app: "linkedin" }, { mode: "bidi" });
+ 
+     // Assert
+-    assert.ok(outcome.text.length > 0);
+-    assert.equal(outcome.structured.siteId, "linkedin");
+-    assert.ok(outcome.structured.status.length > 0);
++    assert.ok(outcome.text !== undefined && outcome.text.length > 0);
++    const structured = outcome.structured as Record<string, unknown>;
++    assert.equal(structured["siteId"], "linkedin");
++    assert.ok(typeof structured["status"] === "string" && structured["status"].length > 0);
+   });
+ 
+   it("performAuthRelay returns structured verdict for target application", async () => {
+diff --git a/src/tools/test/tools.test.ts b/src/tools/test/tools.test.ts
+index 15aec8c..f26d6c3 100644
+--- a/src/tools/test/tools.test.ts
++++ b/src/tools/test/tools.test.ts
+@@ -143,8 +143,8 @@ test("executeLearn: targets canonical app screen map path and respects explicit
+         url: "https://example.com/app",
+         title: "Example App",
+         raw: [
+-          { role: "button", name: "Submit", disabled: false, nameSource: "content", occurrence: 0 },
+-          { role: "textbox", name: "Username", disabled: false, nameSource: "label", occurrence: 0 },
++          { role: "button", name: "Submit", disabled: undefined, nameSource: "content" as const, occurrence: 0 },
++          { role: "textbox", name: "Username", disabled: undefined, nameSource: "label" as const, occurrence: 0 },
+         ],
+       }),
+       click: () => Promise.resolve({ kind: "done" as const, plan: "", snapshotId: "1", url: "", title: "" }),
+@@ -166,3 +166,4 @@ test("executeLearn: targets canonical app screen map path and respects explicit
+     await rm(dir, { recursive: true, force: true });
+   }
+ });
++

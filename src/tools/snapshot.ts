@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { appSlugFromUrl } from "../backend/backend.js";
+import { appSlugFromUrl, loadSession } from "../backend/backend.js";
 import { DEFAULT_SNAPSHOT_PATH, formatExtractLine, performLiveSnapshot, performScreenshot, performSnapshot } from "../ops/ops.js";
 import { getBackend } from "./common.js";
 import { learnTool } from "./learn.js";
@@ -96,11 +96,19 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
     if (rawTree === null) {
       throw invalid("no ARIA-tree input provided for offline snapshot.");
     }
+    const agentDir = effectiveAgentDir ?? ctx.agentDir;
+    let effectiveUrl = url;
+    let effectiveTitle = title;
+    if (agentDir && (effectiveUrl === undefined || effectiveTitle === undefined)) {
+      const session = await loadSession(join(agentDir, "session.json"));
+      effectiveUrl = effectiveUrl ?? session?.url ?? "";
+      effectiveTitle = effectiveTitle ?? session?.title ?? "";
+    }
     const snap = await performSnapshot(rawTree, {
       outPath,
-      url: url ?? "",
-      title: title ?? "",
-      agentDir: effectiveAgentDir ?? ctx.agentDir,
+      url: effectiveUrl ?? "",
+      title: effectiveTitle ?? "",
+      agentDir,
       quiet: json,
     });
     return {
@@ -126,7 +134,7 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
   });
 
   if (screenshot) {
-    const pngPath = outPath.replace(/\.json$/i, ".png");
+    const pngPath = join(backend.agentDir, "screenshot.png");
     await performScreenshot({ backend, outPath: pngPath, format: "png" });
   }
 
@@ -150,6 +158,7 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
       elementCount: snap.elements.length,
       path: outPath,
       screenMap: screenMapPath,
+      snapshot: snap,
       ...(snap.activeDialog ? { activeDialog: snap.activeDialog } : {}),
     },
   };

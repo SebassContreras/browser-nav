@@ -64,12 +64,14 @@ describe("CookieSyncService", () => {
       db.close();
 
       assert.equal(rows.length, 2);
-      assert.equal(rows[0].name, "LI_AT");
-      assert.equal(rows[0].value, "linkedin_token_abc");
-      assert.equal(rows[0].host, ".linkedin.com");
-      assert.equal(rows[0].isSecure, 1);
-      assert.equal(rows[0].isHttpOnly, 1);
-      assert.equal(rows[0].sameSite, 1); // lax = 1
+      const row0 = rows[0];
+      assert.ok(row0 !== undefined);
+      assert.equal(row0.name, "LI_AT");
+      assert.equal(row0.value, "linkedin_token_abc");
+      assert.equal(row0.host, ".linkedin.com");
+      assert.equal(row0.isSecure, 1);
+      assert.equal(row0.isHttpOnly, 1);
+      assert.equal(row0.sameSite, 1); // lax = 1
     } finally {
       rmSync(testDir, { recursive: true, force: true });
     }
@@ -113,8 +115,10 @@ describe("CookieSyncService", () => {
     assert.equal(result.seededIntoProfile, false);
 
     assert.equal(sentCalls.length, 1);
-    assert.equal(sentCalls[0].method, "storage.setCookie");
-    const cookieParam = sentCalls[0].params.cookie as Record<string, unknown>;
+    const call0 = sentCalls[0];
+    assert.ok(call0 !== undefined);
+    assert.equal(call0.method, "storage.setCookie");
+    const cookieParam = call0.params.cookie as Record<string, unknown>;
     assert.equal(cookieParam.name, "SID");
     assert.deepEqual(cookieParam.value, { type: "string", value: "google_sid_value" });
     assert.equal(cookieParam.domain, ".google.com");
@@ -122,7 +126,7 @@ describe("CookieSyncService", () => {
     assert.equal(cookieParam.httpOnly, true);
     assert.equal(cookieParam.sameSite, "lax");
 
-    const partition = sentCalls[0].params.partition as Record<string, unknown>;
+    const partition = call0.params.partition as Record<string, unknown>;
     assert.equal(partition.type, "storageKey");
     assert.equal(partition.sourceOrigin, "https://notebook.google.com");
   });

@@ -78,7 +78,7 @@ export async function uploadTool(args: UploadArgs, ctx: ToolContext): Promise<To
     throw invalid("missing --snapshot <id> and no stored snapshot exists.", "run: snapshot first");
   }
   const nextId = await performUpload(id, rawRef, files, { backend, armed: effectiveCtx.armed });
-  if (!effectiveCtx.armed) {
+  if (effectiveCtx.mode === "bidi" && !effectiveCtx.armed) {
     console.log(NO_INPUT_LINE);
   }
   return actionOutcome(effectiveCtx, backend, nextId, rawRef);

@@ -32,3 +32,5 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 026 | semantic-screen-noise-filtering | done        | 025 | —      | 26 |
 | 027 | mcp-agent-guidance-and-system-prompt | done        | 026 | —      | 27 |
 | 028 | browser-nav-canonical-renaming | done        | 027 | —      | 28 |
+| 029 | tool-layer-and-contract-convergence | done        | 021, 022, 028 | —     | 29 |
+| 030 | assisted-auth-fallback | done        | 029 | —     | 30 |

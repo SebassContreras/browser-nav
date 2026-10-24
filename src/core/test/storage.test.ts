@@ -186,7 +186,8 @@ describe("storage and root detection", () => {
     });
 
     it("resolves mode 'fallback' to ~/.browser-nav (or existing ~/.pwa-nav) when outside any project", async () => {
-      await withTmp((isolated) => {
+      await withTmp(async (isolated) => {
+        await Promise.resolve();
         const res = resolveEffectiveStorage({}, {}, isolated);
         assert.equal(res.mode, "fallback");
         assert.equal(res.workspaceDir, null);

@@ -1,0 +1,98 @@
+diff --git a/src/cli.ts b/src/cli.ts
+index 0e3fb4b..3305598 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -645,7 +645,6 @@ async function cmdFill(rest: string[]): Promise<void> {
+ async function cmdDownload(rest: string[]): Promise<void> {
+   const { values, positionals } = strictParse("download", rest, {
+     out: { type: "string" },
+-    snapshot: { type: "string" },
+     "dry-run": { type: "boolean" },
+     armed: { type: "boolean" },
+     port: { type: "string" },
+diff --git a/src/mcp.ts b/src/mcp.ts
+index 43e9d6d..e0d9708 100644
+--- a/src/mcp.ts
++++ b/src/mcp.ts
+@@ -93,6 +93,7 @@ async function main(): Promise<void> {
+   const server = createMcpServer({
+     ...(flowSource === undefined ? {} : { flowSource }),
+     mode: opts.backend,
++    port: opts.port,
+     armed: opts.armed,
+     cacheDir: opts.cacheDir,
+     screensDir: opts.screensDir,
+diff --git a/src/mcp/mcp-server.ts b/src/mcp/mcp-server.ts
+index a111f59..74c2a3d 100644
+--- a/src/mcp/mcp-server.ts
++++ b/src/mcp/mcp-server.ts
+@@ -35,6 +35,8 @@ export const SERVER_VERSION = "0.1.0";
+ 
+ export interface McpServerOptions {
+   backendFactory: BackendFactory;
++  /** BiDi debugging port. */
++  port?: number;
+   /** Operator-level arming (default true = armed, false = dry-run via --dry-run or PWA_NAV_DRY_RUN=1). */
+   armed?: boolean;
+   /** Which backend the factory builds; gates offline-only refusals and the dryRun flag. */
+@@ -250,6 +252,7 @@ export function createMcpServer(options: McpServerOptions): Server {
+     mode: options.mode ?? "bidi",
+     screens,
+     agentDir: effectiveAgentDir,
++    ...(options.port === undefined ? {} : { port: options.port }),
+     ...(options.runtimeInstaller === undefined ? {} : { runtimeInstaller: options.runtimeInstaller }),
+   };
+   const contextForCall = (): ToolContext =>
+diff --git a/src/tools/download.ts b/src/tools/download.ts
+index 939521d..4d9c85e 100644
+--- a/src/tools/download.ts
++++ b/src/tools/download.ts
+@@ -5,10 +5,11 @@ import { pipeline } from "node:stream/promises";
+ import { createWriteStream } from "node:fs";
+ import { withTopLevelContext } from "../bidi/session.js";
+ import { endpointFor } from "../browser/bidi-backend.js";
+-import { OfflineBackend } from "../backend/backend.js";
++import { agentPath, loadSession, OfflineBackend } from "../backend/backend.js";
+ import { PwaNavError } from "../core/errors.js";
+ import { resolveDownloadDestination, sanitizeFilename } from "../core/download-security.js";
+ import { extractAssetFromDom } from "../browser/dom-asset-extractor.js";
++import { assertArmedAllowed, isKillSwitchActive, killSwitchPath } from "../core/gate.js";
+ import { invalid, type ToolContext, type ToolOutcome } from "./types.js";
+ import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+ 
+@@ -39,6 +40,35 @@ export async function downloadTool(args: DownloadArgs, ctx: ToolContext): Promis
+     throw invalid("must provide either url, target (@id), or ref to download.");
+   }
+ 
++  // Safety gate: Kill-switch blocks armed download operations
++  if (!isDryRun) {
++    if (await isKillSwitchActive(killSwitchPath())) {
++      throw new PwaNavError("kill_switch", "kill-switch is active; armed action aborted", {
++        hint: "remove the kill-switch file to resume",
++      });
++    }
++
++    // When a remote URL is downloaded directly, check that its origin is allow-listed
++    if (url) {
++      let originToCheck = "";
++      try {
++        originToCheck = new URL(url).origin;
++      } catch {
++        // invalid URL format
++      }
++      if (originToCheck) {
++        const gate = await assertArmedAllowed({
++          armed: true,
++          origin: originToCheck,
++          agentDir: ctx.agentDir,
++        });
++        if (gate.kind === "blocked") {
++          throw gate.error;
++        }
++      }
++    }
++  }
++
+   const workspaceRoot = ctx.screens.workspaceDir ?? process.cwd();
+ 
+   // Mode 1: Direct remote URL

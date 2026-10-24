@@ -93,6 +93,7 @@ async function main(): Promise<void> {
   const server = createMcpServer({
     ...(flowSource === undefined ? {} : { flowSource }),
     mode: opts.backend,
+    port: opts.port,
     armed: opts.armed,
     cacheDir: opts.cacheDir,
     screensDir: opts.screensDir,

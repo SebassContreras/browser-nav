@@ -23,9 +23,10 @@ describe("authTool and automated auth sync", () => {
     const outcome = await authTool({ app: "linkedin" }, { mode: "bidi" });
 
     // Assert
-    assert.ok(outcome.text.length > 0);
-    assert.equal(outcome.structured.siteId, "linkedin");
-    assert.ok(outcome.structured.status.length > 0);
+    assert.ok(outcome.text !== undefined && outcome.text.length > 0);
+    const structured = outcome.structured;
+    assert.equal(structured["siteId"], "linkedin");
+    assert.ok(typeof structured["status"] === "string" && structured["status"].length > 0);
   });
 
   it("performAuthRelay returns structured verdict for target application", async () => {

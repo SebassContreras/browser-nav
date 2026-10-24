@@ -194,7 +194,7 @@ If you linked globally, you can also specify the binary command directly:
 ```
 
 > [!TIP]
-> **Zero-Config Port & Automatic Launch**: Passing `--port 9222` is optional (9222 is the default). When the agent calls `pwa_open({ url: "notebook" })`, `pwa-nav` automatically finds your installed PWA profile, launches the Firefox PWA runtime with `--remote-debugging-port 9222` if it is closed, and connects seamlessly.
+> **Zero-Config Port & Automatic Launch**: Passing `--port 9222` is optional (9222 is the default). When the agent calls `browser_open({ url: "notebook" })`, `pwa-nav` automatically finds your installed PWA profile, launches the Firefox PWA runtime with `--remote-debugging-port 9222` if it is closed, and connects seamlessly.
 
 > [!NOTE]
 > **Initial Startup Notice**:
@@ -202,23 +202,23 @@ If you linked globally, you can also specify the binary command directly:
 > ```text
 > pwa-nav-mcp ready (backend bidi, ARMED)
 > ```
-> **This is completely normal and expected.** The repository does not ship with pre-baked screen maps for your personal apps. `pwa-nav` is fully functional from the very first second: as the AI agent navigates to an unmapped screen, it calls `pwa_learn` to autonomously generate and enrich `screens/<app>.screens.json`.
+> **This is completely normal and expected.** The repository does not ship with pre-baked screen maps for your personal apps. `pwa-nav` is fully functional from the very first second: as the AI agent navigates to an unmapped screen, it calls `screen_learn` to autonomously generate and enrich `screens/<app>.screens.json`.
 
 #### 2. Key MCP Tools Available to Agents
 
 | MCP Tool (Canonical) | Legacy Alias | Description |
 |---|---|---|
-| `browser_open` | `pwa_open` | Opens a website, domain, app alias (e.g. `"notebook"`), or full URL in the authenticated browser. |
-| `browser_auth` | `pwa_auth` | Assisted login workflow for Google Accounts and anti-bot protected login pages. |
-| `browser_snapshot` | `pwa_snapshot` | Inspects the active screen in clean text (`screen: true` for compact screen map view). |
-| `browser_find` | `pwa_find` | Fast element search across accessible names, roles, placeholders, and modal dialogs. |
-| `browser_click` | `pwa_click` | Clicks elements by semantic `@id` (e.g. `@submit-btn`) or ref (`e1`). |
-| `browser_fill` | `pwa_fill` | Types text into inputs, textareas, and rich `contenteditable` editors. |
-| `browser_upload` | `pwa_upload` | Safely uploads local files to `<input type="file">`. |
-| `browser_download` | `pwa_download` | On-demand download of remote media assets or in-page SVG/image/video extraction. |
-| `browser_wait` | `pwa_wait` | Deterministically waits for background AI generation or DOM conditions (no arbitrary sleeps). |
-| `screen_learn` | `pwa_learn` | Autonomously learns and persists new screen maps into `.agent/apps/<appSlug>/screens.json`. |
-| `browser_act` | `pwa_act` | Executes batched mutations (e.g. `fill:@input=query`, `click:@submit`) in a single BiDi turn. |
+| `browser_open` | `browser_open` | Opens a website, domain, app alias (e.g. `"notebook"`), or full URL in the authenticated browser. |
+| `browser_auth` | `browser_auth` | Assisted login workflow for Google Accounts and anti-bot protected login pages. |
+| `browser_snapshot` | `browser_snapshot` | Inspects the active screen in clean text (`screen: true` for compact screen map view). |
+| `browser_find` | `browser_find` | Fast element search across accessible names, roles, placeholders, and modal dialogs. |
+| `browser_click` | `browser_click` | Clicks elements by semantic `@id` (e.g. `@submit-btn`) or ref (`e1`). |
+| `browser_fill` | `browser_fill` | Types text into inputs, textareas, and rich `contenteditable` editors. |
+| `browser_upload` | `browser_upload` | Safely uploads local files to `<input type="file">`. |
+| `browser_download` | `browser_download` | On-demand download of remote media assets or in-page SVG/image/video extraction. |
+| `browser_wait` | `browser_wait` | Deterministically waits for background AI generation or DOM conditions (no arbitrary sleeps). |
+| `screen_learn` | `screen_learn` | Autonomously learns and persists new screen maps into `.agent/apps/<appSlug>/screens.json`. |
+| `browser_act` | `browser_act` | Executes batched mutations (e.g. `fill:@input=query`, `click:@submit`) in a single BiDi turn. |
 
 ---
 
@@ -258,7 +258,7 @@ pwa-nav auth notebook
 
 1. `pwa-nav` launches the PWA in **clean mode** (no debugging flags).
 2. You sign in comfortably in the browser window with your credentials and 2FA.
-3. Press **Enter** in the terminal: `pwa-nav` restarts the PWA with debugging port 9222 enabled, keeping your authenticated session intact.
+3. `pwa-nav` automatically detects login completion from SQLite cookie store, closes the window, and restarts the PWA with debugging port 9222 enabled.
 
 #### 3. Inspect the Screen (Snapshot)
 
@@ -406,8 +406,8 @@ If any intermediate step fails or the destination URL does not match `expectScre
 3. **Origin Allow-List Gate**: Navigation to external origins is safely checked against `.agent/allow.json` or explicitly consented with `--allow-origin` (code 6 `origin_blocked`).
 4. **Emergency Kill-Switch**: Creating `.agent/kill` or setting `PWA_NAV_KILL_SWITCH` immediately terminates any armed operation (code 7 `kill_switch`).
 5. **Untrusted Page Content**: All HTML page contents, aria names, and element text are treated strictly as untrusted data, never instructions.
-6. **File Upload Security Boundary**: File uploads (`pwa_upload`, `upload`) are strictly restricted to files within allowed safe directories (workspace root or `.agent/`). Path traversal (`..`) or targeting sensitive files (`.env*`, private keys) is blocked immediately (exit code 15 `file_upload_blocked`).
-7. **Text-First & Vision-Free Automation**: `pwa_screenshot` is strictly restricted to user-requested image artifacts. Agents must never take random screenshots to discover UI elements or check state; state is re-inspected in pure text with `pwa_snapshot`.
+6. **File Upload Security Boundary**: File uploads (`browser_upload`, `upload`) are strictly restricted to files within allowed safe directories (workspace root or `.agent/`). Path traversal (`..`) or targeting sensitive files (`.env*`, private keys) is blocked immediately (exit code 15 `file_upload_blocked`).
+7. **Text-First & Vision-Free Automation**: `browser_screenshot` is strictly restricted to user-requested image artifacts. Agents must never take random screenshots to discover UI elements or check state; state is re-inspected in pure text with `browser_snapshot`.
 
 ---
 

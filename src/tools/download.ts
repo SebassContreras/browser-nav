@@ -9,6 +9,7 @@ import { OfflineBackend } from "../backend/backend.js";
 import { PwaNavError } from "../core/errors.js";
 import { resolveDownloadDestination, sanitizeFilename } from "../core/download-security.js";
 import { extractAssetFromDom } from "../browser/dom-asset-extractor.js";
+import { assertArmedAllowed, isKillSwitchActive, killSwitchPath } from "../core/gate.js";
 import { invalid, type ToolContext, type ToolOutcome } from "./types.js";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 
@@ -37,6 +38,35 @@ export async function downloadTool(args: DownloadArgs, ctx: ToolContext): Promis
 
   if (!url && !target && !ref) {
     throw invalid("must provide either url, target (@id), or ref to download.");
+  }
+
+  // Safety gate: Kill-switch blocks armed download operations
+  if (!isDryRun) {
+    if (await isKillSwitchActive(killSwitchPath())) {
+      throw new PwaNavError("kill_switch", "kill-switch is active; armed action aborted", {
+        hint: "remove the kill-switch file to resume",
+      });
+    }
+
+    // When a remote URL is downloaded directly, check that its origin is allow-listed
+    if (url) {
+      let originToCheck = "";
+      try {
+        originToCheck = new URL(url).origin;
+      } catch {
+        // invalid URL format
+      }
+      if (originToCheck) {
+        const gate = await assertArmedAllowed({
+          armed: true,
+          origin: originToCheck,
+          agentDir: ctx.agentDir,
+        });
+        if (gate.kind === "blocked") {
+          throw gate.error;
+        }
+      }
+    }
   }
 
   const workspaceRoot = ctx.screens.workspaceDir ?? process.cwd();

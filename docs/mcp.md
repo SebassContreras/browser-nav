@@ -16,7 +16,7 @@ pnpm i && pnpm build
 node dist/mcp.js --port 9222
 ```
 
-stdout carries protocol frames only. Logs go to stderr (`pwa-nav-mcp ready (backend bidi, ARMED)`). Note that starting with 0 screen maps is normal and expected; maps are generated autonomously via `pwa_learn` as you browse.
+stdout carries protocol frames only. Logs go to stderr (`pwa-nav-mcp ready (backend bidi, ARMED)`). Note that starting with 0 screen maps is normal and expected; maps are generated autonomously via `screen_learn` as you browse.
 
 ## Server options (operator only)
 
@@ -28,7 +28,7 @@ stdout carries protocol frames only. Logs go to stderr (`pwa-nav-mcp ready (back
 | `--screens-dir <dir>` | `PWA_NAV_SCREENS_DIR` | `<cache-dir>/screens` | Screen-map directory. |
 | `--screen-map <file>` | - | - | Explicit screen-map file. |
 | `--cache-dir <dir>` | `PWA_NAV_CACHE_DIR` | `<projectRoot>/.agent` or `~/.pwa-nav` | Cache, snapshot, session and allow-list directory. |
-| `--backend offline\|bidi` | - | `bidi` | `offline` = fixtures, no browser (handshake checks only; `pwa_open` `launch`/`allowOrigin` and `@id` targets are refused). |
+| `--backend offline\|bidi` | - | `bidi` | `offline` = fixtures, no browser (handshake checks only; `browser_open` `launch`/`allowOrigin` and `@id` targets are refused). |
 
 Invalid options exit 2 with a usage line.
 
@@ -90,47 +90,47 @@ Schemas are in `tools/list`. All results are `content` text plus `structuredCont
 
 | Tool | Legacy Alias | Args | Annotations | Returns |
 |---|---|---|---|---|
-| `browser_config` | `pwa_config` | `action?` (`get\|set`), `cacheDir?`, `workspaceDir?`, `screensDir?` | not read-only, idempotent | Inspects or updates runtime storage context on the fly without restarting the MCP server. Automatically synchronizes active paths for subsequent calls. |
-| `browser_open` | `pwa_open` | `url` (required), `launch?`, `allowOrigin?` | not read-only, not destructive, open-world | `structuredContent {url, path}`. `launch` starts the browser runtime if nothing listens; `allowOrigin` adds the origin to the allow-list after navigating. Detects login barriers (`loginBarrier: true`). |
+| `browser_config` | `browser_config` | `action?` (`get\|set`), `cacheDir?`, `workspaceDir?`, `screensDir?` | not read-only, idempotent | Inspects or updates runtime storage context on the fly without restarting the MCP server. Automatically synchronizes active paths for subsequent calls. |
+| `browser_open` | `browser_open` | `url` (required), `launch?`, `allowOrigin?` | not read-only, not destructive, open-world | `structuredContent {url, path}`. `launch` starts the browser runtime if nothing listens; `allowOrigin` adds the origin to the allow-list after navigating. Detects login barriers (`loginBarrier: true`). |
 | `browser_install_runtime` | `pwa_install_runtime` | none | not read-only, idempotent, open-world | Downloads the official Firefox (~95 MB) into browser-nav's own folder (see [`firefox-runtime.md`](firefox-runtime.md)). Call only after `browser_open` reported Firefox not found and the user agreed. `browser_open` with `launch: true` asks the user itself through elicitation when the client supports it. |
-| `browser_auth` | `pwa_auth` | `action` (`status`), `app?`, `cookies?`, `timeoutMs?` | not read-only, not destructive, open-world | Assisted auth for login-walled websites and web apps (Google, bot walls). |
-| `browser_snapshot` | `pwa_snapshot` | `all?`, `screen?`, `learn?` (mutually exclusive), `query?`, `role?`, `locale?`, `appId?`, `appName?`, `access?`, `prune?` | read-only (unless `learn`), idempotent | Snapshot path + `elementCount` + `snapshotId` + `url`. Detects open modal/dialogs (`activeDialog { title, role, elementCount, refs }`). `screen: true`: compact screen-map view. `learn: true`: learns screen into `.agent/apps/<appSlug>/screens.json`. `query`: filters elements inline. |
-| `browser_find` | `pwa_find` | `query?`, `role?`, `inDialog?`, `offset?`, `limit?` (1-100), `snapshotId?` | read-only, idempotent | Targeted element search across accessible names, roles, placeholders, values, and dialog titles; `{total, returned, offset, omitted, elements[]}`. |
-| `screen_learn` | `pwa_learn` | `locale?`, `appId?`, `appName?`, `access?`, `prune?` | idempotent | Learn and persist the current screen into `.agent/apps/<appSlug>/screens.json`. Returns diff, discovered `@id` targets, and sets up permanent targets. |
-| `browser_click` | `pwa_click` | `snapshotId` + `ref`, or `target` (`@id`) | destructive, open-world | `{dryRun, snapshotId, path, url}`. When clicking an action that opens a modal, returns `openedBranch` with available controls. |
-| `browser_fill` | `pwa_fill` | `snapshotId` + `ref`, or `target`; `text` (required) | destructive, open-world | Same. Supports `<input>`, `<textarea>`, and `contenteditable` editors. Sensitive fields (passwords) refused. |
-| `browser_upload` | `pwa_upload` | `files[]` or `file` (required), `snapshotId` + `ref`, or `target` (`@id`) | destructive, open-world | `{dryRun, snapshotId, path, files}`. Sets files on file inputs. Safe paths only. |
-| `browser_download` | `pwa_download` | `url?`, `target?`, `ref?`, `out?` | destructive, open-world | Downloads remote media assets or extracts in-page SVG/image/video to disk. |
-| `browser_screenshot` | `pwa_screenshot` | `outPath?` or `path?`, `format?` (`png\|jpeg\|webp`) | read-only, not destructive | `{path, width, height}`. Saves binary PNG to disk. **DO NOT use for navigation, state inspection, or discovering elements** (preserves tokens and supports text-only agents). |
-| `browser_extract` | `pwa_extract` | `snapshotId?`, `mode?` (`all\|text\|links`, default `all`), `query?`, `role?`, `offset?`, `limit?` (1-100) | read-only, idempotent | Up to 100 lines inline with substring search, role filter, and pagination; `{total, returned, offset, omitted}`. Directs agent to `browser_find` for interaction searches. |
-| `browser_wait` | `pwa_wait` | `target?`, `query?`, `state?` (`visible\|hidden\|enabled`), `timeoutMs?`, `intervalMs?` | read-only, idempotent | Waits for DOM condition or background AI generation without terminal pauses. |
-| `browser_act` | `pwa_act` | `ops[]` (required), `snapshotId?`, `inputs?` | destructive, open-world | Same as click. Plain ops need `snapshotId`: `click:<ref>`, `fill:<ref>=<text>`, `upload:<ref>=<path>`. Semantic ops (no `snapshotId`): `click:@id`, `fill:@id=<text>`, `upload:@id=<path>`, `flow:<id>` with `inputs`. Do not mix. Describes modal branches when opened. |
-| `browser_discover` | `pwa_discover` | `app` (required), `write?`, `limit?` | not read-only, idempotent | Queries `places.sqlite` to discover candidate routes into `unmapped[]`. |
+| `browser_auth` | `browser_auth` | `action` (`status`), `app?`, `cookies?`, `timeoutMs?` | not read-only, not destructive, open-world | Assisted auth for login-walled websites and web apps (Google, bot walls). |
+| `browser_snapshot` | `browser_snapshot` | `all?`, `screen?`, `learn?` (mutually exclusive), `query?`, `role?`, `locale?`, `appId?`, `appName?`, `access?`, `prune?` | read-only (unless `learn`), idempotent | Snapshot path + `elementCount` + `snapshotId` + `url`. Detects open modal/dialogs (`activeDialog { title, role, elementCount, refs }`). `screen: true`: compact screen-map view. `learn: true`: learns screen into `.agent/apps/<appSlug>/screens.json`. `query`: filters elements inline. |
+| `browser_find` | `browser_find` | `query?`, `role?`, `inDialog?`, `offset?`, `limit?` (1-100), `snapshotId?` | read-only, idempotent | Targeted element search across accessible names, roles, placeholders, values, and dialog titles; `{total, returned, offset, omitted, elements[]}`. |
+| `screen_learn` | `screen_learn` | `locale?`, `appId?`, `appName?`, `access?`, `prune?` | idempotent | Learn and persist the current screen into `.agent/apps/<appSlug>/screens.json`. Returns diff, discovered `@id` targets, and sets up permanent targets. |
+| `browser_click` | `browser_click` | `snapshotId` + `ref`, or `target` (`@id`) | destructive, open-world | `{dryRun, snapshotId, path, url}`. When clicking an action that opens a modal, returns `openedBranch` with available controls. |
+| `browser_fill` | `browser_fill` | `snapshotId` + `ref`, or `target`; `text` (required) | destructive, open-world | Same. Supports `<input>`, `<textarea>`, and `contenteditable` editors. Sensitive fields (passwords) refused. |
+| `browser_upload` | `browser_upload` | `files[]` or `file` (required), `snapshotId` + `ref`, or `target` (`@id`) | destructive, open-world | `{dryRun, snapshotId, path, files}`. Sets files on file inputs. Safe paths only. |
+| `browser_download` | `browser_download` | `url?`, `target?`, `ref?`, `out?` | destructive, open-world | Downloads remote media assets or extracts in-page SVG/image/video to disk. |
+| `browser_screenshot` | `browser_screenshot` | `outPath?` or `path?`, `format?` (`png\|jpeg\|webp`) | read-only, not destructive | `{path, width, height}`. Saves binary PNG to disk. **DO NOT use for navigation, state inspection, or discovering elements** (preserves tokens and supports text-only agents). |
+| `browser_extract` | `browser_extract` | `snapshotId?`, `mode?` (`all\|text\|links`, default `all`), `query?`, `role?`, `offset?`, `limit?` (1-100) | read-only, idempotent | Up to 100 lines inline with substring search, role filter, and pagination; `{total, returned, offset, omitted}`. Directs agent to `browser_find` for interaction searches. |
+| `browser_wait` | `browser_wait` | `target?`, `query?`, `state?` (`visible\|hidden\|enabled`), `timeoutMs?`, `intervalMs?` | read-only, idempotent | Waits for DOM condition or background AI generation without terminal pauses. |
+| `browser_act` | `browser_act` | `ops[]` (required), `snapshotId?`, `inputs?` | destructive, open-world | Same as click. Plain ops need `snapshotId`: `click:<ref>`, `fill:<ref>=<text>`, `upload:<ref>=<path>`. Semantic ops (no `snapshotId`): `click:@id`, `fill:@id=<text>`, `upload:@id=<path>`, `flow:<id>` with `inputs`. Do not mix. Describes modal branches when opened. |
+| `browser_discover` | `browser_discover` | `app` (required), `write?`, `limit?` | not read-only, idempotent | Queries `places.sqlite` to discover candidate routes into `unmapped[]`. |
 
 `snapshotId` + `ref` and `target` are mutually exclusive. `@id` targets need a screen map and the live backend ([`screen-map.md`](screen-map.md)).
 
 Refs are valid for one snapshot only: use the `snapshotId` the last action returned, and re-snapshot after every mutation. `stale_ref` means re-snapshot and retry.
 
-Screen learning is available both via CLI (`pwa-nav snapshot --learn`) and via MCP (`pwa_learn` or `pwa_snapshot` with `learn: true`), allowing agents to bootstrap and persist screen maps dynamically without manual intervention.
+Screen learning is available both via CLI (`pwa-nav snapshot --learn`) and via MCP (`screen_learn` or `browser_snapshot` with `learn: true`), allowing agents to bootstrap and persist screen maps dynamically without manual intervention.
 
 ### Agent Discovery & Progressive Screen Enrichment Loop
 
-1. **Initial Screen Check (First-Pass Discovery)**: Upon opening or navigating to an application, call `pwa_snapshot({ screen: true })` to inspect the screen map and retrieve available semantic `@id` targets.
-2. **Autonomous Learning on Unmapped Route**: If the active screen or route is unmapped (exit code 13 `unmapped_screen`), call `pwa_learn` (or `pwa_snapshot({ learn: true })`) to autonomously generate and persist `screens/<app>.screens.json` without asking the user.
+1. **Initial Screen Check (First-Pass Discovery)**: Upon opening or navigating to an application, call `browser_snapshot({ screen: true })` to inspect the screen map and retrieve available semantic `@id` targets.
+2. **Autonomous Learning on Unmapped Route**: If the active screen or route is unmapped (exit code 13 `unmapped_screen`), call `screen_learn` (or `browser_snapshot({ learn: true })`) to autonomously generate and persist `screens/<app>.screens.json` without asking the user.
 3. **Continuous Screen Map Enrichment**: Every snapshot and learn step collaborates in enriching `screens/<app>.screens.json` by adding newly discovered fields, actions, flows, journeys, and nested modal trees (`opens`).
 4. **Zero Loose Files in Workspace**: Raw snapshots and session caches do NOT scatter loose files across the workspace. All snapshots are strictly partitioned and isolated per application under `.agent/apps/<appSlug>/snapshot.json`. Ephemeral `eN` refs expire upon mutation and are superseded by stable, permanent `@id` targets in the screen map.
 
 ### Modal / Dialog Scope, Action Trees & Rich Text Editors
 
-- **Action Trees (`opens` branches)**: When an action triggers a modal, dialog, or subview (e.g. clicking `@crear-publicacion` opens the post composer), the screen map captures this inside `action.opens`. The tool result highlights the opened modal and its interactive elements. Targets declared inside `opens` (e.g. `@editor-post`, `@boton-publicar`) are directly resolvable with `pwa_click` and `pwa_fill`.
-- **Modal and Dialog Awareness**: `pwa_snapshot` automatically detects whether an accessible dialog (`<dialog open>`, `role="dialog"`, `role="alertdialog"`, or `aria-modal="true"`) is active. If so, it returns `activeDialog` containing the modal title, role, and ephemeral refs, and surfaces them prominently at the top of inline text.
-- **Scorched-Earth Searching with `pwa_find`**: Agents MUST use `pwa_find` to search for controls instead of attempting to parse `.agent/snapshot.json` using shell commands (`grep`, `Select-String`, `cat`, `Read`). Pass `inDialog: true` to match only elements within the active dialog.
-- **Rich Text & Contenteditable Editors**: `contenteditable="true"` containers without explicit ARIA roles are automatically mapped to `role="textbox"` with their placeholders extracted from `placeholder`, `data-placeholder`, or `aria-placeholder` (e.g. LinkedIn's "¿De qué quieres hablar?"). `pwa_fill` writes directly to these elements using both DOM `textContent` and `InputEvent` dispatch.
+- **Action Trees (`opens` branches)**: When an action triggers a modal, dialog, or subview (e.g. clicking `@crear-publicacion` opens the post composer), the screen map captures this inside `action.opens`. The tool result highlights the opened modal and its interactive elements. Targets declared inside `opens` (e.g. `@editor-post`, `@boton-publicar`) are directly resolvable with `browser_click` and `browser_fill`.
+- **Modal and Dialog Awareness**: `browser_snapshot` automatically detects whether an accessible dialog (`<dialog open>`, `role="dialog"`, `role="alertdialog"`, or `aria-modal="true"`) is active. If so, it returns `activeDialog` containing the modal title, role, and ephemeral refs, and surfaces them prominently at the top of inline text.
+- **Scorched-Earth Searching with `browser_find`**: Agents MUST use `browser_find` to search for controls instead of attempting to parse `.agent/snapshot.json` using shell commands (`grep`, `Select-String`, `cat`, `Read`). Pass `inDialog: true` to match only elements within the active dialog.
+- **Rich Text & Contenteditable Editors**: `contenteditable="true"` containers without explicit ARIA roles are automatically mapped to `role="textbox"` with their placeholders extracted from `placeholder`, `data-placeholder`, or `aria-placeholder` (e.g. LinkedIn's "¿De qué quieres hablar?"). `browser_fill` writes directly to these elements using both DOM `textContent` and `InputEvent` dispatch.
 - **Per-Application Storage Isolation & Zero Loose Files**: Snapshots and sessions are stored strictly partitioned by application slug under `.agent/apps/<appSlug>/` (e.g. `.agent/apps/linkedin.com/snapshot.json` and `.agent/apps/notebooklm.google.com/snapshot.json`) to prevent cross-contamination and eliminate loose files in the repository.
 
 ### Screen map, flows, resources
 
-- `pwa_snapshot` with `screen: true` and `@id` targets are implemented (see tool table).
+- `browser_snapshot` with `screen: true` and `@id` targets are implemented (see tool table).
 - Map source, loaded once at startup: `--screen-map <file>`, else the single map in the screens dir (`--screens-dir` / `PWA_NAV_SCREENS_DIR` / `./screens`). Zero maps, several maps or an invalid map: one line on stderr, no flow tools and no map resource, the server still starts. Restart the server after changing the map.
 - Flow tools: `flow_<screenId>_<flowId>` (`-` becomes `_`) for every flow with `humanOnly: false`; the input schema is the flow's own JSON Schema. A name collision or a name over 64 characters gets a stable `_<8 hex>` suffix (logged on stderr). The page must already be on that flow's screen, otherwise the call fails with `unmapped_screen`; the server never navigates.
 - Journey tools: `journey_<journeyId>` (`-` becomes `_`) for every user journey declared in the map (`journeys[]`) with `humanOnly: false`. Journeys orchestrate multi-screen route transitions with network settling and `expectScreen` assertions.
@@ -140,22 +140,22 @@ Screen learning is available both via CLI (`pwa-nav snapshot --learn`) and via M
 
 ## Armed mode (Active Execution by Default)
 
-- Default: every write (`pwa_click`, `pwa_fill`, `pwa_upload`, `pwa_act`, dynamic flow and journey tools) executes directly and actively in the user's browser.
+- Default: every write (`browser_click`, `browser_fill`, `browser_upload`, `browser_act`, dynamic flow and journey tools) executes directly and actively in the user's browser.
 - Dry-run simulation: pass `--dry-run` or env `PWA_NAV_DRY_RUN=1` on the server process if you explicitly want writes to preview mutations with `dryRun: true` without sending input.
 - Tools have no `armed` argument, preventing prompt-injected web pages from altering execution flags.
 - Armed actions still pass the multi-layer safety gate below.
 
 ## Safety gate
 
-- Origin allow-list `.agent/allow.json`: armed actions and `pwa_open` need the origin listed. Consent via `pwa_open` with `allowOrigin: true` (only with the user's OK). Refused otherwise with `origin_blocked`.
-- Kill-switch: file `.agent/kill` or path in `PWA_NAV_KILL_SWITCH`. Present = `kill_switch`, also blocks `pwa_open`. Only the user removes it.
+- Origin allow-list `.agent/allow.json`: armed actions and `browser_open` need the origin listed. Consent via `browser_open` with `allowOrigin: true` (only with the user's OK). Refused otherwise with `origin_blocked`.
+- Kill-switch: file `.agent/kill` or path in `PWA_NAV_KILL_SWITCH`. Present = `kill_switch`, also blocks `browser_open`. Only the user removes it.
 - Sensitive fields barrier: passwords, tokens, and payment inputs are strictly blocked (exit 11 `sensitive_target`). The user must enter them manually.
-- File upload security boundary: `pwa_upload` is strictly restricted to files within allowed safe directories (workspace root or `.agent/`). Traversals (`..`) and sensitive files (`.env*`, private keys) are blocked immediately (exit 15 `file_upload_blocked`).
-- Text-First & Vision-Free Automation: `pwa_screenshot` writes binary images to disk and is reserved for explicit user visual artifact requests only. **NEVER use screenshots to inspect state or discover UI elements**; this breaks on text-only LLMs and wastes tokens. ALWAYS use `pwa_snapshot` to re-read the accessibility tree.
-- Autonomous Screen Learning: When navigating to a new route, agents autonomously call `pwa_learn` to map and persist screens without waiting for human prompting.
+- File upload security boundary: `browser_upload` is strictly restricted to files within allowed safe directories (workspace root or `.agent/`). Traversals (`..`) and sensitive files (`.env*`, private keys) are blocked immediately (exit 15 `file_upload_blocked`).
+- Text-First & Vision-Free Automation: `browser_screenshot` writes binary images to disk and is reserved for explicit user visual artifact requests only. **NEVER use screenshots to inspect state or discover UI elements**; this breaks on text-only LLMs and wastes tokens. ALWAYS use `browser_snapshot` to re-read the accessibility tree.
+- Autonomous Screen Learning: When navigating to a new route, agents autonomously call `screen_learn` to map and persist screens without waiting for human prompting.
 - In-App Operation & Zero Arbitrary Sleeps: Operates directly inside the open PWA without leaving to external search engines. No `Start-Sleep` pauses; WebDriver BiDi automatically settles network and DOM.
 - Dry-run mode: when started with `--dry-run`, writes return `dryRun: true` and no input is sent.
-- Reads (`pwa_snapshot`, `pwa_screenshot`, `pwa_extract`) need none of this.
+- Reads (`browser_snapshot`, `browser_screenshot`, `browser_extract`) need none of this.
 
 ## Errors
 
@@ -165,7 +165,7 @@ Failures are tool results, not protocol errors: `isError: true`, text `<code>: <
 |---|---|---|
 | 2 | `invalid_args` | Bad or conflicting arguments, unknown tool. Fix the call. |
 | 3 | `stale_ref` | Snapshot superseded. Re-snapshot, retry. |
-| 4 | `no_browser` | Nothing on the port. Launch the PWA ([`firefox-runtime.md`](firefox-runtime.md)) or `pwa_open` with `launch: true`; check `--port`. |
+| 4 | `no_browser` | Nothing on the port. Launch the PWA ([`firefox-runtime.md`](firefox-runtime.md)) or `browser_open` with `launch: true`; check `--port`. |
 | 5 | `session_busy` | Another BiDi client or an orphan holds the one session. |
 | 6 | `origin_blocked` | Origin not allow-listed. Ask the user, then `allowOrigin: true`. |
 | 7 | `kill_switch` | Kill-switch present. Stop. |
@@ -173,8 +173,8 @@ Failures are tool results, not protocol errors: `isError: true`, text `<code>: <
 | 9 | `timeout` | Re-snapshot, retry once, then report. |
 | 10 | `protocol` | Unexpected BiDi error (also unknown errors). Report the message. |
 | 11 | `sensitive_target` | Sensitive field or human-only flow. The user does it by hand. |
-| 12 | `unknown_target` | `@id`, flow, or journey not in the map. Run `pwa_snapshot` with `screen: true`. |
-| 13 | `unmapped_screen` | No map for this origin/route. Autonomously call `pwa_learn` (or `pwa_snapshot` with `learn: true`) to learn and enrich `screens/<app>.screens.json` with permanent `@id` targets without creating loose snapshot/ref files. |
+| 12 | `unknown_target` | `@id`, flow, or journey not in the map. Run `browser_snapshot` with `screen: true`. |
+| 13 | `unmapped_screen` | No map for this origin/route. Autonomously call `screen_learn` (or `browser_snapshot` with `learn: true`) to learn and enrich `screens/<app>.screens.json` with permanent `@id` targets without creating loose snapshot/ref files. |
 | 14 | `journey_step_failed` | Multi-screen journey step assertion failed or expected route not reached. |
 | 15 | `file_upload_blocked` | File path is outside allowed safe directories or targets sensitive files. |
 

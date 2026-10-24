@@ -1,0 +1,47 @@
+diff --git a/src/backend/backend-factory.ts b/src/backend/backend-factory.ts
+index ef3b835..b3d0483 100644
+--- a/src/backend/backend-factory.ts
++++ b/src/backend/backend-factory.ts
+@@ -1,6 +1,9 @@
++import { readFileSync } from "node:fs";
++import { join } from "node:path";
+ import { DEFAULT_HOST, DEFAULT_PORT, OfflineBackend, type Backend } from "./backend.js";
+ import { BidiBackend } from "../browser/bidi-backend.js";
+ import { resolveAgentDir } from "../core/storage.js";
++import type { PwaInstance } from "../browser/port-allocator.js";
+ 
+ export { DEFAULT_HOST, DEFAULT_PORT };
+ 
+@@ -17,13 +20,31 @@ export interface CreateBackendOptions {
+   env?: NodeJS.ProcessEnv;
+ }
+ 
++function resolveAppPort(agentDir: string, appSlug: string): number | undefined {
++  try {
++    const registryPath = join(agentDir, "instances.json");
++    const raw = readFileSync(registryPath, "utf8");
++    const parsed = JSON.parse(raw) as Record<string, PwaInstance>;
++    if (parsed && typeof parsed === "object" && parsed[appSlug] && typeof parsed[appSlug].port === "number") {
++      return parsed[appSlug].port;
++    }
++  } catch {
++    // Registry missing or unreadable, fallback to undefined
++  }
++  return undefined;
++}
++
+ export function createBackend(options: CreateBackendOptions): Backend {
+   const agentDir = resolveAgentDir({ cacheDir: options.cacheDir });
+   if (options.mode === "offline") {
+     return new OfflineBackend({ agentDir });
+   }
+ 
+-  const resolvedPort = options.port;
++  let resolvedPort = options.port;
++  if (resolvedPort === undefined && options.app) {
++    resolvedPort = resolveAppPort(agentDir, options.app);
++  }
++
+   return new BidiBackend({
+     port: resolvedPort ?? DEFAULT_PORT,
+     host: options.host ?? DEFAULT_HOST,

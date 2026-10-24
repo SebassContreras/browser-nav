@@ -74,7 +74,7 @@ export async function clickTool(args: ClickArgs, ctx: ToolContext): Promise<Tool
     throw invalid("missing --snapshot <id> and no stored snapshot exists.", "run: snapshot first");
   }
   const nextId = await performClick(id, rawRef, { backend, armed: effectiveCtx.armed });
-  if (!effectiveCtx.armed) {
+  if (effectiveCtx.mode === "bidi" && !effectiveCtx.armed) {
     console.log(NO_INPUT_LINE);
   }
   return actionOutcome(effectiveCtx, backend, nextId, rawRef);

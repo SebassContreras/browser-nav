@@ -62,7 +62,7 @@ export interface ToolDef {
   handler: (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolOutcome>;
 }
 
-const TARGET_PATTERN = "^@[a-z0-9]+(-[a-z0-9]+)*$";
+const TARGET_PATTERN = "^@[a-z0-9]+(?:-[a-z0-9]+)*(?:\\([^)]+\\))?(?:>@[a-z0-9]+(?:-[a-z0-9]+)*)?(?:\\[\\d+\\])?$";
 
 const TARGET_PROP = {
   type: "string",
@@ -570,7 +570,9 @@ const authToolDef: ToolDef = {
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   async handler(args, ctx) {
-    const action = str(args, "action");
+    const actionRaw = str(args, "action");
+    const action = actionRaw === "status" || actionRaw === "clean" ? actionRaw : undefined;
+    const clean = flag(args, "clean") || action === "clean";
     const app = str(args, "app");
     const timeoutMs = typeof args["timeoutMs"] === "number" ? args["timeoutMs"] : undefined;
     if (action === "status") {
@@ -580,7 +582,7 @@ const authToolDef: ToolDef = {
         ctx.screens.cacheDir === undefined ? {} : { cacheDir: ctx.screens.cacheDir },
       );
     }
-    return runAuthTool({ app, timeoutMs });
+    return runAuthTool({ app, clean, action, timeoutMs });
   },
 };
 
