@@ -1,7 +1,7 @@
 {
-  "name": "pwa-nav",
+  "name": "browser-nav",
   "version": "0.1.0",
-  "description": "CLI + bridge for fluid QA on login-walled sites (Firefox PWA over WebDriver BiDi, screen map, MCP)",
+  "description": "CLI + bridge for fluid QA on login-walled web apps (Firefox over W3C WebDriver BiDi, screen maps, MCP)",
   "type": "module",
   "bin": {
     "browser-nav": "./dist/cli.js",

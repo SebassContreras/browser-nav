@@ -576,10 +576,12 @@ test("cli: wait command finds element or times out", async () => {
   }
 });
 
-test("spec 028 R3 & R4: package.json exposes browser-nav, bnav, and pwa-nav CLI bins and CLI honors BROWSER_NAV_* env vars", async () => {
-  // Given package.json at repository root (R3)
+test("spec 028 & spec 031 R1: package.json name is browser-nav and exposes browser-nav, bnav, and pwa-nav CLI bins and CLI honors BROWSER_NAV_* env vars", async () => {
+  // Given package.json at repository root (R1, R3)
   const pkgPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../package.json");
-  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as { bin: Record<string, string> };
+  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as { name: string; description: string; bin: Record<string, string> };
+  assert.equal(pkg.name, "browser-nav");
+  assert.match(pkg.description, /WebDriver BiDi/i);
   assert.equal(pkg.bin["browser-nav"], "./dist/cli.js");
   assert.equal(pkg.bin["bnav"], "./dist/cli.js");
   assert.equal(pkg.bin["pwa-nav"], "./dist/cli.js");

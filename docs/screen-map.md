@@ -5,8 +5,8 @@ Per-app JSON file saying what each screen offers: fields, actions, links, named 
 ## What it is and is not
 
 - App-agnostic. The tool ships no app-specific map. `examples/screens/demo-app.screens.json` (derived from `checks/fixtures/login.html`) is the reference and test fixture.
-- Your maps live in the screens dir: `--screens-dir <dir>` > env `PWA_NAV_SCREENS_DIR` > `<cache-dir>/screens` (defaulting to `.agent/screens` inside a project or `~/.pwa-nav/screens` outside).
-- Learned from live snapshots (`snapshot --learn` or `pwa_learn`), never invented. Agents autonomously discover and enrich the screen map on unmapped routes, and operators can review and fine-tune it.
+- Your maps live in the screens dir: `--screens-dir <dir>` > env `BROWSER_NAV_SCREENS_DIR` (or `PWA_NAV_SCREENS_DIR`) > `<cache-dir>/screens` (defaulting to `.agent/screens` inside a project or `~/.browser-nav/screens` outside).
+- Learned from live snapshots (`snapshot --learn` or `screen_learn`), never invented. Agents autonomously discover and enrich the screen map on unmapped routes, and operators can review and fine-tune it.
 - **Continuous Screen Map Enrichment**: Every snapshot and learn step collaborates in enriching `screens/<app>.screens.json` with discovered controls, flows, journeys, and nested modal branches (`action.opens`).
 - **Zero Loose Files in Workspace**: Raw snapshots and session caches are strictly isolated per application in `.agent/apps/<appSlug>/snapshot.json`. Screen maps remain the persistent, clean source of truth without scattering loose files in the repo.
 - Not a replacement for `eN` refs: refs stay valid for one snapshot only. `@id` is a semantic target resolved on a fresh snapshot.
@@ -211,18 +211,18 @@ node ./dist/cli.js snapshot --screen --backend offline        # no ./screens dir
 Live, copied from `src/cli.screens.test.ts` (validated against a fake BiDi server and the opt-in E2E, not yet against real authenticated screens). Map seeded in `./screens`, PWA on `/login`:
 
 ```bash
-pwa-nav snapshot --screen                    # compact view, no browser round trip beyond the URL
-pwa-nav click @show-password                 # click @show-password: button "Show password" (action, occurrence 0)
-                                             # click dry-run: ...
-                                             # no input sent (pass --armed to execute)
-pwa-nav click @show-password --armed         # click ok: ...  then the compact view: login /login public fp:40288a29
-pwa-nav fill @password secret --armed        # exit 11 sensitive_target, nothing sent
-pwa-nav act flow:login --armed               # exit 11 (human-only flow): the user logs in by hand
-pwa-nav click @nope                          # exit 12 unknown_target (lists available ids)
-pwa-nav snapshot --learn --access public     # after a UI change: ~ renamed ... / DRIFT
+browser-nav snapshot --screen                    # compact view, no browser round trip beyond the URL
+browser-nav click @show-password                 # click @show-password: button "Show password" (action, occurrence 0)
+                                                 # click dry-run: ...
+                                                 # no input sent (pass --armed to execute)
+browser-nav click @show-password --armed         # click ok: ...  then the compact view: login /login public fp:40288a29
+browser-nav fill @password secret --armed        # exit 11 sensitive_target, nothing sent
+browser-nav act flow:login --armed               # exit 11 (human-only flow): the user logs in by hand
+browser-nav click @nope                          # exit 12 unknown_target (lists available ids)
+browser-nav snapshot --learn --access public     # after a UI change: ~ renamed ... / DRIFT
 ```
 
-New map from scratch (live): `pwa-nav snapshot --learn --locale es-ES --access public` prints `new screen` and `screen map: screens/<host-port>.screens.json (written)`; without `--locale` it exits 2.
+New map from scratch (live): `browser-nav snapshot --learn --locale es-ES --access public` prints `new screen` and `screen map: screens/<host-port>.screens.json (written)`; without `--locale` it exits 2.
 
 ## Measured size
 
@@ -275,7 +275,7 @@ Key features:
 - **Action syntax**: `flow:<id>`, `click:@<id>`, `fill:@<id>=<val>`, `fill:@<id>`, or bare `@<id>`.
 - **Parameter interpolation**: Replaces `${inputs.param}` and `${param}` from journey inputs into step actions and step inputs.
 - **Screen transition assertions**: After every step, the engine waits for settle (network idle and DOM quiescence) and verifies the resulting route matches `expectScreen`. Mismatch aborts immediately with exit code 14 (`journey_step_failed`).
-- **Dry-run preview**: `pwa-nav journey <name> [key=value...]` outputs the full planned step sequence without touching the browser. Use `--armed` to execute.
+- **Dry-run preview**: `browser-nav journey <name> [key=value...]` outputs the full planned step sequence without touching the browser. Use `--armed` to execute.
 - **Dynamic MCP tools**: Non-human-only journeys are automatically exposed as callable tools (`journey_<id>`) on the MCP server with `destructiveHint: true`.
 
-> **Tip for PowerShell users:** Quote `@id` targets (e.g. `pwa-nav click '@show-password'`) to prevent PowerShell from interpreting `@` as a variable splatting operator.
+> **Tip for PowerShell users:** Quote `@id` targets (e.g. `browser-nav click '@show-password'`) to prevent PowerShell from interpreting `@` as a variable splatting operator.

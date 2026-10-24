@@ -34,3 +34,4 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 028 | browser-nav-canonical-renaming | done        | 027 | —      | 28 |
 | 029 | tool-layer-and-contract-convergence | done        | 021, 022, 028 | —     | 29 |
 | 030 | assisted-auth-fallback | done        | 029 | —     | 30 |
+| 031 | package-and-docs-canonical-convergence | done        | 028, 030 | —      | 31 |

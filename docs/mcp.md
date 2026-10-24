@@ -1,34 +1,34 @@
-# MCP server — `pwa-nav-mcp`
+# MCP server — `browser-nav-mcp`
 
-Stdio MCP server (spec 006, 012) exposing the same operations as the CLI (`open`, `snapshot`, `click`, `fill`, `upload`, `act`, `find`, `extract`, `wait`, `screenshot`, `auth`, `learn`, `journey`) over the live Firefox PWA (WebDriver BiDi). It delegates directly to the unified tools service layer (`src/tools/`), ensuring 100% operational and behavioral parity with the CLI.
+Stdio MCP server (spec 006, 012) exposing the same operations as the CLI (`open`, `snapshot`, `click`, `fill`, `upload`, `act`, `find`, `extract`, `wait`, `screenshot`, `auth`, `learn`, `journey`) over the live Firefox browser (WebDriver BiDi). It delegates directly to the unified tools service layer (`src/tools/`), ensuring 100% operational and behavioral parity with the CLI.
 
 ## Why not `@playwright/mcp` or synthetic Python scripts (Playwright/Selenium)
 
 - Synthetic browser drivers (Playwright, Puppeteer, Selenium, Python scraping scripts) launch isolated bot profiles without your active authentication cookies and immediately trigger anti-bot defenses (Cloudflare, CAPTCHAs, login walls, 403 blocks).
-- `pwa-nav-mcp` attaches directly to your authentic, logged-in Firefox browser instance over W3C WebDriver BiDi (see [`firefox-runtime.md`](firefox-runtime.md)), serving as the agent's primary web browsing and automation capability across any website or web application.
+- `browser-nav-mcp` attaches directly to your authentic, logged-in Firefox browser instance over W3C WebDriver BiDi (see [`firefox-runtime.md`](firefox-runtime.md)), serving as the agent's primary web browsing and automation capability across any website or web application.
 
 ## Build and run
 
-Requires Node 22 and `pnpm build` (produces `dist/mcp.js`, bin `pwa-nav-mcp`).
+Requires Node 22 and `pnpm build` (produces `dist/mcp.js`, bin `browser-nav-mcp`, alias `pwa-nav-mcp`).
 
 ```bash
 pnpm i && pnpm build
 node dist/mcp.js --port 9222
 ```
 
-stdout carries protocol frames only. Logs go to stderr (`pwa-nav-mcp ready (backend bidi, ARMED)`). Note that starting with 0 screen maps is normal and expected; maps are generated autonomously via `screen_learn` as you browse.
+stdout carries protocol frames only. Logs go to stderr (`browser-nav-mcp ready (backend bidi, ARMED)`). Note that starting with 0 screen maps is normal and expected; maps are generated autonomously via `screen_learn` as you browse.
 
 ## Server options (operator only)
 
 | Option | Env | Default | Meaning |
 |---|---|---|---|
-| `--port <n>` | - | 9222 | BiDi port, integer 1024-65535. |
-| `--dry-run` | `PWA_NAV_DRY_RUN=1` | off | Run in dry-run mode (previews mutations). Direct active execution (armed) is default. |
+| `--port <n>` | `BROWSER_NAV_PORT` (or `PWA_NAV_PORT`) | 9222 | BiDi port, integer 1024-65535. |
+| `--dry-run` | `BROWSER_NAV_DRY_RUN=1` (or `PWA_NAV_DRY_RUN=1`) | off | Run in dry-run mode (previews mutations). Direct active execution (armed) is default. |
 | `--armed` | - | on | Retained for backward compatibility (active mode is default). |
-| `--screens-dir <dir>` | `PWA_NAV_SCREENS_DIR` | `<cache-dir>/screens` | Screen-map directory. |
+| `--screens-dir <dir>` | `BROWSER_NAV_SCREENS_DIR` (or `PWA_NAV_SCREENS_DIR`) | `<cache-dir>/screens` | Screen-map directory. |
 | `--screen-map <file>` | - | - | Explicit screen-map file. |
-| `--cache-dir <dir>` | `PWA_NAV_CACHE_DIR` | `<projectRoot>/.agent` or `~/.pwa-nav` | Cache, snapshot, session and allow-list directory. |
-| `--backend offline\|bidi` | - | `bidi` | `offline` = fixtures, no browser (handshake checks only; `browser_open` `launch`/`allowOrigin` and `@id` targets are refused). |
+| `--cache-dir <dir>` | `BROWSER_NAV_CACHE_DIR` (or `PWA_NAV_CACHE_DIR`) | `<projectRoot>/.agent` or `~/.browser-nav` | Cache, snapshot, session and allow-list directory. |
+| `--backend offline\|bidi` | `BROWSER_NAV_BACKEND` (or `PWA_NAV_BACKEND`) | `bidi` | `offline` = fixtures, no browser (handshake checks only; `browser_open` `launch`/`allowOrigin` and `@id` targets are refused). |
 
 Invalid options exit 2 with a usage line.
 
@@ -41,7 +41,7 @@ Relative paths resolve from the working directory: the client must start the ser
 ```json
 {
   "mcpServers": {
-    "pwa-nav": {
+    "browser-nav": {
       "command": "node",
       "args": ["dist/mcp.js"]
     }
@@ -49,14 +49,29 @@ Relative paths resolve from the working directory: the client must start the ser
 }
 ```
 
-- `--port 9222` is optional and assumed by default. The PWA runtime is spawned with `--remote-debugging-port 9222` on demand, keeping sessions isolated under `.agent/apps/<appSlug>/profile`.
+- `--port 9222` is optional and assumed by default. The browser runtime is spawned with `--remote-debugging-port 9222` on demand, keeping sessions isolated under `.agent/apps/<appSlug>/profile`.
 - `--armed` is never in the shipped file. Arming is an operator decision (see below).
 - Clients that read `mcpServers` JSON can use it as is, or copy it to their own config. Where the file must live: check your client's docs.
 
 ### Claude Code
 
 ```bash
-claude mcp add pwa-nav -- node C:/path/to/pwa-nav/dist/mcp.js
+claude mcp add browser-nav -- node C:/path/to/browser-nav/dist/mcp.js
+```
+
+### Cursor IDE
+
+In `.cursor/mcp.json` or `Settings > Features > MCP`:
+
+```json
+{
+  "mcpServers": {
+    "browser-nav": {
+      "command": "node",
+      "args": ["C:/path/to/browser-nav/dist/mcp.js", "--port", "9222"]
+    }
+  }
+}
 ```
 
 - Project scope: a `.mcp.json` at the project root with the same `mcpServers` shape (copy this repo's `mcp.json`; Claude Code starts project servers from the project root, so the relative path works there). Claude Code asks for approval of project-scoped servers.
@@ -111,7 +126,7 @@ Schemas are in `tools/list`. All results are `content` text plus `structuredCont
 
 Refs are valid for one snapshot only: use the `snapshotId` the last action returned, and re-snapshot after every mutation. `stale_ref` means re-snapshot and retry.
 
-Screen learning is available both via CLI (`pwa-nav snapshot --learn`) and via MCP (`screen_learn` or `browser_snapshot` with `learn: true`), allowing agents to bootstrap and persist screen maps dynamically without manual intervention.
+Screen learning is available both via CLI (`browser-nav snapshot --learn`) and via MCP (`screen_learn` or `browser_snapshot` with `learn: true`), allowing agents to bootstrap and persist screen maps dynamically without manual intervention.
 
 ### Agent Discovery & Progressive Screen Enrichment Loop
 
