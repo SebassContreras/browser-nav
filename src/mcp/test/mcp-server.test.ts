@@ -15,7 +15,7 @@ import { createBackend } from "../../backend/backend-factory.js";
 import type { RawElement } from "../../browser/collector.js";
 import { EXIT_CODES, PwaNavError, type ErrorCode } from "../../core/errors.js";
 import { buildFlowTools, flowToolNames, loadFlowSource, MAX_FLOW_DESCRIPTION } from "../mcp-flows.js";
-import { createMcpServer, toolError } from "../mcp-server.js";
+import { BASE_INSTRUCTIONS, buildServerInstructions, createMcpServer, toolError } from "../mcp-server.js";
 import { EXTRACT_INLINE_CAP } from "../mcp-tools.js";
 import { learnScreen } from "../../screens/screen-learn.js";
 import type { ScreenFlow, ScreenMap } from "../../screens/screen-map.js";
@@ -924,4 +924,66 @@ test("initialize handshake ignores workspaceFolders when cacheDir was explicitly
   assert.ok(!logs.some((l) => l.includes("workspace auto-detected from initialize handshake")));
 
   await rm(dir, { recursive: true, force: true });
+});
+
+test("MCP initialization handshake instructions declare primary authentic browser capability and warn against synthetic Playwright/Selenium/Python scripts", async () => {
+  // Given a pure call to buildServerInstructions with and without a human-only note
+  const plainInstructions = buildServerInstructions();
+  const withNoteInstructions = buildServerInstructions("Human-only flows exist: checkout.");
+
+  // Then buildServerInstructions returns BASE_INSTRUCTIONS or appends the human-only note cleanly
+  assert.equal(plainInstructions, BASE_INSTRUCTIONS);
+  assert.equal(withNoteInstructions, `${BASE_INSTRUCTIONS} Human-only flows exist: checkout.`);
+
+  // Given a connected MCP client-server session
+  await withMcp({}, ({ client }) => {
+    // When reading the server instructions from the initialize handshake
+    const instructions = client.getInstructions() ?? "";
+
+    // Then the instructions declare pwa-nav as the primary web automation capability attached to an authentic user session (R2)
+    assert.match(instructions, /PRIMARY web browsing and browser automation capability/i);
+    assert.match(instructions, /authentic Firefox browser instance/i);
+    assert.match(instructions, /active, logged-in session and authentication cookies/i);
+
+    // And explicitly warn that synthetic Python, Playwright, and Selenium scripts trigger Cloudflare, CAPTCHAs, and bot-walls (R3)
+    assert.match(instructions, /NEVER write or execute synthetic Python, Playwright, Puppeteer, Selenium/i);
+    assert.match(instructions, /Cloudflare, CAPTCHAs, login walls, and bot-walls/i);
+    assert.match(instructions, /Always prioritize native pwa_\* MCP tools/i);
+    return Promise.resolve();
+  });
+});
+
+test("pwa_open and tool manifest descriptions welcome general web navigation and clearly explain direct browser automation", async () => {
+  // Given a connected MCP client-server session
+  await withMcp({}, async ({ client }) => {
+    // When listing all registered MCP tools
+    const { tools } = await client.listTools();
+    const byName = new Map(tools.map((t) => [t.name, t]));
+
+    // Then pwa_open has a neutral, welcoming description for general web navigation without prohibitive 'Do NOT call... to browse' language (R1)
+    const openToolDef = byName.get("pwa_open");
+    assert.ok(openToolDef !== undefined);
+    const openDesc = openToolDef.description ?? "";
+    assert.match(openDesc, /Open or navigate the browser window to any target website, URL, domain, or web application/i);
+    assert.doesNotMatch(openDesc, /Do NOT call .* to perform searches or browse/i);
+    assert.doesNotMatch(openDesc, /already open and loaded with their app/i);
+
+    const openProps = (openToolDef.inputSchema as { properties?: Record<string, { description?: string }> }).properties ?? {};
+    assert.match(openProps["url"]?.description ?? "", /Target website or web app to navigate to/i);
+    assert.match(openProps["launch"]?.description ?? "", /Launch the browser runtime/i);
+
+    // And every core tool clearly explains its role in direct browser automation without installed-PWA-only ambiguity (R4)
+    assert.match(byName.get("pwa_snapshot")?.description ?? "", /Inspect the active browser window in text/i);
+    assert.match(byName.get("pwa_click")?.description ?? "", /interactive control in the live browser window/i);
+    assert.match(byName.get("pwa_fill")?.description ?? "", /search box, textarea, or rich contenteditable editor in the live browser window/i);
+    assert.match(byName.get("pwa_find")?.description ?? "", /in the live browser snapshot/i);
+    assert.match(byName.get("pwa_act")?.description ?? "", /Execute a batch of browser actions in a single turn/i);
+    assert.match(byName.get("pwa_learn")?.description ?? "", /active browser page into the persistent screen map/i);
+    assert.match(byName.get("pwa_wait")?.description ?? "", /DOM state change, or background async process in the live browser/i);
+    assert.match(byName.get("pwa_auth")?.description ?? "", /login-walled websites and web apps/i);
+    assert.doesNotMatch(
+      ((byName.get("pwa_auth")?.inputSchema as { properties?: Record<string, { description?: string }> }).properties ?? {})["app"]?.description ?? "",
+      /installed PWA/i,
+    );
+  });
 });

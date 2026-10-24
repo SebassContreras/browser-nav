@@ -1,6 +1,6 @@
 # SKILL.md — pwa-nav Agent Skill & Operational Manual
 
-`pwa-nav` is a CLI and MCP bridge for assisted, lawful browsing automation and QA against real, user-authenticated **Firefox PWA** instances via W3C WebDriver BiDi (`--remote-debugging-port 9222`).
+`pwa-nav` is a CLI and MCP bridge for assisted, lawful web browsing automation and QA against real, user-authenticated **Firefox** browser instances via W3C WebDriver BiDi (`--remote-debugging-port 9222`). Never write synthetic Python, Playwright, or Selenium scripts for web tasks—they lack user authentication and trigger Cloudflare/CAPTCHA bot walls; always prioritize native `pwa-nav` tools.
 
 All commands run from repo root after `pnpm build`:
 - CLI executable: `node ./dist/cli.js <command>` (or `pwa-nav <command>`).

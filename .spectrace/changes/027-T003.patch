@@ -1,0 +1,43 @@
+diff --git a/src/mcp/test/mcp-server.test.ts b/src/mcp/test/mcp-server.test.ts
+index 1e7da6a..60005f1 100644
+--- a/src/mcp/test/mcp-server.test.ts
++++ b/src/mcp/test/mcp-server.test.ts
+@@ -15,7 +15,7 @@ import { createBackend } from "../../backend/backend-factory.js";
+ import type { RawElement } from "../../browser/collector.js";
+ import { EXIT_CODES, PwaNavError, type ErrorCode } from "../../core/errors.js";
+ import { buildFlowTools, flowToolNames, loadFlowSource, MAX_FLOW_DESCRIPTION } from "../mcp-flows.js";
+-import { createMcpServer, toolError } from "../mcp-server.js";
++import { BASE_INSTRUCTIONS, buildServerInstructions, createMcpServer, toolError } from "../mcp-server.js";
+ import { EXTRACT_INLINE_CAP } from "../mcp-tools.js";
+ import { learnScreen } from "../../screens/screen-learn.js";
+ import type { ScreenFlow, ScreenMap } from "../../screens/screen-map.js";
+@@ -925,3 +925,29 @@ test("initialize handshake ignores workspaceFolders when cacheDir was explicitly
+ 
+   await rm(dir, { recursive: true, force: true });
+ });
++
++test("MCP initialization handshake instructions declare primary authentic browser capability and warn against synthetic Playwright/Selenium/Python scripts", async () => {
++  // Given a pure call to buildServerInstructions with and without a human-only note
++  const plainInstructions = buildServerInstructions();
++  const withNoteInstructions = buildServerInstructions("Human-only flows exist: checkout.");
++
++  // Then buildServerInstructions returns BASE_INSTRUCTIONS or appends the human-only note cleanly
++  assert.equal(plainInstructions, BASE_INSTRUCTIONS);
++  assert.equal(withNoteInstructions, `${BASE_INSTRUCTIONS} Human-only flows exist: checkout.`);
++
++  // Given a connected MCP client-server session
++  await withMcp({}, async ({ client }) => {
++    // When reading the server instructions from the initialize handshake
++    const instructions = client.getInstructions() ?? "";
++
++    // Then the instructions declare pwa-nav as the primary web automation capability attached to an authentic user session (R2)
++    assert.match(instructions, /PRIMARY web browsing and browser automation capability/i);
++    assert.match(instructions, /authentic Firefox browser instance/i);
++    assert.match(instructions, /active, logged-in session and authentication cookies/i);
++
++    // And explicitly warn that synthetic Python, Playwright, and Selenium scripts trigger Cloudflare, CAPTCHAs, and bot-walls (R3)
++    assert.match(instructions, /NEVER write or execute synthetic Python, Playwright, Puppeteer, Selenium/i);
++    assert.match(instructions, /Cloudflare, CAPTCHAs, login walls, and bot-walls/i);
++    assert.match(instructions, /Always prioritize native pwa_\* MCP tools/i);
++  });
++});

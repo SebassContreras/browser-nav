@@ -2,11 +2,10 @@
 
 Stdio MCP server (spec 006, 012) exposing the same operations as the CLI (`open`, `snapshot`, `click`, `fill`, `upload`, `act`, `find`, `extract`, `wait`, `screenshot`, `auth`, `learn`, `journey`) over the live Firefox PWA (WebDriver BiDi). It delegates directly to the unified tools service layer (`src/tools/`), ensuring 100% operational and behavioral parity with the CLI.
 
-## Why not `@playwright/mcp`
+## Why not `@playwright/mcp` or synthetic Python scripts (Playwright/Selenium)
 
-- It drives its own Chromium/Firefox profile.
-- It cannot attach to an authentic, standalone Firefox PWA profile, so it never sees your logged-in session.
-- `pwa-nav-mcp` attaches to the PWA you launched or connects via on-demand provisioning (see [`firefox-runtime.md`](firefox-runtime.md)).
+- Synthetic browser drivers (Playwright, Puppeteer, Selenium, Python scraping scripts) launch isolated bot profiles without your active authentication cookies and immediately trigger anti-bot defenses (Cloudflare, CAPTCHAs, login walls, 403 blocks).
+- `pwa-nav-mcp` attaches directly to your authentic, logged-in Firefox browser instance over W3C WebDriver BiDi (see [`firefox-runtime.md`](firefox-runtime.md)), serving as the agent's primary web browsing and automation capability across any website or web application.
 
 ## Build and run
 
