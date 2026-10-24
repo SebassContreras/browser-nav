@@ -113,11 +113,11 @@ function pickTarget(args: Record<string, unknown>): { target: string } | { snaps
 }
 
 const open: ToolDef = {
-  name: "pwa_open",
+  name: "browser_open",
   description:
     "Open or navigate the browser window to any target website, URL, domain, or web application. " +
     "Attaches directly to the user's authenticated browser session (preserving cookies and logins) or launches the browser runtime automatically. " +
-    "After navigating, call pwa_snapshot to inspect the page, and use pwa_fill and pwa_click to interact with in-page search boxes, forms, and links.",
+    "After navigating, call browser_snapshot to inspect the page, and use browser_fill and browser_click to interact with in-page search boxes, forms, and links.",
   inputSchema: {
     type: "object",
     properties: {
@@ -125,7 +125,7 @@ const open: ToolDef = {
         type: "string",
         minLength: 1,
         description:
-          "Target website or web app to navigate to. Valid formats: full HTTP(S) URL (e.g. 'https://www.linkedin.com'), domain (e.g. 'linkedin.com', 'github.com'), or registered app slug / canonical alias (e.g. 'notebook', 'linkedin', 'mercadona', 'google', 'github', 'twitter', 'x'). Pass a URL, domain, or alias (not a raw search query; to search inside a page, use pwa_fill on its search input).",
+          "Target website or web app to navigate to. Valid formats: full HTTP(S) URL (e.g. 'https://www.linkedin.com'), domain (e.g. 'linkedin.com', 'github.com'), or registered app slug / canonical alias (e.g. 'notebook', 'linkedin', 'mercadona', 'google', 'github', 'twitter', 'x'). Pass a URL, domain, or alias (not a raw search query; to search inside a page, use browser_fill on its search input).",
       },
       launch: { type: "boolean", description: "Launch the browser runtime with the WebDriver BiDi debugging port if not already running." },
       allowOrigin: { type: "boolean", description: "Add this URL's origin to the allow-list after a successful navigation." },
@@ -143,7 +143,7 @@ const open: ToolDef = {
     try {
       return await openTool({ url, launch, allowOrigin, cacheDir: str(args, "cacheDir"), workspaceDir: str(args, "workspaceDir") }, ctx);
     } catch (error) {
-      // No Firefox: ask the human (elicitation) before downloading; otherwise the error hints pwa_install_runtime.
+      // No Firefox: ask the human (elicitation) before downloading; otherwise the error hints browser_install_runtime / pwa_install_runtime.
       if (!launch || !(error instanceof FirefoxNotFoundError) || ctx.confirm === undefined) throw error;
       if (!(await ctx.confirm(RUNTIME_INSTALL_PROMPT))) throw error;
       await runtimeInstallTool({ ...(ctx.runtimeInstaller === undefined ? {} : { installer: ctx.runtimeInstaller }) });
@@ -153,10 +153,10 @@ const open: ToolDef = {
 };
 
 const installRuntime: ToolDef = {
-  name: "pwa_install_runtime",
+  name: "browser_install_runtime",
   description:
-    "Download the official Mozilla Firefox runtime (about 95 MB) into pwa-nav's isolated folder so websites and web apps can be launched for direct browser automation. " +
-    "Only call this after pwa_open failed with 'Firefox was not found' and the user agreed to the download. " +
+    "Download the official Mozilla Firefox runtime (about 95 MB) into browser-nav's isolated folder so websites and web apps can be launched for direct browser automation. " +
+    "Only call this after browser_open failed with 'Firefox was not found' and the user agreed to the download. " +
     "Nothing is installed system-wide; the default browser is not changed. Re-running updates it.",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
@@ -166,7 +166,7 @@ const installRuntime: ToolDef = {
 };
 
 const snapshot: ToolDef = {
-  name: "pwa_snapshot",
+  name: "browser_snapshot",
   description:
     "MANDATORY FIRST STEP & STATE INSPECTION: Inspect the active browser window in text (live DOM/accessibility tree) for direct browser automation on any website or web app. " +
     "DO NOT take screenshots to discover elements; use this tool instead (preserves tokens and supports text-only agents).\n" +
@@ -220,7 +220,7 @@ const snapshot: ToolDef = {
 };
 
 const click: ToolDef = {
-  name: "pwa_click",
+  name: "browser_click",
   description:
     "Click any button, link, or interactive control in the live browser window by semantic target (@id), visible text, or ref (eN). " +
     "Sensitive buttons (such as checkout/payment) are refused. Direct live execution on the browser (armed by default).",
@@ -245,7 +245,7 @@ const click: ToolDef = {
 };
 
 const fill: ToolDef = {
-  name: "pwa_fill",
+  name: "browser_fill",
   description:
     "Type text into any input field, search box, textarea, or rich contenteditable editor in the live browser window by semantic target (@id), visible text, or ref (eN). " +
     "Use this tool to enter search queries or form data on the currently loaded web page. " +
@@ -274,7 +274,7 @@ const fill: ToolDef = {
 };
 
 const download: ToolDef = {
-  name: "pwa_download",
+  name: "browser_download",
   description:
     "Download a remote media asset or extract an in-page SVG/image/video from the live browser to disk. " +
     "Never runs automatically; execute strictly on explicit request. " +
@@ -307,7 +307,7 @@ const download: ToolDef = {
 };
 
 const upload: ToolDef = {
-  name: "pwa_upload",
+  name: "browser_upload",
   description:
     "Upload one or more local files to a file input (<input type=\"file\">) in the live browser window by semantic target (@id), visible text, or ref (eN). " +
     "Files must be inside allowed directories (workspace or .agent/). Direct live execution on the browser (armed by default).",
@@ -353,12 +353,12 @@ const upload: ToolDef = {
 };
 
 const screenshotToolDef: ToolDef = {
-  name: "pwa_screenshot",
+  name: "browser_screenshot",
   description:
     "DO NOT USE FOR NAVIGATION, DISCOVERY, OR STATE INSPECTION. " +
     "Capture a visual screenshot of the browser window ONLY when explicitly requested by the user. " +
     "Many agents cannot process images, and screenshots waste massive amounts of tokens. " +
-    "To check if an action succeeded, discover new elements, or inspect popups/dialogs, ALWAYS call pwa_snapshot instead.",
+    "To check if an action succeeded, discover new elements, or inspect popups/dialogs, ALWAYS call browser_snapshot instead.",
   inputSchema: {
     type: "object",
     properties: {
@@ -390,10 +390,10 @@ const screenshotToolDef: ToolDef = {
 };
 
 const extract: ToolDef = {
-  name: "pwa_extract",
+  name: "browser_extract",
   description:
     "Read-only: dump formatted element list or page links from a browser snapshot for bulk reading. " +
-    "DO NOT USE TO FIND BUTTONS OR INPUTS TO CLICK/FILL: use 'pwa_find' instead. " +
+    "DO NOT USE TO FIND BUTTONS OR INPUTS TO CLICK/FILL: use 'browser_find' instead. " +
     "Supports offset pagination. snapshotId is optional and defaults to the latest snapshot.",
   inputSchema: {
     type: "object",
@@ -421,11 +421,11 @@ const extract: ToolDef = {
 };
 
 const findToolDef: ToolDef = {
-  name: "pwa_find",
+  name: "browser_find",
   description:
     "PRIMARY ELEMENT LOCATOR: Find buttons, textboxes, placeholders, links, or modal controls in the live browser snapshot. " +
     "Searches across element name, value, placeholder (including rich contenteditable editors), dialog, and container. " +
-    "Pass inDialog: true to target the active modal/popup. Always use this instead of pwa_extract when looking for elements to interact with.",
+    "Pass inDialog: true to target the active modal/popup. Always use this instead of browser_extract when looking for elements to interact with.",
   inputSchema: {
     type: "object",
     properties: {
@@ -451,7 +451,7 @@ const findToolDef: ToolDef = {
 };
 
 const act: ToolDef = {
-  name: "pwa_act",
+  name: "browser_act",
   description:
     "Execute a batch of browser actions in a single turn (ideal for search: fill search input + click search button, or submitting forms). " +
     "Semantic ops without snapshotId: click:@id, fill:@id=<text>, upload:@id=<path>, flow:<id> with inputs. " +
@@ -485,7 +485,7 @@ const act: ToolDef = {
 };
 
 const learnToolDef: ToolDef = {
-  name: "pwa_learn",
+  name: "screen_learn",
   description:
     "Learn and register/update the active browser page into the persistent screen map (.agent/apps/<appSlug>/screens.json). " +
     "Generates stable semantic @id targets (e.g. @search-input, @cart-btn) for any website or web app and eliminates expiring eN refs. " +
@@ -513,7 +513,7 @@ const learnToolDef: ToolDef = {
 };
 
 const waitToolDef: ToolDef = {
-  name: "pwa_wait",
+  name: "browser_wait",
   description:
     "Wait for a specific UI element, DOM state change, or background async process in the live browser (e.g. AI answer, fast research, audio generation) to complete. " +
     "State can be 'visible' (default), 'hidden' (e.g. wait for 'Generando...' notice to disappear), or 'enabled'.",
@@ -540,7 +540,7 @@ const waitToolDef: ToolDef = {
 };
 
 const authToolDef: ToolDef = {
-  name: "pwa_auth",
+  name: "browser_auth",
   description:
     "Assisted authentication workflow for login-walled websites and web apps (such as Google NotebookLM, LinkedIn, or Cloudflare-protected sites) where anti-bot defenses block automated login. " +
     "By default, launches a clean browser window for user login, monitors until authentication completes, cleanly closes the window, and relaunches in WebDriver BiDi debug mode on port 9222. " +
@@ -585,7 +585,7 @@ const authToolDef: ToolDef = {
 };
 
 const discoverToolDef: ToolDef = {
-  name: "pwa_discover",
+  name: "browser_discover",
   description:
     "Zero-token browser history discovery tool: queries the site profile's places.sqlite to discover candidate routes " +
     "and enrich the screen map's unmapped[] list without launching the browser or BiDi.",
@@ -629,7 +629,7 @@ const discoverToolDef: ToolDef = {
 };
 
 const configToolDef: ToolDef = {
-  name: "pwa_config",
+  name: "browser_config",
   description:
     "Inspect or update browser automation runtime storage configuration (active cache directory, screens directory, workspace directory, and fallback mode) without restarting the MCP server.",
   inputSchema: {
@@ -663,6 +663,35 @@ const configToolDef: ToolDef = {
     return configTool({ action, cacheDir, workspaceDir, screensDir }, ctx);
   },
 };
+
+/**
+ * Legacy `pwa_*` tool names transparently routed to their canonical `browser_*` / `screen_learn` implementations (spec 028).
+ */
+export const LEGACY_TOOL_ALIASES: Readonly<Record<string, string>> = {
+  pwa_config: "browser_config",
+  pwa_open: "browser_open",
+  pwa_install_runtime: "browser_install_runtime",
+  pwa_auth: "browser_auth",
+  pwa_snapshot: "browser_snapshot",
+  pwa_click: "browser_click",
+  pwa_fill: "browser_fill",
+  pwa_upload: "browser_upload",
+  pwa_download: "browser_download",
+  pwa_screenshot: "browser_screenshot",
+  pwa_extract: "browser_extract",
+  pwa_find: "browser_find",
+  pwa_act: "browser_act",
+  pwa_learn: "screen_learn",
+  pwa_wait: "browser_wait",
+  pwa_discover: "browser_discover",
+};
+
+/**
+ * Resolves any legacy `pwa_*` tool name to its canonical `browser_*` or `screen_learn` name.
+ */
+export function resolveToolName(name: string): string {
+  return LEGACY_TOOL_ALIASES[name] ?? name;
+}
 
 export const TOOLS: readonly ToolDef[] = [
   configToolDef,

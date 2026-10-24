@@ -4,7 +4,10 @@
   "description": "CLI + bridge for fluid QA on login-walled sites (Firefox PWA over WebDriver BiDi, screen map, MCP)",
   "type": "module",
   "bin": {
+    "browser-nav": "./dist/cli.js",
+    "bnav": "./dist/cli.js",
     "pwa-nav": "./dist/cli.js",
+    "browser-nav-mcp": "./dist/mcp.js",
     "pwa-nav-mcp": "./dist/mcp.js"
   },
   "engines": {

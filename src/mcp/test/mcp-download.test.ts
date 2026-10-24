@@ -6,7 +6,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createMcpServer } from "../mcp-server.js";
 import { OfflineBackend } from "../../backend/backend.js";
 
-test("mcp-server: exposes pwa_download tool in tool list", async () => {
+test("mcp-server: exposes browser_download tool in tool list and supports pwa_download alias", async () => {
   const backend = new OfflineBackend({ agentDir: resolve("./.agent") });
   const server = createMcpServer({
     backendFactory: () => backend,
@@ -20,11 +20,11 @@ test("mcp-server: exposes pwa_download tool in tool list", async () => {
   await client.connect(clientTransport);
 
   const tools = await client.listTools();
-  const downloadTool = tools.tools.find((t) => t.name === "pwa_download");
-  assert.ok(downloadTool, "pwa_download tool must be present in MCP tool list");
+  const downloadTool = tools.tools.find((t) => t.name === "browser_download");
+  assert.ok(downloadTool, "browser_download tool must be present in MCP tool list");
   assert.match(downloadTool.description ?? "", /Download a remote media asset/);
 
-  // Call pwa_download with url in dry-run mode
+  // Call legacy alias pwa_download with url in dry-run mode
   const res = (await client.callTool({
     name: "pwa_download",
     arguments: { url: "https://example.com/logo.svg" },

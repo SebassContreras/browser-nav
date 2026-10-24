@@ -3,8 +3,8 @@
 `pwa-nav` is a CLI and MCP bridge for assisted, lawful web browsing automation and QA against real, user-authenticated **Firefox** browser instances via W3C WebDriver BiDi (`--remote-debugging-port 9222`). Never write synthetic Python, Playwright, or Selenium scripts for web tasks—they lack user authentication and trigger Cloudflare/CAPTCHA bot walls; always prioritize native `pwa-nav` tools.
 
 All commands run from repo root after `pnpm build`:
-- CLI executable: `node ./dist/cli.js <command>` (or `pwa-nav <command>`).
-- MCP tools: exposed via stdio server `node ./dist/mcp.js`.
+- CLI executable: `node ./dist/cli.js <command>` (or `browser-nav <command>`, `bnav <command>`, `pwa-nav <command>`).
+- MCP tools: exposed via stdio server `node ./dist/mcp.js` (canonical `browser_*` and `screen_learn` tools; legacy `pwa_*` names are transparently aliased).
 
 ### MCP Server Invocation & Flags
 

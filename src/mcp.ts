@@ -10,7 +10,7 @@ import { exitCodeOf, PwaNavError } from "./core/errors.js";
 import { loadFlowSource } from "./mcp/mcp-flows.js";
 import { createMcpServer } from "./mcp/mcp-server.js";
 
-import { resolveAgentDir, resolveScreensDir } from "./core/storage.js";
+import { readEnv, resolveAgentDir, resolveScreensDir } from "./core/storage.js";
 
 const stderrLog = (...parts: unknown[]): void => {
   console.error(...parts);
@@ -52,17 +52,21 @@ function parseOptions(argv: string[]) {
   if (backend !== "offline" && backend !== "bidi") {
     throw invalid(`invalid --backend: ${backend} (expected offline|bidi).`);
   }
+  const rawPort = values.port ?? readEnv(process.env, "BROWSER_NAV_PORT", "PWA_NAV_PORT");
   let port = DEFAULT_PORT;
-  if (values.port !== undefined) {
-    port = /^\d+$/.test(values.port) ? Number(values.port) : Number.NaN;
+  if (rawPort !== undefined) {
+    port = /^\d+$/.test(rawPort) ? Number(rawPort) : Number.NaN;
     if (!(port >= 1024 && port <= 65535)) {
-      throw invalid(`invalid port: ${values.port} (expected an integer 1024-65535).`);
+      throw invalid(`invalid port: ${rawPort} (expected an integer 1024-65535).`);
     }
   }
-  const isDryRun = values["dry-run"] === true || process.env["PWA_NAV_DRY_RUN"] === "1";
+  const isDryRun =
+    values["dry-run"] === true ||
+    readEnv(process.env, "BROWSER_NAV_DRY_RUN", "PWA_NAV_DRY_RUN") === "1";
   const armed = !isDryRun;
   const cacheDir = resolveAgentDir({ cacheDir: values["cache-dir"] });
-  const rawScreensDir = values["screens-dir"] ?? process.env["PWA_NAV_SCREENS_DIR"];
+  const rawScreensDir =
+    values["screens-dir"] ?? readEnv(process.env, "BROWSER_NAV_SCREENS_DIR", "PWA_NAV_SCREENS_DIR");
   const effectiveScreensDir = resolveScreensDir({ screensDir: rawScreensDir, cacheDir });
 
   return {

@@ -50,11 +50,46 @@ export function findProjectRoot(startDir: string = process.cwd()): string | null
   }
 }
 
+export const CANONICAL_GLOBAL_DIR_NAME = ".browser-nav";
+export const LEGACY_GLOBAL_DIR_NAME = ".pwa-nav";
+
 /**
- * Returns the default global user directory (~/.pwa-nav) to prevent cluttering $HOME.
+ * Pure environment variable lookup: prefers the canonical key (e.g. BROWSER_NAV_*),
+ * seamlessly falling back to the legacy key (e.g. PWA_NAV_*) when unset or empty.
  */
-export function getGlobalDataDir(): string {
-  return join(homedir(), ".pwa-nav");
+export function readEnv(
+  env: Readonly<Record<string, string | undefined>>,
+  canonicalKey: string,
+  legacyKey: string,
+): string | undefined {
+  const canonical = env[canonicalKey];
+  if (canonical !== undefined && canonical.trim() !== "") {
+    return canonical;
+  }
+  const legacy = env[legacyKey];
+  if (legacy !== undefined && legacy.trim() !== "") {
+    return legacy;
+  }
+  return undefined;
+}
+
+/**
+ * Returns the default global user directory (~/.browser-nav), falling back to
+ * ~/.pwa-nav if ~/.pwa-nav already exists on disk and ~/.browser-nav does not.
+ */
+export function getGlobalDataDir(
+  home: string = homedir(),
+  checkExists: (path: string) => boolean = existsSync,
+): string {
+  const canonicalDir = join(home, CANONICAL_GLOBAL_DIR_NAME);
+  if (checkExists(canonicalDir)) {
+    return canonicalDir;
+  }
+  const legacyDir = join(home, LEGACY_GLOBAL_DIR_NAME);
+  if (checkExists(legacyDir)) {
+    return legacyDir;
+  }
+  return canonicalDir;
 }
 
 /**
@@ -77,9 +112,9 @@ export function resolveWorkspaceAgentDir(workspaceDir: string): string {
  * Resolves the cache directory (cache, snapshots, session, allow-list, screen maps):
  * 1. options.cacheDir (--cache-dir)
  * 2. options.workspaceDir -> <workspaceDir>/.agent
- * 3. env.PWA_NAV_CACHE_DIR
+ * 3. env.BROWSER_NAV_CACHE_DIR (fallback: env.PWA_NAV_CACHE_DIR)
  * 4. Project root: <projectRoot>/.agent
- * 5. Global fallback: ~/.pwa-nav
+ * 5. Global fallback: ~/.browser-nav (fallback: ~/.pwa-nav if existing)
  */
 export function resolveAgentDir(
   options: { cacheDir?: string | undefined; workspaceDir?: string | undefined } = {},
@@ -96,8 +131,8 @@ export function resolveAgentDir(
     return resolveWorkspaceAgentDir(resolve(cwd, fromWorkspaceOption));
   }
 
-  const fromEnv = env.PWA_NAV_CACHE_DIR;
-  if (fromEnv !== undefined && fromEnv.trim() !== "") {
+  const fromEnv = readEnv(env, "BROWSER_NAV_CACHE_DIR", "PWA_NAV_CACHE_DIR");
+  if (fromEnv !== undefined) {
     return resolve(cwd, fromEnv);
   }
 
@@ -112,7 +147,7 @@ export function resolveAgentDir(
 /**
  * Resolves the screens directory:
  * 1. options.screensDir
- * 2. env.PWA_NAV_SCREENS_DIR
+ * 2. env.BROWSER_NAV_SCREENS_DIR (fallback: env.PWA_NAV_SCREENS_DIR)
  * 3. Default: <cache-dir>/screens
  */
 export function resolveScreensDir(
@@ -125,8 +160,8 @@ export function resolveScreensDir(
     return resolve(cwd, fromOption);
   }
 
-  const fromEnv = env.PWA_NAV_SCREENS_DIR;
-  if (fromEnv !== undefined && fromEnv.trim() !== "") {
+  const fromEnv = readEnv(env, "BROWSER_NAV_SCREENS_DIR", "PWA_NAV_SCREENS_DIR");
+  if (fromEnv !== undefined) {
     return resolve(cwd, fromEnv);
   }
 
@@ -143,7 +178,7 @@ export function resolveEffectiveStorage(
 ): EffectiveStorage {
   const explicitCache = options.cacheDir?.trim();
   const explicitWorkspace = options.workspaceDir?.trim();
-  const envCache = env.PWA_NAV_CACHE_DIR?.trim();
+  const envCache = readEnv(env, "BROWSER_NAV_CACHE_DIR", "PWA_NAV_CACHE_DIR")?.trim();
 
   let agentDir: string;
   let workspaceDir: string | null = null;
@@ -172,10 +207,11 @@ export function resolveEffectiveStorage(
     }
   }
 
+  const envScreens = readEnv(env, "BROWSER_NAV_SCREENS_DIR", "PWA_NAV_SCREENS_DIR")?.trim();
   const screensDir = options.screensDir?.trim()
     ? resolve(cwd, options.screensDir.trim())
-    : env.PWA_NAV_SCREENS_DIR?.trim()
-      ? resolve(cwd, env.PWA_NAV_SCREENS_DIR.trim())
+    : envScreens
+      ? resolve(cwd, envScreens)
       : join(agentDir, "screens");
 
   return {

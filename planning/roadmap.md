@@ -31,4 +31,4 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 025 | dynamic-route-parameterization | done        | 024 | —      | 25 |
 | 026 | semantic-screen-noise-filtering | done        | 025 | —      | 26 |
 | 027 | mcp-agent-guidance-and-system-prompt | done        | 026 | —      | 27 |
-| 028 | browser-nav-canonical-renaming | todo        | 027 | design | 28 |
+| 028 | browser-nav-canonical-renaming | done        | 027 | —      | 28 |

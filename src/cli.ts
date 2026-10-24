@@ -18,7 +18,7 @@ import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
 import { statusTool } from "./tools/status.js";
 import { profileBackupTool, profileRestoreTool } from "./tools/profile.js";
 import { discoverTool } from "./tools/discover.js";
-import { resolveAgentDir, resolveScreensDir } from "./core/storage.js";
+import { readEnv, resolveAgentDir, resolveScreensDir } from "./core/storage.js";
 import {
 
   loadSession,
@@ -84,10 +84,10 @@ function usage(): string {
     "  pwa-nav qa run <check-file>",
     "",
     "Global options (open, snapshot, click, fill, upload, screenshot, act, journey, wait):",
-    "  --backend offline|bidi  Default bidi (live Firefox PWA); env PWA_NAV_BACKEND.",
-    "  --port <n>              BiDi port 1024-65535 (default 9222); env PWA_NAV_PORT.",
+    "  --backend offline|bidi  Default bidi (live Firefox PWA); env BROWSER_NAV_BACKEND / PWA_NAV_BACKEND.",
+    "  --port <n>              BiDi port 1024-65535 (default 9222); env BROWSER_NAV_PORT / PWA_NAV_PORT.",
     "  --context <id>          Browsing context id (required when the PWA has several top-level contexts).",
-    "  --cache-dir <dir>       Cache / agent state directory (env PWA_NAV_CACHE_DIR).",
+    "  --cache-dir <dir>       Cache / agent state directory (env BROWSER_NAV_CACHE_DIR / PWA_NAV_CACHE_DIR).",
 
     "  -h, --help              Show this help.",
     "",
@@ -143,11 +143,11 @@ function usage(): string {
     "  --app-name <text>   With --learn, new map: app name (default: page title).",
     "  --screen-map <file> Explicit map file (--screen, --learn, @id targets). Default: the map whose app.origin",
     "                      equals the current origin, searched in the screens dir.",
-    "  --screens-dir <dir> Screens directory (default <cache-dir>/screens); env PWA_NAV_SCREENS_DIR.",
+    "  --screens-dir <dir> Screens directory (default <cache-dir>/screens); env BROWSER_NAV_SCREENS_DIR / PWA_NAV_SCREENS_DIR.",
     "",
     "Action options (click, fill, upload, act):",
     "  --armed             Actually send input. Without it live actions are dry-run. Only this flag arms:",
-    "                      no env var does. Kill-switch (PWA_NAV_KILL_SWITCH or .agent/kill) and the",
+    "                      no env var does. Kill-switch (BROWSER_NAV_KILL_SWITCH / PWA_NAV_KILL_SWITCH or .agent/kill) and the",
     "                      origin allow-list still apply.",
     "",
     "Bulk op format:",
@@ -286,11 +286,16 @@ function resolveLive(values: {
   context?: string;
   "cache-dir"?: string;
 }): LiveConfig {
-  const rawBackend = requireNonEmpty("--backend", values.backend) ?? process.env["PWA_NAV_BACKEND"] ?? "bidi";
+  const rawBackend =
+    requireNonEmpty("--backend", values.backend) ??
+    readEnv(process.env, "BROWSER_NAV_BACKEND", "PWA_NAV_BACKEND") ??
+    "bidi";
   if (rawBackend !== "offline" && rawBackend !== "bidi") {
     throw invalid(`invalid --backend: ${rawBackend} (expected offline|bidi).`);
   }
-  const rawPort = requireNonEmpty("--port", values.port) ?? process.env["PWA_NAV_PORT"];
+  const rawPort =
+    requireNonEmpty("--port", values.port) ??
+    readEnv(process.env, "BROWSER_NAV_PORT", "PWA_NAV_PORT");
   let port = DEFAULT_PORT;
   if (rawPort !== undefined) {
     port = /^\d+$/.test(rawPort) ? Number(rawPort) : Number.NaN;
@@ -300,7 +305,9 @@ function resolveLive(values: {
   }
   const app = requireNonEmpty("--app", values.app);
   const contextId = requireNonEmpty("--context", values.context);
-  const rawCache = requireNonEmpty("--cache-dir", values["cache-dir"]) ?? process.env["PWA_NAV_CACHE_DIR"];
+  const rawCache =
+    requireNonEmpty("--cache-dir", values["cache-dir"]) ??
+    readEnv(process.env, "BROWSER_NAV_CACHE_DIR", "PWA_NAV_CACHE_DIR");
   const agentDir = resolveAgentDir({ cacheDir: rawCache });
   return { mode: rawBackend, port, agentDir, ...(app === undefined ? {} : { app }), ...(contextId === undefined ? {} : { contextId }) };
 }
@@ -975,7 +982,7 @@ async function cmdStatus(rest: string[]): Promise<void> {
   if (app === undefined || extra !== undefined) {
     throw invalid("usage: status <app-or-url> [--cookie <name>]...");
   }
-  const cacheDir = values["cache-dir"] ?? process.env["PWA_NAV_CACHE_DIR"];
+  const cacheDir = values["cache-dir"] ?? readEnv(process.env, "BROWSER_NAV_CACHE_DIR", "PWA_NAV_CACHE_DIR");
   const result = await statusTool(
     { app, ...(values.cookie === undefined ? {} : { cookies: values.cookie }) },
     cacheDir === undefined ? {} : { cacheDir },

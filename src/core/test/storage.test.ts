@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import {
   findProjectRoot,
+  getGlobalDataDir,
+  readEnv,
   resolveAgentDir,
   resolveAppScreenMapPath,
   resolveScreensDir,
@@ -183,18 +185,67 @@ describe("storage and root detection", () => {
       });
     });
 
-    it("resolves mode 'fallback' to ~/.pwa-nav when outside any project", async () => {
+    it("resolves mode 'fallback' to ~/.browser-nav (or existing ~/.pwa-nav) when outside any project", async () => {
       await withTmp((isolated) => {
         const res = resolveEffectiveStorage({}, {}, isolated);
         assert.equal(res.mode, "fallback");
         assert.equal(res.workspaceDir, null);
-        assert.ok(res.agentDir.endsWith(".pwa-nav"));
+        assert.ok(res.agentDir.endsWith(".browser-nav") || res.agentDir.endsWith(".pwa-nav"));
       });
     });
 
     it("resolveAppScreenMapPath produces canonical path under apps/<appSlug>/screens.json", () => {
       const canonical = resolveAppScreenMapPath(join("mock", "agent"), "my-app");
       assert.equal(canonical, join("mock", "agent", "apps", "my-app", "screens.json"));
+    });
+
+    it("spec 028 R4: resolves BROWSER_NAV_* env vars with precedence over legacy PWA_NAV_* fallback", () => {
+      // Given both canonical BROWSER_NAV_* and legacy PWA_NAV_* variables
+      assert.equal(
+        readEnv({ BROWSER_NAV_CACHE_DIR: "/canonical/cache", PWA_NAV_CACHE_DIR: "/legacy/cache" }, "BROWSER_NAV_CACHE_DIR", "PWA_NAV_CACHE_DIR"),
+        "/canonical/cache",
+      );
+      assert.equal(
+        readEnv({ BROWSER_NAV_CACHE_DIR: "   ", PWA_NAV_CACHE_DIR: "/legacy/cache" }, "BROWSER_NAV_CACHE_DIR", "PWA_NAV_CACHE_DIR"),
+        "/legacy/cache",
+      );
+      assert.equal(readEnv({}, "BROWSER_NAV_CACHE_DIR", "PWA_NAV_CACHE_DIR"), undefined);
+
+      // When resolving agentDir and screensDir with BROWSER_NAV_*
+      assert.equal(resolveAgentDir({}, { BROWSER_NAV_CACHE_DIR: "/browser-nav/cache" }), resolve("/browser-nav/cache"));
+      assert.equal(
+        resolveAgentDir({}, { BROWSER_NAV_CACHE_DIR: "/browser-nav/cache", PWA_NAV_CACHE_DIR: "/pwa-nav/cache" }),
+        resolve("/browser-nav/cache"),
+      );
+      assert.equal(resolveScreensDir({}, { BROWSER_NAV_SCREENS_DIR: "bnav-screens" }), resolve(process.cwd(), "bnav-screens"));
+      assert.equal(
+        resolveScreensDir({}, { BROWSER_NAV_SCREENS_DIR: "bnav-screens", PWA_NAV_SCREENS_DIR: "pwa-screens" }),
+        resolve(process.cwd(), "bnav-screens"),
+      );
+
+      const eff = resolveEffectiveStorage(
+        {},
+        { BROWSER_NAV_CACHE_DIR: "/bnav/cache", BROWSER_NAV_SCREENS_DIR: "/bnav/screens" },
+        "/cwd",
+      );
+      assert.equal(eff.agentDir, resolve("/bnav/cache"));
+      assert.equal(eff.screensDir, resolve("/bnav/screens"));
+      assert.equal(eff.mode, "custom");
+    });
+
+    it("spec 028 R5: getGlobalDataDir prefers ~/.browser-nav and falls back to existing ~/.pwa-nav when ~/.browser-nav does not exist", () => {
+      const mockHome = "/home/tester";
+      const canonicalPath = join(mockHome, ".browser-nav");
+      const legacyPath = join(mockHome, ".pwa-nav");
+
+      // Given neither directory exists on disk -> prefers ~/.browser-nav
+      assert.equal(getGlobalDataDir(mockHome, () => false), canonicalPath);
+
+      // Given only legacy ~/.pwa-nav exists on disk -> falls back to ~/.pwa-nav
+      assert.equal(getGlobalDataDir(mockHome, (p) => p === legacyPath), legacyPath);
+
+      // Given both ~/.browser-nav and ~/.pwa-nav exist on disk -> prefers ~/.browser-nav
+      assert.equal(getGlobalDataDir(mockHome, () => true), canonicalPath);
     });
   });
 });

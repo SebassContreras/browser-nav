@@ -2,8 +2,10 @@ import { access, mkdir, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { PwaNavError } from "./errors.js";
 import { FileAppRegistry, extractAllowedOrigins } from "./app-registry.js";
+import { readEnv } from "./storage.js";
 
 export const DEFAULT_AGENT_DIR = ".agent";
+export const CANONICAL_KILL_SWITCH_ENV = "BROWSER_NAV_KILL_SWITCH";
 export const KILL_SWITCH_ENV = "PWA_NAV_KILL_SWITCH";
 
 export type GateDecision =
@@ -58,8 +60,8 @@ export function decideAction(input: GateInput): GateDecision {
 }
 
 export function killSwitchPath(env: NodeJS.ProcessEnv = process.env): string {
-  const fromEnv = env[KILL_SWITCH_ENV];
-  return fromEnv !== undefined && fromEnv !== "" ? fromEnv : join(DEFAULT_AGENT_DIR, "kill");
+  const fromEnv = readEnv(env, CANONICAL_KILL_SWITCH_ENV, KILL_SWITCH_ENV);
+  return fromEnv !== undefined ? fromEnv : join(DEFAULT_AGENT_DIR, "kill");
 }
 
 export async function isKillSwitchActive(path: string = killSwitchPath()): Promise<boolean> {

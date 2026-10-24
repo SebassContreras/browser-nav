@@ -36,8 +36,13 @@ function baseEnv(dir: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv 
   const env: NodeJS.ProcessEnv = { ...process.env };
   // Never inherit backend overrides, and point the default port at a closed one: a test
   // that forgets --port must hit connection-refused instead of a real browser on 9222.
+  delete env["BROWSER_NAV_BACKEND"];
   delete env["PWA_NAV_BACKEND"];
+  delete env["BROWSER_NAV_SCREENS_DIR"];
   delete env["PWA_NAV_SCREENS_DIR"];
+  delete env["BROWSER_NAV_PORT"];
+  delete env["BROWSER_NAV_KILL_SWITCH"];
+  delete env["BROWSER_NAV_CACHE_DIR"];
   return {
     ...env,
     PWA_NAV_PORT: String(CLOSED_PORT),
@@ -569,5 +574,35 @@ test("cli: wait command finds element or times out", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("spec 028 R3 & R4: package.json exposes browser-nav, bnav, and pwa-nav CLI bins and CLI honors BROWSER_NAV_* env vars", async () => {
+  // Given package.json at repository root (R3)
+  const pkgPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../package.json");
+  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as { bin: Record<string, string> };
+  assert.equal(pkg.bin["browser-nav"], "./dist/cli.js");
+  assert.equal(pkg.bin["bnav"], "./dist/cli.js");
+  assert.equal(pkg.bin["pwa-nav"], "./dist/cli.js");
+  assert.equal(pkg.bin["browser-nav-mcp"], "./dist/mcp.js");
+  assert.equal(pkg.bin["pwa-nav-mcp"], "./dist/mcp.js");
+
+  // Given a CLI invocation using BROWSER_NAV_PORT, BROWSER_NAV_BACKEND, BROWSER_NAV_CACHE_DIR, and BROWSER_NAV_KILL_SWITCH (R4)
+  await withDir(async (dir) => {
+    const customCache = join(dir, "bnav-cache");
+    const openRes = await run(dir, ["open", "https://bnav.test/"], {
+      BROWSER_NAV_BACKEND: "offline",
+      BROWSER_NAV_CACHE_DIR: customCache,
+    });
+    assert.equal(openRes.status, 0, openRes.stderr);
+    assert.equal(existsSync(join(customCache, "session.json")), true);
+
+    const bnavKill = join(dir, "bnav-kill-file");
+    await writeFile(bnavKill, "", "utf8");
+    const killedRes = await run(dir, ["open", "https://bnav.test/", "--allow-origin"], {
+      BROWSER_NAV_PORT: String(CLOSED_PORT),
+      BROWSER_NAV_KILL_SWITCH: bnavKill,
+    });
+    assert.equal(killedRes.status, 7, killedRes.stderr);
+  });
 });
 

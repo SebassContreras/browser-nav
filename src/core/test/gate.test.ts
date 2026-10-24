@@ -69,7 +69,12 @@ test("invalid origin => origin_blocked", () => {
   assert.equal(blockedCode(decideAction({ ...base, origin: "about:blank" })), "origin_blocked");
 });
 
-test("kill-switch path honors env override", () => {
+test("kill-switch path honors env override (BROWSER_NAV_KILL_SWITCH and legacy PWA_NAV_KILL_SWITCH)", () => {
+  assert.equal(killSwitchPath({ BROWSER_NAV_KILL_SWITCH: "/x/bnav-stop" }), "/x/bnav-stop");
+  assert.equal(
+    killSwitchPath({ BROWSER_NAV_KILL_SWITCH: "/x/bnav-stop", PWA_NAV_KILL_SWITCH: "/x/legacy-stop" }),
+    "/x/bnav-stop",
+  );
   assert.equal(killSwitchPath({ PWA_NAV_KILL_SWITCH: "/x/stop" }), "/x/stop");
   assert.equal(killSwitchPath({}), join(".agent", "kill"));
 });

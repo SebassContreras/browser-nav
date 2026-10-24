@@ -1,0 +1,273 @@
+diff --git a/src/mcp/test/mcp-download.test.ts b/src/mcp/test/mcp-download.test.ts
+index bc46df4..f0e6946 100644
+--- a/src/mcp/test/mcp-download.test.ts
++++ b/src/mcp/test/mcp-download.test.ts
+@@ -6,7 +6,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+ import { createMcpServer } from "../mcp-server.js";
+ import { OfflineBackend } from "../../backend/backend.js";
+ 
+-test("mcp-server: exposes pwa_download tool in tool list", async () => {
++test("mcp-server: exposes browser_download tool in tool list and supports pwa_download alias", async () => {
+   const backend = new OfflineBackend({ agentDir: resolve("./.agent") });
+   const server = createMcpServer({
+     backendFactory: () => backend,
+@@ -20,11 +20,11 @@ test("mcp-server: exposes pwa_download tool in tool list", async () => {
+   await client.connect(clientTransport);
+ 
+   const tools = await client.listTools();
+-  const downloadTool = tools.tools.find((t) => t.name === "pwa_download");
+-  assert.ok(downloadTool, "pwa_download tool must be present in MCP tool list");
++  const downloadTool = tools.tools.find((t) => t.name === "browser_download");
++  assert.ok(downloadTool, "browser_download tool must be present in MCP tool list");
+   assert.match(downloadTool.description ?? "", /Download a remote media asset/);
+ 
+-  // Call pwa_download with url in dry-run mode
++  // Call legacy alias pwa_download with url in dry-run mode
+   const res = (await client.callTool({
+     name: "pwa_download",
+     arguments: { url: "https://example.com/logo.svg" },
+diff --git a/src/mcp/test/mcp-server.test.ts b/src/mcp/test/mcp-server.test.ts
+index 5093e8a..aed20be 100644
+--- a/src/mcp/test/mcp-server.test.ts
++++ b/src/mcp/test/mcp-server.test.ts
+@@ -16,7 +16,7 @@ import type { RawElement } from "../../browser/collector.js";
+ import { EXIT_CODES, PwaNavError, type ErrorCode } from "../../core/errors.js";
+ import { buildFlowTools, flowToolNames, loadFlowSource, MAX_FLOW_DESCRIPTION } from "../mcp-flows.js";
+ import { BASE_INSTRUCTIONS, buildServerInstructions, createMcpServer, toolError } from "../mcp-server.js";
+-import { EXTRACT_INLINE_CAP } from "../mcp-tools.js";
++import { EXTRACT_INLINE_CAP, LEGACY_TOOL_ALIASES, resolveToolName } from "../mcp-tools.js";
+ import { learnScreen } from "../../screens/screen-learn.js";
+ import type { ScreenFlow, ScreenMap } from "../../screens/screen-map.js";
+ 
+@@ -172,22 +172,22 @@ test("tools/list: names, schemas compile under Ajv 2020, annotations, no armed f
+   await withMcp({}, async ({ client }) => {
+     const { tools } = await client.listTools();
+     assert.deepEqual(tools.map((t) => t.name).sort(), [
+-      "pwa_act",
+-      "pwa_auth",
+-      "pwa_click",
+-      "pwa_config",
+-      "pwa_discover",
+-      "pwa_download",
+-      "pwa_extract",
+-      "pwa_fill",
+-      "pwa_find",
+-      "pwa_install_runtime",
+-      "pwa_learn",
+-      "pwa_open",
+-      "pwa_screenshot",
+-      "pwa_snapshot",
+-      "pwa_upload",
+-      "pwa_wait",
++      "browser_act",
++      "browser_auth",
++      "browser_click",
++      "browser_config",
++      "browser_discover",
++      "browser_download",
++      "browser_extract",
++      "browser_fill",
++      "browser_find",
++      "browser_install_runtime",
++      "browser_open",
++      "browser_screenshot",
++      "browser_snapshot",
++      "browser_upload",
++      "browser_wait",
++      "screen_learn",
+     ]);
+     const ajv = new Ajv2020({ allErrors: true, strict: true });
+     for (const tool of tools) {
+@@ -196,14 +196,14 @@ test("tools/list: names, schemas compile under Ajv 2020, annotations, no armed f
+       assert.ok(tool.description !== undefined && tool.description.length > 0);
+     }
+     const by = new Map(tools.map((t) => [t.name, t.annotations]));
+-    for (const name of ["pwa_snapshot", "pwa_extract", "pwa_find", "pwa_screenshot", "pwa_wait"]) assert.equal(by.get(name)?.readOnlyHint, true, name);
+-    for (const name of ["pwa_click", "pwa_fill", "pwa_upload", "pwa_act"]) {
++    for (const name of ["browser_snapshot", "browser_extract", "browser_find", "browser_screenshot", "browser_wait"]) assert.equal(by.get(name)?.readOnlyHint, true, name);
++    for (const name of ["browser_click", "browser_fill", "browser_upload", "browser_act"]) {
+       assert.equal(by.get(name)?.destructiveHint, true, name);
+       assert.equal(by.get(name)?.openWorldHint, true, name);
+       assert.equal(by.get(name)?.readOnlyHint, false, name);
+     }
+-    assert.equal(by.get("pwa_open")?.openWorldHint, true);
+-    assert.equal(by.get("pwa_open")?.destructiveHint, false);
++    assert.equal(by.get("browser_open")?.openWorldHint, true);
++    assert.equal(by.get("browser_open")?.destructiveHint, false);
+   });
+ });
+ 
+@@ -948,20 +948,20 @@ test("MCP initialization handshake instructions declare primary authentic browse
+     // And explicitly warn that synthetic Python, Playwright, and Selenium scripts trigger Cloudflare, CAPTCHAs, and bot-walls (R3)
+     assert.match(instructions, /NEVER write or execute synthetic Python, Playwright, Puppeteer, Selenium/i);
+     assert.match(instructions, /Cloudflare, CAPTCHAs, login walls, and bot-walls/i);
+-    assert.match(instructions, /Always prioritize native pwa_\* MCP tools/i);
++    assert.match(instructions, /Always prioritize native browser_\* \(or pwa_\*\) MCP tools/i);
+     return Promise.resolve();
+   });
+ });
+ 
+-test("pwa_open and tool manifest descriptions welcome general web navigation and clearly explain direct browser automation", async () => {
++test("browser_open and tool manifest descriptions welcome general web navigation and clearly explain direct browser automation", async () => {
+   // Given a connected MCP client-server session
+   await withMcp({}, async ({ client }) => {
+     // When listing all registered MCP tools
+     const { tools } = await client.listTools();
+     const byName = new Map(tools.map((t) => [t.name, t]));
+ 
+-    // Then pwa_open has a neutral, welcoming description for general web navigation without prohibitive 'Do NOT call... to browse' language (R1)
+-    const openToolDef = byName.get("pwa_open");
++    // Then browser_open has a neutral, welcoming description for general web navigation without prohibitive 'Do NOT call... to browse' language (R1)
++    const openToolDef = byName.get("browser_open");
+     assert.ok(openToolDef !== undefined);
+     const openDesc = openToolDef.description ?? "";
+     assert.match(openDesc, /Open or navigate the browser window to any target website, URL, domain, or web application/i);
+@@ -973,17 +973,95 @@ test("pwa_open and tool manifest descriptions welcome general web navigation and
+     assert.match(openProps["launch"]?.description ?? "", /Launch the browser runtime/i);
+ 
+     // And every core tool clearly explains its role in direct browser automation without installed-PWA-only ambiguity (R4)
+-    assert.match(byName.get("pwa_snapshot")?.description ?? "", /Inspect the active browser window in text/i);
+-    assert.match(byName.get("pwa_click")?.description ?? "", /interactive control in the live browser window/i);
+-    assert.match(byName.get("pwa_fill")?.description ?? "", /search box, textarea, or rich contenteditable editor in the live browser window/i);
+-    assert.match(byName.get("pwa_find")?.description ?? "", /in the live browser snapshot/i);
+-    assert.match(byName.get("pwa_act")?.description ?? "", /Execute a batch of browser actions in a single turn/i);
+-    assert.match(byName.get("pwa_learn")?.description ?? "", /active browser page into the persistent screen map/i);
+-    assert.match(byName.get("pwa_wait")?.description ?? "", /DOM state change, or background async process in the live browser/i);
+-    assert.match(byName.get("pwa_auth")?.description ?? "", /login-walled websites and web apps/i);
++    assert.match(byName.get("browser_snapshot")?.description ?? "", /Inspect the active browser window in text/i);
++    assert.match(byName.get("browser_click")?.description ?? "", /interactive control in the live browser window/i);
++    assert.match(byName.get("browser_fill")?.description ?? "", /search box, textarea, or rich contenteditable editor in the live browser window/i);
++    assert.match(byName.get("browser_find")?.description ?? "", /in the live browser snapshot/i);
++    assert.match(byName.get("browser_act")?.description ?? "", /Execute a batch of browser actions in a single turn/i);
++    assert.match(byName.get("screen_learn")?.description ?? "", /active browser page into the persistent screen map/i);
++    assert.match(byName.get("browser_wait")?.description ?? "", /DOM state change, or background async process in the live browser/i);
++    assert.match(byName.get("browser_auth")?.description ?? "", /login-walled websites and web apps/i);
+     assert.doesNotMatch(
+-      ((byName.get("pwa_auth")?.inputSchema as { properties?: Record<string, { description?: string }> }).properties ?? {})["app"]?.description ?? "",
++      ((byName.get("browser_auth")?.inputSchema as { properties?: Record<string, { description?: string }> }).properties ?? {})["app"]?.description ?? "",
+       /installed PWA/i,
+     );
+   });
+ });
++
++test("spec 028 R1 & R2: MCP manifest declares canonical browser_* and screen_learn names while transparently routing legacy pwa_* calls", async () => {
++  // Given the pure alias resolver
++  assert.equal(resolveToolName("pwa_open"), "browser_open");
++  assert.equal(resolveToolName("pwa_learn"), "screen_learn");
++  assert.equal(resolveToolName("browser_open"), "browser_open");
++  assert.equal(resolveToolName("screen_learn"), "screen_learn");
++  assert.equal(Object.keys(LEGACY_TOOL_ALIASES).length, 16);
++
++  // Given a connected MCP client-server session
++  await withMcp({ armed: false }, async ({ client, agentDir }) => {
++    await allow(agentDir);
++
++    // When listing tools in the MCP manifest (R1)
++    const { tools } = await client.listTools();
++    const manifestNames = tools.map((t) => t.name).sort();
++
++    // Then the manifest declares all 15 canonical browser_* tools and screen_learn, and zero legacy pwa_* names
++    assert.deepEqual(manifestNames, [
++      "browser_act",
++      "browser_auth",
++      "browser_click",
++      "browser_config",
++      "browser_discover",
++      "browser_download",
++      "browser_extract",
++      "browser_fill",
++      "browser_find",
++      "browser_install_runtime",
++      "browser_open",
++      "browser_screenshot",
++      "browser_snapshot",
++      "browser_upload",
++      "browser_wait",
++      "screen_learn",
++    ]);
++
++    // When calling canonical browser_* and screen_learn tools (R1)
++    const canonicalOpen = await call(client, "browser_open", { url: `${ORIGIN}/login` });
++    assert.equal(canonicalOpen.isError, false, canonicalOpen.text);
++
++    const canonicalClick = await call(client, "browser_click", { target: "@show-password" });
++    assert.equal(canonicalClick.isError, false, canonicalClick.text);
++
++    const canonicalSnap = await call(client, "browser_snapshot", {});
++    assert.equal(canonicalSnap.isError, false, canonicalSnap.text);
++    const snapId = canonicalSnap.structured["snapshotId"] as string;
++
++    const canonicalFill = await call(client, "browser_fill", { snapshotId: snapId, ref: "e1", text: "user@example.com" });
++    assert.equal(canonicalFill.isError, false, canonicalFill.text);
++
++    const canonicalFind = await call(client, "browser_find", { query: "Sign in" });
++    assert.equal(canonicalFind.isError, false, canonicalFind.text);
++
++    const canonicalLearn = await call(client, "screen_learn", { locale: "en", appId: "demo-app" });
++    assert.equal(canonicalLearn.isError, false, canonicalLearn.text);
++
++    // When calling legacy pwa_* aliases (R2)
++    const legacyOpen = await call(client, "pwa_open", { url: `${ORIGIN}/login` });
++    assert.equal(legacyOpen.isError, false, legacyOpen.text);
++
++    const legacyClick = await call(client, "pwa_click", { target: "@show-password" });
++    assert.equal(legacyClick.isError, false, legacyClick.text);
++
++    const legacySnap = await call(client, "pwa_snapshot", {});
++    assert.equal(legacySnap.isError, false, legacySnap.text);
++    const legacySnapId = legacySnap.structured["snapshotId"] as string;
++
++    const legacyFill = await call(client, "pwa_fill", { snapshotId: legacySnapId, ref: "e1", text: "user@example.com" });
++    assert.equal(legacyFill.isError, false, legacyFill.text);
++
++    const legacyFind = await call(client, "pwa_find", { query: "Sign in" });
++    assert.equal(legacyFind.isError, false, legacyFind.text);
++
++    const legacyLearn = await call(client, "pwa_learn", { locale: "en", appId: "demo-app" });
++    assert.equal(legacyLearn.isError, false, legacyLearn.text);
++  });
++});
+diff --git a/src/mcp/test/mcp.bidi.stdio.test.ts b/src/mcp/test/mcp.bidi.stdio.test.ts
+index e07b022..c4c7f1d 100644
+--- a/src/mcp/test/mcp.bidi.stdio.test.ts
++++ b/src/mcp/test/mcp.bidi.stdio.test.ts
+@@ -191,23 +191,23 @@ test("stdio+bidi: tools/resources, open blocked then allowed, snapshot, dry-run
+     await withClient(env, ["--dry-run"], async (client) => {
+       const { tools } = await client.listTools();
+       assert.deepEqual(tools.map((t) => t.name).sort(), [
++        "browser_act",
++        "browser_auth",
++        "browser_click",
++        "browser_config",
++        "browser_discover",
++        "browser_download",
++        "browser_extract",
++        "browser_fill",
++        "browser_find",
++        "browser_install_runtime",
++        "browser_open",
++        "browser_screenshot",
++        "browser_snapshot",
++        "browser_upload",
++        "browser_wait",
+         "flow_search_search",
+-        "pwa_act",
+-        "pwa_auth",
+-        "pwa_click",
+-        "pwa_config",
+-        "pwa_discover",
+-        "pwa_download",
+-        "pwa_extract",
+-        "pwa_fill",
+-        "pwa_find",
+-        "pwa_install_runtime",
+-        "pwa_learn",
+-        "pwa_open",
+-        "pwa_screenshot",
+-        "pwa_snapshot",
+-        "pwa_upload",
+-        "pwa_wait",
++        "screen_learn",
+       ]);
+       assert.match(client.getInstructions() ?? "", /private \(screen search\)/);
+       const { resources } = await client.listResources();

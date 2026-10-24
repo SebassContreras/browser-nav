@@ -206,19 +206,19 @@ If you linked globally, you can also specify the binary command directly:
 
 #### 2. Key MCP Tools Available to Agents
 
-| MCP Tool | Description |
-|---|---|
-| `pwa_open` | Opens an installed PWA by slug/name (e.g. `"notebook"`) or navigates to an approved URL. |
-| `pwa_auth` | Assisted login workflow for Google Accounts and anti-bot protected login pages. |
-| `pwa_snapshot` | Inspects the active screen in clean text (`screen: true` for compact screen map view). |
-| `pwa_find` | Fast element search across accessible names, roles, placeholders, and modal dialogs. |
-| `pwa_click` | Clicks elements by semantic `@id` (e.g. `@submit-btn`) or ref (`e1`). |
-| `pwa_fill` | Types text into inputs, textareas, and rich `contenteditable` editors. |
-| `pwa_upload` | Safely uploads local files to `<input type="file">`. |
-| `pwa_download` | On-demand download of remote media assets or in-page SVG/image/video extraction. |
-| `pwa_wait` | Deterministically waits for background AI generation or DOM conditions (no arbitrary sleeps). |
-| `pwa_learn` | Autonomously learns and persists new screen maps into `screens/<app>.screens.json`. |
-| `pwa_act` | Executes batched mutations (e.g. `fill:@input=query`, `click:@submit`) in a single BiDi turn. |
+| MCP Tool (Canonical) | Legacy Alias | Description |
+|---|---|---|
+| `browser_open` | `pwa_open` | Opens a website, domain, app alias (e.g. `"notebook"`), or full URL in the authenticated browser. |
+| `browser_auth` | `pwa_auth` | Assisted login workflow for Google Accounts and anti-bot protected login pages. |
+| `browser_snapshot` | `pwa_snapshot` | Inspects the active screen in clean text (`screen: true` for compact screen map view). |
+| `browser_find` | `pwa_find` | Fast element search across accessible names, roles, placeholders, and modal dialogs. |
+| `browser_click` | `pwa_click` | Clicks elements by semantic `@id` (e.g. `@submit-btn`) or ref (`e1`). |
+| `browser_fill` | `pwa_fill` | Types text into inputs, textareas, and rich `contenteditable` editors. |
+| `browser_upload` | `pwa_upload` | Safely uploads local files to `<input type="file">`. |
+| `browser_download` | `pwa_download` | On-demand download of remote media assets or in-page SVG/image/video extraction. |
+| `browser_wait` | `pwa_wait` | Deterministically waits for background AI generation or DOM conditions (no arbitrary sleeps). |
+| `screen_learn` | `pwa_learn` | Autonomously learns and persists new screen maps into `.agent/apps/<appSlug>/screens.json`. |
+| `browser_act` | `pwa_act` | Executes batched mutations (e.g. `fill:@input=query`, `click:@submit`) in a single BiDi turn. |
 
 ---
 
