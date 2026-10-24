@@ -1,0 +1,149 @@
+diff --git a/src/screens/screen-learn.ts b/src/screens/screen-learn.ts
+index 3810659..41f7b48 100644
+--- a/src/screens/screen-learn.ts
++++ b/src/screens/screen-learn.ts
+@@ -52,6 +52,13 @@ const SENSITIVE_AUTOCOMPLETE: ReadonlySet<string> = new Set(["current-password",
+ const SENSITIVE_NAME = /pass|pwd|contrase|token|otp|secret|clave/i;
+ const TOGGLE_NAME = /^(show|hide|toggle|mostrar|ocultar|alternar)\b/i;
+ 
++const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
++const NUMERIC_ID_SEGMENT = /^\d{4,}$/;
++const HEX_HASH_SEGMENT = /^(?:(?=.*[0-9])(?=.*[a-f])[0-9a-f]{8,}|[0-9a-f]{16,})$/i;
++const PREFIXED_TOKEN_SEGMENT = /^\d+-[A-Za-z0-9_-]{8,}=*$/;
++const PADDED_BASE64_SEGMENT = /^[A-Za-z0-9_-]{8,}={1,2}$/;
++const HIGH_ENTROPY_TOKEN_SEGMENT = /^(?:(?=.*[A-Za-z])(?=.*[0-9])|(?=.*[a-z])(?=.*[A-Z]))[A-Za-z0-9_-]{16,}=*$/;
++
+ /** NFD-fold to ASCII, lowercase, non-alphanumeric runs -> `-`, trimmed. May return "". */
+ export function slugify(text: string): string {
+   return text
+@@ -62,7 +69,111 @@ export function slugify(text: string): string {
+     .replace(/^-+|-+$/g, "");
+ }
+ 
+-/** Screen id from the literal pathname: `/login` -> `login`, `/` -> `home`. Params are NOT inferred. */
++function safeDecodeSegment(segment: string): string {
++  try {
++    return decodeURIComponent(segment);
++  } catch {
++    return segment;
++  }
++}
++
++/** True when a URL path segment matches a variable entity ID, UUID, hex hash, or base64/high-entropy token. */
++export function isDynamicSegment(segment: string): boolean {
++  if (segment === "" || segment.startsWith(":")) {
++    return false;
++  }
++  const decoded = safeDecodeSegment(segment);
++  return (
++    UUID_SEGMENT.test(decoded) ||
++    NUMERIC_ID_SEGMENT.test(decoded) ||
++    HEX_HASH_SEGMENT.test(decoded) ||
++    PREFIXED_TOKEN_SEGMENT.test(decoded) ||
++    PADDED_BASE64_SEGMENT.test(decoded) ||
++    HIGH_ENTROPY_TOKEN_SEGMENT.test(decoded)
++  );
++}
++
++function singularizeWord(word: string): string {
++  if (word.length > 3 && word.endsWith("ies")) {
++    return `${word.slice(0, -3)}y`;
++  }
++  if (word.length > 4 && /(?:ches|shes|xes|zes|ses)$/.test(word)) {
++    return word.slice(0, -2);
++  }
++  if (word.length > 2 && word.endsWith("s") && !/(?:ss|us|is)$/.test(word)) {
++    return word.slice(0, -1);
++  }
++  return word;
++}
++
++/** Infers a deterministic camelCase parameter name from the preceding path segment (or fallback). */
++export function inferParamName(precedingSegment?: string, usedNames: ReadonlySet<string> = new Set()): string {
++  let base = "";
++  if (precedingSegment !== undefined && precedingSegment !== "" && !precedingSegment.startsWith(":")) {
++    const slug = slugify(safeDecodeSegment(precedingSegment));
++    const parts = slug.split("-").filter((part) => part !== "" && !/^\d+$/.test(part));
++    if (parts.length > 0) {
++      const normalized = parts.map((part, idx) => (idx === parts.length - 1 ? singularizeWord(part) : part));
++      const camel = normalized
++        .map((part, idx) => (idx === 0 ? part : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`))
++        .join("");
++      if (/^[a-zA-Z_]/.test(camel)) {
++        base = camel.endsWith("Id") ? camel : `${camel}Id`;
++      }
++    }
++  }
++
++  if (base === "") {
++    if (!usedNames.has("id")) {
++      return "id";
++    }
++    let index = 2;
++    while (usedNames.has(`param${index.toString()}`)) {
++      index += 1;
++    }
++    return `param${index.toString()}`;
++  }
++
++  let candidate = base;
++  for (let suffix = 2; usedNames.has(candidate); suffix += 1) {
++    candidate = `${base}${suffix.toString()}`;
++  }
++  return candidate;
++}
++
++/** Replaces dynamic URL path segments with deterministic `:param` placeholders. */
++export function parameterizeRoute(pathname: string): string {
++  const trimmed = pathname.startsWith("/") ? pathname.slice(1) : pathname;
++  const clean = trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
++  if (clean === "") {
++    return "/";
++  }
++  const rawSegments = clean.split("/").filter((s) => s !== "");
++  if (rawSegments.length === 0) {
++    return "/";
++  }
++  const usedParams = new Set<string>();
++  for (const seg of rawSegments) {
++    if (seg.startsWith(":") && seg.length > 1) {
++      usedParams.add(seg.slice(1));
++    }
++  }
++  const out: string[] = [];
++  for (let i = 0; i < rawSegments.length; i += 1) {
++    const seg = rawSegments[i] ?? "";
++    if (isDynamicSegment(seg)) {
++      const prev = i > 0 ? rawSegments[i - 1] : undefined;
++      const paramName = inferParamName(prev, usedParams);
++      usedParams.add(paramName);
++      out.push(`:${paramName}`);
++    } else {
++      out.push(seg);
++    }
++  }
++  return `/${out.join("/")}`;
++}
++
++/** Screen id from the pathname or route pattern: `/login` -> `login`, `/` -> `home`. */
+ export function screenIdFromRoute(route: string): string {
+   const slug = slugify(route);
+   if (slug !== "") {
+@@ -158,11 +269,10 @@ function locatorOf(raw: RawElement): Locator {
+ }
+ 
+ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options: LearnOptions = {}): Screen {
+-  const route = new URL(page.url).pathname;
++  const route = parameterizeRoute(new URL(page.url).pathname);
+   const submitNames = options.submitNames ?? new Set<string>();
+ 
+   // Classify first (dropping ignored roles and hrefless links) so ids are assigned over survivors only.
+-  // Classify first (dropping ignored roles and hrefless links)
+   const allEntries: { raw: RawElement; kind: Kind; link?: { href: string; external: boolean } }[] = [];
+   for (const element of raw) {
+     const kind = kindOf(element.role);
+@@ -417,4 +527,3 @@ function nestBranchIntoActionList(
+   }
+   return false;
+ }
+-

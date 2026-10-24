@@ -1,0 +1,64 @@
+diff --git a/src/screens/test/screen-match.test.ts b/src/screens/test/screen-match.test.ts
+index e21a03f..7eb8d87 100644
+--- a/src/screens/test/screen-match.test.ts
++++ b/src/screens/test/screen-match.test.ts
+@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
+ import { describe, it } from "node:test";
+ import { fileURLToPath } from "node:url";
+ import { PwaNavError } from "../../core/errors.js";
++import { learnScreen } from "../screen-learn.js";
+ import { ScreenMapError } from "../screen-map.js";
+ import type { Screen, ScreenMap } from "../screen-map.js";
+ import {
+@@ -20,6 +21,7 @@ import {
+   routeSpecificity,
+   selectMap,
+ } from "../screen-match.js";
++import { renderScreenView } from "../screen-view.js";
+ 
+ const EXAMPLE = fileURLToPath(new URL("../../../examples/screens/demo-app.screens.json", import.meta.url));
+ 
+@@ -166,6 +168,43 @@ describe("findScreen", () => {
+     const example = await loadExplicitMap(EXAMPLE);
+     assert.equal(findScreen(example, "http://localhost:8080/login").screen.id, "login");
+   });
++
++  it("resolves auto-parameterized SPA routes against unseen dynamic URLs and renders compact view", () => {
++    const learned = learnScreen(
++      [{ role: "button", name: "Send", nameSource: "content", occurrence: 0, buttonType: "submit" }],
++      {
++        url: "https://www.linkedin.com/messaging/thread/2-ZjhmMGE2NDUtMTIzNC01Njc4LTkwYWItY2RlZjAxMjM0NTY3/",
++        title: "Messaging",
++        appOrigin: "https://www.linkedin.com",
++      },
++      { access: "authenticated" },
++    );
++    const spaMap: ScreenMap = {
++      schemaVersion: "1.0.0",
++      app: {
++        id: "linkedin-com",
++        name: "LinkedIn",
++        origin: "https://www.linkedin.com",
++        locale: "en",
++        learnedAt: "2026-10-01T00:00:00Z",
++      },
++      screens: [learned],
++    };
++
++    const resolved = findScreen(
++      spaMap,
++      "https://www.linkedin.com/messaging/thread/2-OTk5OTk5OTktYWJjZC1lZjAxLTIzNDUtNjc4OWFiY2RlZjAx/?filter=unread",
++    );
++    assert.equal(resolved.screen.id, "messaging-thread-threadid");
++    assert.equal(resolved.screen.route, "/messaging/thread/:threadId");
++    assert.deepEqual(resolved.params, {
++      threadId: "2-OTk5OTk5OTktYWJjZC1lZjAxLTIzNDUtNjc4OWFiY2RlZjAx",
++    });
++
++    const compactView = renderScreenView(resolved.screen);
++    assert.match(compactView, /^messaging-thread-threadid \/messaging\/thread\/:threadId authenticated fp:[0-9a-f]{8}/);
++    assert.match(compactView, /actions: @send button "Send" submit/);
++  });
+ });
+ 
+ describe("selectMap", () => {
