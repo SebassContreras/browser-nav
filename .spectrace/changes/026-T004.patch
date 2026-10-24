@@ -1,0 +1,74 @@
+diff --git a/src/screens/test/screen-filtering.test.ts b/src/screens/test/screen-filtering.test.ts
+index 5f6b932..ec37c32 100644
+--- a/src/screens/test/screen-filtering.test.ts
++++ b/src/screens/test/screen-filtering.test.ts
+@@ -6,8 +6,9 @@ import { JSDOM } from "jsdom";
+ import { collectInteractive, type RawElement } from "../../browser/collector.js";
+ import { buildLiveSnapshot } from "../../browser/live-snapshot.js";
+ import { findByLocator } from "../../browser/locate.js";
+-import { isAnonymousListCheckbox, isQuickReactionControl, learnScreen } from "../screen-learn.js";
++import { isAnonymousListCheckbox, isQuickReactionControl, learnScreen, scrubMutableBadgeCounts } from "../screen-learn.js";
+ import { mergeScreen } from "../screen-merge.js";
++import { refFor, resolveTarget } from "../screen-resolve.js";
+ import type { Screen } from "../screen-map.js";
+ 
+ const html = readFileSync(new URL("../../../checks/fixtures/chat.html", import.meta.url), "utf8");
+@@ -133,3 +134,58 @@ test("quick-reaction buttons and emoji affirmations are excluded from permanent
+   assert.deepEqual(screen.fields.map((f) => f.id), ["escribe-un-mensaje"]);
+   assert.deepEqual(screen.actions.map((a) => a.id), ["redactar-mensaje"]);
+ });
++
++test("mutable badge and counter suffixes are scrubbed to produce stable semantic IDs and merge without zombie duplicates (R3)", () => {
++  // Given accessible names with mutable notification counts and live reader metrics
++  assert.equal(scrubMutableBadgeCounts("Notificaciones, 3 notificaciones nuevas"), "Notificaciones");
++  assert.equal(scrubMutableBadgeCounts("Notificaciones, 1 notificación nueva"), "Notificaciones");
++  assert.equal(scrubMutableBadgeCounts("Mensajes, 0 notificaciones nuevas"), "Mensajes");
++  assert.equal(scrubMutableBadgeCounts("Mi red, 0 nuevas notificaciones"), "Mi red");
++  assert.equal(scrubMutableBadgeCounts("Inicio, 1 nueva notificación"), "Inicio");
++  assert.equal(scrubMutableBadgeCounts("Notifications, 5 new notifications"), "Notifications");
++  assert.equal(scrubMutableBadgeCounts("Inbox (12 unread)"), "Inbox");
++  assert.equal(
++    scrubMutableBadgeCounts("Habrá motores de combustión en la UE más allá de 2035 Hace 3 horas • 377 lectores"),
++    "Habrá motores de combustión en la UE más allá de 2035",
++  );
++  assert.equal(scrubMutableBadgeCounts("JOIN 220.548 seguidores"), "JOIN");
++  assert.equal(scrubMutableBadgeCounts("Zip n.º 581 14 contactos han jugado"), "Zip n.º 581");
++
++  const initialElements: RawElement[] = [
++    { role: "button", name: "Inicio, 1 nueva notificación", nameSource: "aria-label", occurrence: 0 },
++    { role: "link", name: "Notificaciones, 3 notificaciones nuevas", nameSource: "aria-label", occurrence: 0, href: "http://localhost:8080/notifications" },
++    { role: "link", name: "Mensajes, 0 notificaciones nuevas", nameSource: "aria-label", occurrence: 0, href: "http://localhost:8080/messaging" },
++  ];
++
++  // When learning the screen initially
++  const firstScreen = learnScreen(initialElements, PAGE, { now: NOW });
++
++  // Then semantic IDs are clean and free of volatile numbers
++  assert.deepEqual(firstScreen.actions.map((a) => a.id), ["inicio"]);
++  assert.deepEqual(firstScreen.links.map((l) => l.id), ["notificaciones", "mensajes"]);
++
++  // When badge counts change on a subsequent visit and the screen is re-learned
++  const updatedElements: RawElement[] = [
++    { role: "button", name: "Inicio, 0 nuevas notificaciones", nameSource: "aria-label", occurrence: 0 },
++    { role: "link", name: "Notificaciones, 0 notificaciones nuevas", nameSource: "aria-label", occurrence: 0, href: "http://localhost:8080/notifications" },
++    { role: "link", name: "Mensajes, 2 notificaciones nuevas", nameSource: "aria-label", occurrence: 0, href: "http://localhost:8080/messaging" },
++  ];
++  const secondLearned = learnScreen(updatedElements, PAGE, { now: NOW });
++  const merged = mergeScreen(firstScreen, secondLearned, { now: NOW });
++
++  // Then existing IDs are preserved in place without adding zombie duplicates
++  assert.equal(merged.diff.added.length, 0);
++  assert.equal(merged.diff.missing.length, 0);
++  assert.deepEqual(merged.screen.actions.map((a) => a.id), ["inicio"]);
++  assert.deepEqual(merged.screen.links.map((l) => l.id), ["notificaciones", "mensajes"]);
++
++  // And live locator resolution still finds @notificaciones even if the live count ticks up mid-session
++  const liveTickElements: RawElement[] = [
++    { role: "link", name: "Notificaciones, 7 notificaciones nuevas", nameSource: "aria-label", occurrence: 0, href: "http://localhost:8080/notifications" },
++  ];
++  const resolved = resolveTarget(firstScreen, { id: "notificaciones" }, "click");
++  const { snapshot, locators } = buildLiveSnapshot(liveTickElements, { url: PAGE.url, title: PAGE.title }, { snapshotId: "s-badge" });
++  const ref = refFor({ snapshotId: snapshot.snapshotId, url: snapshot.url, locators }, resolved.locator, resolved, snapshot.snapshotId);
++  assert.equal(ref, "e1");
++  assert.equal(findByLocator(liveTickElements, resolved.locator)?.index, 0);
++});

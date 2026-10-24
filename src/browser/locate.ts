@@ -1,5 +1,6 @@
 // Pure live matching of a stored Locator against a fresh collector run (spec 004, T008).
 import { StaleRefError } from "../core/refs.js";
+import { scrubMutableBadgeCounts } from "../screens/screen-learn.js";
 import type { Locator } from "../screens/screen-map.js";
 import type { Snapshot } from "../core/snapshot.js";
 import type { RawElement } from "./collector.js";
@@ -30,6 +31,17 @@ export function findByLocator(
     for (let index = 0; index < raw.length; index++) {
       const element = raw[index];
       if (element !== undefined && compat.includes(element.role) && element.name === locator.name) {
+        if (seen === want) return { index, element };
+        seen++;
+      }
+    }
+  }
+  const wantedScrubbed = scrubMutableBadgeCounts(locator.name);
+  if (wantedScrubbed !== "") {
+    seen = 0;
+    for (let index = 0; index < raw.length; index++) {
+      const element = raw[index];
+      if (element?.role === locator.role && scrubMutableBadgeCounts(element.name) === wantedScrubbed) {
         if (seen === want) return { index, element };
         seen++;
       }
@@ -71,6 +83,12 @@ export function assertFresh(args: {
     const compat = COMPATIBLE_ROLES[locator.role];
     if (compat !== undefined) {
       count = live.raw.filter((e) => compat.includes(e.role) && e.name === locator.name).length;
+    }
+  }
+  if (count === 0) {
+    const wantedScrubbed = scrubMutableBadgeCounts(locator.name);
+    if (wantedScrubbed !== "") {
+      count = live.raw.filter((e) => e.role === locator.role && scrubMutableBadgeCounts(e.name) === wantedScrubbed).length;
     }
   }
   if (count === 0) {

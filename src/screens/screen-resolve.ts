@@ -4,6 +4,7 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { PwaNavError } from "../core/errors.js";
 import { StaleRefError, type LocatorSidecar } from "../core/refs.js";
+import { scrubMutableBadgeCounts } from "./screen-learn.js";
 import type { Locator, OpensBranch, Screen, ScreenAction, ScreenField, ScreenLink, EntityPattern } from "./screen-map.js";
 
 export type TargetKind = "field" | "action" | "link";
@@ -394,6 +395,18 @@ export function refFor(
   for (const [ref, found] of Object.entries(sidecar?.locators ?? {})) {
     if (found.role === locator.role && found.name === locator.name && (found.occurrence ?? 0) === want) {
       return ref;
+    }
+  }
+  const wantedScrubbed = scrubMutableBadgeCounts(locator.name);
+  if (wantedScrubbed !== "") {
+    for (const [ref, found] of Object.entries(sidecar?.locators ?? {})) {
+      if (
+        found.role === locator.role &&
+        (found.occurrence ?? 0) === want &&
+        scrubMutableBadgeCounts(found.name) === wantedScrubbed
+      ) {
+        return ref;
+      }
     }
   }
   throw new StaleRefError(

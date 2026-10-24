@@ -2,7 +2,7 @@
 // Pure logic, no IO. Ids of existing elements never change; removal only with `prune`.
 import { isDeepStrictEqual } from "node:util";
 import { PwaNavError } from "../core/errors.js";
-import { deriveIds } from "./screen-learn.js";
+import { deriveIds, scrubMutableBadgeCounts, slugify } from "./screen-learn.js";
 import { matchRoute, routeSpecificity } from "./screen-match.js";
 import {
   fingerprintOf,
@@ -73,6 +73,10 @@ type Elem = ScreenField | ScreenAction | ScreenLink;
 
 const roleOf = (element: Elem): string => ("role" in element ? element.role : "link");
 const locatorKey = (element: Elem): string => `${roleOf(element)}\t${element.name}\t${(element.locator.occurrence ?? 0).toString()}`;
+const scrubbedLocatorKey = (element: Elem): string => {
+  const scrubbed = slugify(scrubMutableBadgeCounts(element.name));
+  return `${roleOf(element)}\t${scrubbed}\t${(element.locator.occurrence ?? 0).toString()}`;
+};
 const findingKey = (finding: A11yFinding): string => `${finding.code}\t${finding.target}`;
 const isoSeconds = (date: Date): string => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 const KIND_RANK: Record<ScreenAction["kind"], number> = { button: 0, toggle: 1, submit: 2 };
@@ -84,12 +88,37 @@ interface GroupMatch<T extends Elem> {
   added: T[];
 }
 
-// Pass 1 exact locator; pass 2 pairs leftovers only when one-to-one within a role.
+// Pass 1 exact locator; pass 1b badge-scrubbed locator when name had mutable badge count; pass 2 pairs leftovers only when one-to-one within a role.
 function matchGroup<T extends Elem>(existing: readonly T[], learned: readonly T[]): GroupMatch<T> {
   const paired = new Map<T, T>();
   const used = new Set<T>();
   for (const old of existing) {
     const hit = learned.find((candidate) => !used.has(candidate) && locatorKey(candidate) === locatorKey(old));
+    if (hit !== undefined) {
+      paired.set(old, hit);
+      used.add(hit);
+    }
+  }
+  for (const old of existing) {
+    if (paired.has(old)) continue;
+    const oldScrubbed = scrubMutableBadgeCounts(old.name);
+    if (oldScrubbed === "" || oldScrubbed === old.name) {
+      // Still allow pairing if the learned candidate had a badge added/changed relative to old's scrubbed name
+      const key = scrubbedLocatorKey(old);
+      const hit = learned.find(
+        (candidate) =>
+          !used.has(candidate) &&
+          (scrubMutableBadgeCounts(candidate.name) !== candidate.name || oldScrubbed !== old.name) &&
+          scrubbedLocatorKey(candidate) === key,
+      );
+      if (hit !== undefined) {
+        paired.set(old, hit);
+        used.add(hit);
+      }
+      continue;
+    }
+    const key = scrubbedLocatorKey(old);
+    const hit = learned.find((candidate) => !used.has(candidate) && scrubbedLocatorKey(candidate) === key);
     if (hit !== undefined) {
       paired.set(old, hit);
       used.add(hit);

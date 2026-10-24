@@ -29,6 +29,6 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 023 | asset-and-media-download | done        | 002, 004, 020 | —     | 23 |
 | 024 | screen-map-storage-unification | done        | 020 | —      | 24 |
 | 025 | dynamic-route-parameterization | done        | 024 | —      | 25 |
-| 026 | semantic-screen-noise-filtering | todo        | 025 | design | 26 |
+| 026 | semantic-screen-noise-filtering | done        | 025 | —      | 26 |
 | 027 | mcp-agent-guidance-and-system-prompt | todo        | 026 | design | 27 |
 | 028 | browser-nav-canonical-renaming | todo        | 027 | design | 28 |

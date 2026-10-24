@@ -260,7 +260,7 @@ function collectImpl(root: Document, options?: CollectOptions): { items: RawElem
       }
       const c = node.closest('[role="article"], article, [role="listbox"], [role="grid"], [role="region"], [role="combobox"], [role="menu"], [role="list"], ul, ol, table, tbody');
       if (c !== null && c !== node) {
-        const cRole = roleOf(c) || (c.localName === "article" ? "article" : c.localName);
+        const cRole = roleOf(c) || (c.localName === "article" ? "article" : c.localName === "ul" || c.localName === "ol" ? "list" : c.localName === "tbody" ? "rowgroup" : c.localName);
         const [cName] = nameOf(c, cRole);
         if (["article", "listbox", "grid", "region", "combobox", "menu", "list", "table", "rowgroup"].includes(cRole)) {
           return { role: cRole, name: cName !== "" ? cName : cRole };

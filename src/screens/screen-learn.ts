@@ -69,6 +69,37 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+const BADGE_SUFFIX_PATTERNS: readonly RegExp[] = [
+  // e.g. ", 3 notificaciones nuevas", ", 1 nueva notificación", ", 0 nuevas notificaciones", " - 5 new notifications"
+  /(?:\s*[,•·|–—-]\s*|\s+)\d+(?:[.,]\d+)?\+?\s*(?:nuev[oa]s?\s+|new\s+|unread\s+|no\s+le[ií]d[oa]s?\s+)?(?:notificaciones|notificaci[oó]n|notifications|notification|mensajes|mensaje|messages|message|alertas|alerta|alerts|alert|avisos|aviso|elementos|items|updates|actualizaciones)(?:\s+(?:nuev[oa]s?|new|sin\s+leer|no\s+le[ií]d[oa]s?|unread))?\s*$/i,
+  // e.g. "(3)", "(12 unread)", "(5 sin leer)", "[2 notificaciones]"
+  /\s*(?:\(\s*\d+(?:[.,]\d+)?\+?(?:\s+[^)]*)?\s*\)|\[\s*\d+(?:[.,]\d+)?\+?(?:\s+[^\]]*)?\s*\])\s*$/i,
+  // e.g. "Hace 14 horas • 2042 lectores", "3h ago • 377 readers", "Hace 6 horas"
+  /(?:\s*[,•·|–—-]\s*|\s+)(?:hace\s+\d+\s+(?:segundos?|minutos?|horas?|d[ií]as?|semanas?|mes(?:es)?|a[ñn]os?)|\d+\s*(?:s|m|h|d|w|mo|yr|y|sec|min|hr|hrs|hour|hours|day|days|week|weeks)\s+ago)(?:\s*[,•·|–—-]?\s*\d+(?:[.,]\d+)?\s*(?:lectores|readers|visualizaciones|views|comentarios|comments))?\s*$/i,
+  // e.g. "• 377 lectores", "• 1,204 readers", "220.548 seguidores", "14 contactos han jugado"
+  /(?:\s*[,•·|–—-]\s*|\s+)\d+(?:[.,]\d+)?\s*(?:lectores|readers|seguidores|followers|contactos\s+han\s+jugado|connections\s+played|playing)\s*$/i,
+];
+
+/** Scrubs volatile notification counts, unread badges, and live reader/follower metrics from an accessible name (R3). */
+export function scrubMutableBadgeCounts(name: string): string {
+  let current = name.trim();
+  if (current === "") {
+    return "";
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const pattern of BADGE_SUFFIX_PATTERNS) {
+      const next = current.replace(pattern, "").trim();
+      if (next !== current && next.length > 0) {
+        current = next;
+        changed = true;
+      }
+    }
+  }
+  return current;
+}
+
 function safeDecodeSegment(segment: string): string {
   try {
     return decodeURIComponent(segment);
@@ -205,7 +236,7 @@ export function deriveIds(
   const taken = new Set(existingIds);
   const namelessByRole = new Map<string, number>();
   return items.map(({ role, name }) => {
-    let base = slugify(name);
+    let base = slugify(scrubMutableBadgeCounts(name));
     if (base === "") {
       const n = (namelessByRole.get(role) ?? 0) + 1;
       namelessByRole.set(role, n);
@@ -232,10 +263,169 @@ const TRANSIENT_NAME_PREFIXES: readonly string[] = [
   "reaction", "view reactions", "quoted message", "reaccion", "ver reacciones", "mensaje citado",
 ];
 
+const GENERIC_CHECKBOX_SLUGS: ReadonlySet<string> = new Set([
+  "checkbox", "seleccionar", "select", "select-row", "toggle", "switch",
+]);
+
+const REACTION_EMOJI_PATTERN = /[\u{1F44D}\u{1F44E}\u{1F44F}\u{1F389}\u{1F38A}\u{2764}\u{1F9E1}\u{1F49B}\u{1F49A}\u{1F499}\u{1F49C}\u{1F525}\u{1F4A1}\u{1F602}\u{1F62E}\u{1F622}\u{1F64F}\u{1F64C}\u{1F91D}\u{2728}]/u;
+
+const QUICK_REACTION_PHRASES: ReadonlySet<string> = new Set([
+  "felicidades",
+  "enhorabuena",
+  "me alegro mucho por ti",
+  "me alegro por ti",
+  "gracias",
+  "muchas gracias",
+  "congratulations",
+  "congrats",
+  "happy for you",
+  "so happy for you",
+  "thank you",
+  "thanks",
+  "thumbs up",
+  "heart",
+  "like",
+  "react",
+  "reaccionar",
+  "me gusta",
+  "recomendar",
+]);
+
+const USER_CONTENT_EXTERNAL_HOSTS = /(?:^|\.)(?:drive\.google\.com|docs\.google\.com|meet\.google\.com|zoom\.us|teams\.microsoft\.com|dropbox\.com|calendly\.com|youtu\.be|youtube\.com)$/i;
+const LITERAL_URL_NAME_PATTERN = /^(?:abrir\s+|open\s+)?https?:\/\/\S+/i;
+const OUTBOUND_REDIRECTOR_PATTERN = /\/safety\/go\b|[?&]url=https?(?:%3A|:)/i;
+const CONVERSATION_CONTAINER_NAME_PATTERN = /\b(?:conversaci[oó]n|conversaciones|mensajes|messages|messaging|chat|thread|hilo|bandeja)\b/i;
+const CONVERSATION_ITEM_MENU_PATTERN = /^(?:abre la lista de opciones en tu conversacion con\b|open options list in your conversation with\b|mas opciones para el mensaje\b|more actions for message\b|more options for message\b|descartar empleo\b|dismiss job\b)/i;
+const INLINE_ATTACHMENT_DOWNLOAD_PATTERN = /\b\d+(?:[.,]\d+)?\s*(?:kb|mb|gb|b)\b.*\b(?:descargar|download)\b/i;
+
+function foldText(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().trim();
+}
+
 /** Name starts with a transient blocklist prefix (reactions, quoted messages). */
 function isTransientName(name: string): boolean {
-  const folded = name.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().trim();
+  const folded = foldText(name);
   return TRANSIENT_NAME_PREFIXES.some((prefix) => folded.startsWith(prefix));
+}
+
+/** Anonymous or generic checkboxes/switches inside list/feed/conversation viewports (R1). */
+export function isAnonymousListCheckbox(
+  raw: Pick<RawElement, "role" | "name" | "containerRole">,
+): boolean {
+  if (raw.role !== "checkbox" && raw.role !== "switch") {
+    return false;
+  }
+  const slug = slugify(raw.name);
+  if (slug === "") {
+    return true;
+  }
+  if (raw.containerRole !== undefined && GENERIC_CHECKBOX_SLUGS.has(slug)) {
+    return true;
+  }
+  return false;
+}
+
+/** Quick-reaction buttons and emoji affirmations (R2). */
+export function isQuickReactionControl(
+  raw: Pick<RawElement, "role" | "name">,
+): boolean {
+  if (!ACTION_ROLES.has(raw.role) && raw.role !== "checkbox") {
+    return false;
+  }
+  const trimmed = raw.name.trim();
+  if (trimmed === "") {
+    return false;
+  }
+  const slug = slugify(trimmed);
+  if (slug === "" && REACTION_EMOJI_PATTERN.test(trimmed)) {
+    return true;
+  }
+  const folded = foldText(trimmed)
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (QUICK_REACTION_PHRASES.has(folded)) {
+    return true;
+  }
+  if (REACTION_EMOJI_PATTERN.test(trimmed)) {
+    const wordCount = folded === "" ? 0 : folded.split(" ").length;
+    if (wordCount <= 6) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** True when a container represents an informal dynamic conversation/message list (R5). */
+export function isConversationContainer(
+  raw: Pick<RawElement, "containerRole" | "containerName">,
+): boolean {
+  if (raw.containerRole === undefined) {
+    return false;
+  }
+  if (DYNAMIC_CONTAINER_ROLES.has(raw.containerRole)) {
+    return true;
+  }
+  if (
+    (raw.containerRole === "list" || raw.containerRole === "region" || raw.containerRole === "grid" || raw.containerRole === "listbox") &&
+    raw.containerName !== undefined &&
+    CONVERSATION_CONTAINER_NAME_PATTERN.test(raw.containerName)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Per-message or per-list-item action menus and attachment download buttons (R5). */
+export function isConversationItemControl(
+  raw: Pick<RawElement, "role" | "name" | "occurrence" | "containerRole" | "containerName">,
+): boolean {
+  if (!ACTION_ROLES.has(raw.role)) {
+    return false;
+  }
+  const folded = foldText(raw.name);
+  if (CONVERSATION_ITEM_MENU_PATTERN.test(folded)) {
+    return true;
+  }
+  if (INLINE_ATTACHMENT_DOWNLOAD_PATTERN.test(folded)) {
+    return true;
+  }
+  if (
+    (folded === "mas opciones" || folded === "more options" || folded === "more actions" || folded === "mas acciones") &&
+    (raw.occurrence >= 1 || isConversationContainer(raw))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** External links pasted inside user messages/comments or outbound redirectors (R4). */
+export function isUserContentExternalLink(
+  raw: Pick<RawElement, "name" | "href" | "containerRole" | "containerName">,
+  classified: { href: string; external: boolean },
+  pageUrl: string,
+): boolean {
+  if (LITERAL_URL_NAME_PATTERN.test(raw.name.trim())) {
+    return true;
+  }
+  const rawHref = raw.href ?? "";
+  if (OUTBOUND_REDIRECTOR_PATTERN.test(rawHref)) {
+    return true;
+  }
+  if (classified.external) {
+    if (isConversationContainer(raw)) {
+      return true;
+    }
+    try {
+      const targetHost = new URL(rawHref, pageUrl).hostname;
+      if (USER_CONTENT_EXTERNAL_HOSTS.test(targetHost)) {
+        return true;
+      }
+    } catch {
+      // ignore unparsable URL
+    }
+  }
+  return false;
 }
 
 type Kind = "field" | "action" | "link";
@@ -277,12 +467,17 @@ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options
   for (const element of raw) {
     const kind = kindOf(element.role);
     if (kind === undefined) continue;
-    const dynamic = element.containerRole !== undefined && DYNAMIC_CONTAINER_ROLES.has(element.containerRole);
+    const dynamic = isConversationContainer(element);
     if (!dynamic && isProse(element)) continue;
     if (isTransientName(element.name)) continue;
+    if (isAnonymousListCheckbox(element)) continue;
+    if (isQuickReactionControl(element)) continue;
+    if (isConversationItemControl(element)) continue;
     if (kind === "link") {
       const link = element.href === undefined ? undefined : classifyHref(element.href, page.url, page.appOrigin);
-      if (link !== undefined) allEntries.push({ raw: element, kind, link });
+      if (link !== undefined && !isUserContentExternalLink(element, link, page.url)) {
+        allEntries.push({ raw: element, kind, link });
+      }
       continue;
     }
     allEntries.push({ raw: element, kind });
@@ -309,7 +504,7 @@ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options
   for (const [key, group] of groups.entries()) {
     const [containerRole = "", containerName = "", itemRole = ""] = key.split("\t");
     const isListContainer = ["list", "grid", "rowgroup", "treegrid", "table", "feed"].includes(containerRole);
-    const dynamic = DYNAMIC_CONTAINER_ROLES.has(containerRole);
+    const dynamic = isConversationContainer({ containerRole, containerName });
 
     if (dynamic || group.length >= 2 || (group.length === 1 && isListContainer)) {
       patternKeys.add(key);
