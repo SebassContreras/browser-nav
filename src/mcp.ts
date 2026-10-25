@@ -5,7 +5,7 @@
 // --cache-dir, --backend offline|bidi. Armed is never a tool argument.
 import { parseArgs } from "node:util";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createBackend, DEFAULT_PORT } from "./backend/backend-factory.js";
+import { createBackendFactory, DEFAULT_PORT } from "./backend/backend-factory.js";
 import { exitCodeOf, PwaNavError } from "./core/errors.js";
 import { loadFlowSource } from "./mcp/mcp-flows.js";
 import { createMcpServer } from "./mcp/mcp-server.js";
@@ -98,15 +98,12 @@ async function main(): Promise<void> {
     cacheDir: opts.cacheDir,
     screensDir: opts.screensDir,
     ...(opts.screenMap === undefined ? {} : { screenMap: opts.screenMap }),
-    backendFactory: ({ armed, launch, port, app }) =>
-      createBackend({
-        mode: opts.backend,
-        port: port ?? opts.port,
-        app: app ?? opts.app,
-        armed,
-        cacheDir: opts.cacheDir,
-        ...(launch === true ? { launch: true } : {}),
-      }),
+    backendFactory: createBackendFactory({
+      mode: opts.backend,
+      port: opts.port,
+      ...(opts.app === undefined ? {} : { app: opts.app }),
+      cacheDir: opts.cacheDir,
+    }),
   });
   server.onclose = () => {
     process.exit(0);

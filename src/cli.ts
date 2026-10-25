@@ -10,7 +10,7 @@
 import { fstatSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
-import { createBackend, DEFAULT_PORT } from "./backend/backend-factory.js";
+import { createBackendFactory, DEFAULT_PORT, type BackendFactoryRequest } from "./backend/backend-factory.js";
 import type { Backend } from "./backend/backend.js";
 import { exitCodeOf, PwaNavError } from "./core/errors.js";
 import { runtimeInstallTool, runtimeStatusTool } from "./tools/runtime.js";
@@ -296,19 +296,14 @@ function resolveLive(values: {
   return { mode: rawBackend, port, agentDir, ...(app === undefined ? {} : { app }), ...(contextId === undefined ? {} : { contextId }) };
 }
 
-function makeBackend(
-  live: LiveConfig,
-  extra: { armed?: boolean; launch?: boolean } = {},
-): Backend {
-  return createBackend({
+function makeBackend(live: LiveConfig, request: BackendFactoryRequest = {}): Backend {
+  return createBackendFactory({
     mode: live.mode,
     port: live.port,
     ...(live.app === undefined ? {} : { app: live.app }),
     cacheDir: live.agentDir,
     ...(live.contextId === undefined ? {} : { contextId: live.contextId }),
-    ...(extra.armed === undefined ? {} : { armed: extra.armed }),
-    ...(extra.launch === undefined ? {} : { launch: extra.launch }),
-  });
+  })(request);
 }
 
 async function readStdin(): Promise<string> {
@@ -348,7 +343,7 @@ async function cmdOpen(rest: string[]): Promise<void> {
     throw invalid("--launch and --allow-origin require --backend bidi.");
   }
   const ctx = {
-    backendFactory: (req: { armed?: boolean; launch?: boolean }) => makeBackend(live, { armed: req.armed, launch: req.launch }),
+    backendFactory: (req: BackendFactoryRequest) => makeBackend(live, req),
     backend: makeBackend(live, { ...(values.launch === true ? { launch: true } : {}) }),
     armed: true,
     mode: live.mode,
@@ -526,7 +521,7 @@ function toolContextOf(
   const screens = screenSourceOf(values, live.agentDir);
   const backend = makeBackend(live, { armed });
   return {
-    backendFactory: (req) => makeBackend(live, { armed: req.armed, launch: req.launch }),
+    backendFactory: (req) => makeBackend(live, req),
     backend,
     armed,
     mode: live.mode,

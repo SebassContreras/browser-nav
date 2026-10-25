@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { PwaNavError } from "../core/errors.js";
 import type { ScreenSource } from "../tools/index.js";
 import { actTool } from "../tools/index.js";
+import { getBackend } from "../tools/common.js";
 import { ACTION_HINTS, actionOutcome, invalid } from "./mcp-tools.js";
 import type { ToolDef } from "./mcp-tools.js";
 import { isSemanticToken } from "../screens/screen-resolve.js";
@@ -177,7 +178,7 @@ export function buildJourneyTools(map: ScreenMap, log: Log): JourneyTools {
         openWorldHint: true,
       },
       async handler(args, ctx) {
-        const backend = ctx.backendFactory({ armed: ctx.armed });
+        const backend = getBackend(ctx);
         await performJourney(candidate.id, args, {
           backend,
           armed: ctx.armed,
@@ -221,7 +222,7 @@ export function buildFlowTools(map: ScreenMap, log: Log): FlowTools {
       inputSchema: candidate.schema,
       annotations: ACTION_HINTS,
       async handler(args, ctx) {
-        const backend = ctx.backendFactory({ armed: ctx.armed });
+        const backend = getBackend(ctx);
         const tokens = [`flow:${flowId}`, ...flowInputTokens(args)];
         const url = await backend.currentUrl();
         if (url !== "" && findScreen(map, url).screen.id !== screenId) {

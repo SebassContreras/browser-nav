@@ -32,6 +32,8 @@ stdout carries protocol frames only. Logs go to stderr (`browser-nav-mcp ready (
 
 Invalid options exit 2 with a usage line.
 
+`--cache-dir` and the server's `cwd` only set the **startup** storage directory. A shared server does not need to be pinned to one project: `browser_config({ action: "set", workspaceDir })` (or the client's `workspaceFolders` in the initialize handshake) switches the active `<workspace>/.agent` for every later call (core tools, `flow_*` and journey tools, and `pwa-nav://snapshot/latest`) without a restart. A per-call `cacheDir`/`workspaceDir` wins for that call only.
+
 ## Setup per client
 
 Relative paths resolve from the working directory: the client must start the server with cwd = repo root, or use an absolute path to `dist/mcp.js`.

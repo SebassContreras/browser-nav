@@ -294,7 +294,7 @@ export function createMcpServer(options: McpServerOptions): Server {
       return { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(map, null, 2) }] };
     }
     if (uri === SNAPSHOT_RESOURCE_URI) {
-      const path = agentPath(options.backendFactory({ armed: false }).agentDir, "snapshot.json");
+      const path = agentPath(screens.cacheDir ?? baseCtx.agentDir ?? effectiveAgentDir, "snapshot.json");
       let text: string;
       try {
         text = await readFile(path, "utf8");
