@@ -298,6 +298,18 @@ const CONVERSATION_CONTAINER_NAME_PATTERN = /\b(?:conversaci[oó]n|conversacione
 const CONVERSATION_ITEM_MENU_PATTERN = /^(?:abre la lista de opciones en tu conversacion con\b|open options list in your conversation with\b|mas opciones para el mensaje\b|more actions for message\b|more options for message\b|descartar empleo\b|dismiss job\b)/i;
 const INLINE_ATTACHMENT_DOWNLOAD_PATTERN = /\b\d+(?:[.,]\d+)?\s*(?:kb|mb|gb|b)\b.*\b(?:descargar|download)\b/i;
 
+// Dynamic list result container indicators (e.g. search hits, job listings, catalog feeds)
+const DYNAMIC_LIST_CONTAINER_NAME_PATTERN =
+  /\b(resultados|results|empleos|jobs|candidatos|candidates|articulos|articles|publicaciones|posts|productos|products|noticias|news)\b/i;
+
+// Item-level transient actions inside dynamic collections
+const ITEM_LEVEL_ACTION_NAME_PATTERN =
+  /^(descartar|dismiss|guardar empleo|save job|descartar empleo|dismiss job|solicitar empleo|mas opciones para el empleo)\b/i;
+
+// Structural filters/query controls that MUST be preserved even inside search/collection regions
+const STRUCTURAL_FILTER_NAME_PATTERN =
+  /^(filtrar por|filter by|fecha de|tipo de|nivel de|en remoto|modalidad|ordenar por|sort by|buscar|search|borrar seleccion|clear filters|limpiar filtros|menos de \d+|solicitud sencilla|easy apply|en mi red|in my network|todos los filtros|all filters)\b/i;
+
 function foldText(text: string): string {
   return text.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().trim();
 }
@@ -399,6 +411,75 @@ export function isConversationItemControl(
   return false;
 }
 
+export function isDynamicResultsContainer(
+  raw: Pick<RawElement, "containerRole" | "containerName">,
+): boolean {
+  if (raw.containerRole === undefined) {
+    return false;
+  }
+  if (DYNAMIC_CONTAINER_ROLES.has(raw.containerRole)) {
+    return true;
+  }
+  if (
+    (raw.containerRole === "list" || raw.containerRole === "region" || raw.containerRole === "grid") &&
+    raw.containerName !== undefined &&
+    DYNAMIC_LIST_CONTAINER_NAME_PATTERN.test(raw.containerName)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function isStructuralControl(
+  raw: Pick<RawElement, "role" | "name" | "containerRole">,
+): boolean {
+  if (raw.role === "textbox" || raw.role === "searchbox" || raw.role === "combobox") {
+    return true;
+  }
+  const folded = foldText(raw.name);
+  if (STRUCTURAL_FILTER_NAME_PATTERN.test(folded)) {
+    return true;
+  }
+  if (folded.startsWith("pagina ") || folded.startsWith("page ") || folded === "siguiente" || folded === "anterior" || folded === "next" || folded === "prev") {
+    return true;
+  }
+  return false;
+}
+
+export function isDynamicListItemAction(
+  raw: Pick<RawElement, "role" | "name" | "containerRole" | "containerName">,
+): boolean {
+  if (!ACTION_ROLES.has(raw.role)) {
+    return false;
+  }
+  if (isStructuralControl(raw)) {
+    return false;
+  }
+  const folded = foldText(raw.name);
+  if (ITEM_LEVEL_ACTION_NAME_PATTERN.test(folded)) {
+    return true;
+  }
+  if (isDynamicResultsContainer(raw)) {
+    if (folded === "mas opciones" || folded === "more options" || folded === "opciones") {
+      return true;
+    }
+    if (raw.containerRole === "list" && (raw.name.includes(" (") || raw.name.length > 35)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isDynamicContentLink(
+  raw: Pick<RawElement, "href" | "containerRole" | "containerName">,
+): boolean {
+  const href = raw.href ?? "";
+  if (href.includes("/news/story/") || href.includes("/games/") || (href.includes("/company/") && href.includes("/life/"))) {
+    return true;
+  }
+  return false;
+}
+
 /** External links pasted inside user messages/comments or outbound redirectors (R4). */
 export function isUserContentExternalLink(
   raw: Pick<RawElement, "name" | "href" | "containerRole" | "containerName">,
@@ -473,7 +554,9 @@ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options
     if (isAnonymousListCheckbox(element)) continue;
     if (isQuickReactionControl(element)) continue;
     if (isConversationItemControl(element)) continue;
+    if (isDynamicListItemAction(element)) continue;
     if (kind === "link") {
+      if (isDynamicContentLink(element)) continue;
       const link = element.href === undefined ? undefined : classifyHref(element.href, page.url, page.appOrigin);
       if (link !== undefined && !isUserContentExternalLink(element, link, page.url)) {
         allEntries.push({ raw: element, kind, link });
@@ -481,6 +564,21 @@ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options
       continue;
     }
     allEntries.push({ raw: element, kind });
+  }
+
+  // Record pattern descriptors for dynamic collections before pruning
+  const dynamicContainers = new Map<string, { containerRole: string; containerName?: string; itemRole: string }>();
+  for (const element of raw) {
+    if (element.containerRole && isDynamicResultsContainer(element)) {
+      const key = `${element.containerRole}\t${element.containerName || ""}\t${element.role}`;
+      if (!dynamicContainers.has(key)) {
+        dynamicContainers.set(key, {
+          containerRole: element.containerRole,
+          ...(element.containerName ? { containerName: element.containerName } : {}),
+          itemRole: element.role,
+        });
+      }
+    }
   }
 
   // Detect patterns: repeating elements within the same semantic container
@@ -501,10 +599,30 @@ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options
   const patternKeys = new Set<string>();
   const patternIds = new Set<string>();
 
+  for (const [key, info] of dynamicContainers) {
+    patternKeys.add(key);
+    let baseId = slugify(`${info.containerName || info.containerRole}-item`);
+    if (!baseId) baseId = "item";
+    let id = baseId;
+    for (let suffix = 2; patternIds.has(id); suffix += 1) {
+      id = `${baseId}-${suffix.toString()}`;
+    }
+    patternIds.add(id);
+    patterns.push({
+      id,
+      containerRole: info.containerRole,
+      ...(info.containerName ? { containerName: info.containerName } : {}),
+      itemRole: info.itemRole,
+      actionTarget: `@${id}`,
+      dynamicChildren: true,
+    });
+  }
+
   for (const [key, group] of groups.entries()) {
+    if (patternKeys.has(key)) continue;
     const [containerRole = "", containerName = "", itemRole = ""] = key.split("\t");
     const isListContainer = ["list", "grid", "rowgroup", "treegrid", "table", "feed"].includes(containerRole);
-    const dynamic = isConversationContainer({ containerRole, containerName });
+    const dynamic = isConversationContainer({ containerRole, containerName }) || isDynamicResultsContainer({ containerRole, containerName });
 
     if (dynamic || group.length >= 2 || (group.length === 1 && isListContainer)) {
       patternKeys.add(key);

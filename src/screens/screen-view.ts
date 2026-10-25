@@ -84,12 +84,16 @@ export function renderScreenView(screen: Screen, options: RenderOptions = {}): s
     f.humanOnly ? `${f.id} HUMAN-ONLY` : `${f.id} inputs(${requiredInputs(f.inputSchema).join(",")})`,
   );
   const a11y = (screen.a11y ?? []).map((finding) => `${finding.target} ${finding.code}`);
+  const patterns = (screen.patterns ?? []).map((p) =>
+    `@${p.id} ${p.containerRole}${p.containerName ? ` "${escapeName(p.containerName)}"` : ""} -> ${p.itemRole}${p.dynamicChildren ? " (dynamic)" : ""}`,
+  );
 
   const groups: [string, string[]][] = [
     ["fields", fields],
     ["actions", actions],
     ["links", links],
     ["flows", flows],
+    ["patterns", patterns],
     ["a11y", a11y],
   ];
   for (const [label, entries] of groups) {

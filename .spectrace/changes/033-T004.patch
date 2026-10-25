@@ -1,0 +1,604 @@
+diff --git a/src/screens/screen-filtering.ts b/src/screens/screen-filtering.ts
+deleted file mode 100644
+index f162322..0000000
+--- a/src/screens/screen-filtering.ts
++++ /dev/null
+@@ -1,249 +0,0 @@
+-import type { RawElement } from "../browser/collector.js";
+-
+-// Roles outside these three groups (heading, tab panels, menuitemcheckbox, ...) are ignored.
+-export const FIELD_ROLES: ReadonlySet<string> = new Set([
+-  "textbox", "searchbox", "spinbutton", "combobox", "listbox", "slider", "checkbox", "radio", "switch",
+-]);
+-export const ACTION_ROLES: ReadonlySet<string> = new Set(["button", "menuitem", "tab", "option"]);
+-export const DYNAMIC_CONTAINER_ROLES: ReadonlySet<string> = new Set(["feed", "log", "article"]);
+-
+-/** Fold text to lowercase ASCII without diacritics, trimmed. */
+-export function foldText(text: string): string {
+-  return text.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().trim();
+-}
+-
+-const REACTION_EMOJI_PATTERN = /[\p{Extended_Pictographic}\uFE0F]/u;
+-const QUICK_REACTION_PHRASES: ReadonlySet<string> = new Set([
+-  "felicidades", "me alegro mucho por ti", "enhorabuena", "congrats", "congratulations",
+-  "kudos", "bravo", "gracias", "thank you", "thanks", "de acuerdo", "agree",
+-  "me gusta", "like", "interesante", "interesting", "apoyo", "support",
+-]);
+-const TRANSIENT_NAME_PREFIXES: readonly string[] = [
+-  "responder a", "reply to", "reaccionar con", "react with", "reacciono con", "reacted with",
+-];
+-const GENERIC_CHECKBOX_SLUGS: ReadonlySet<string> = new Set([
+-  "checkbox", "casilla-de-seleccion", "seleccionar", "select", "check", "marcar",
+-  "casilla-de-verificacion", "activar", "checkbox-1", "checkbox-2",
+-]);
+-const CONVERSATION_CONTAINER_NAME_PATTERN =
+-  /\b(mensajes|mensaje|conversation|conversations|chat|chats|thread|threads|hilo|hilos|direct-messages)\b/i;
+-const CONVERSATION_ITEM_MENU_PATTERN =
+-  /\b(opciones de mensaje|opciones del mensaje|message options|acciones del mensaje|message actions)\b/i;
+-const INLINE_ATTACHMENT_DOWNLOAD_PATTERN =
+-  /\b(descargar archivo adjunto|descargar adjunto|download attachment|download file)\b/i;
+-const LITERAL_URL_NAME_PATTERN = /^https?:\/\/[^\s]+$/i;
+-const OUTBOUND_REDIRECTOR_PATTERN = /\/(?:safety\/go|redir|redirect)\b/i;
+-const USER_CONTENT_EXTERNAL_HOSTS =
+-  /(?:^|\.)(?:drive\.google\.com|docs\.google\.com|zoom\.us|teams\.microsoft\.com|meet\.google\.com|dropbox\.com|wetransfer\.com)$/i;
+-
+-// Dynamic list result container indicators (e.g. search hits, job listings, catalog feeds)
+-const DYNAMIC_LIST_CONTAINER_NAME_PATTERN =
+-  /\b(resultados|results|empleos|jobs|candidatos|candidates|articulos|articles|publicaciones|posts|productos|products|noticias|news)\b/i;
+-
+-// Item-level transient actions inside dynamic collections
+-const ITEM_LEVEL_ACTION_NAME_PATTERN =
+-  /^(descartar|dismiss|guardar empleo|save job|descartar empleo|dismiss job|solicitar empleo|mas opciones para el empleo|mas opciones|more options)\b/i;
+-
+-// Structural filters/query controls that MUST be preserved even inside search/collection regions
+-const STRUCTURAL_FILTER_NAME_PATTERN =
+-  /^(filtrar por|filter by|fecha de|tipo de|nivel de|en remoto|modalidad|ordenar por|sort by|buscar|search|borrar seleccion|clear filters|limpiar filtros|menos de \d+|solicitud sencilla|easy apply|en mi red|in my network|todos los filtros|all filters)\b/i;
+-
+-/** True when a container represents an informal dynamic conversation/message list. */
+-export function isConversationContainer(
+-  raw: Pick<RawElement, "containerRole" | "containerName">,
+-): boolean {
+-  if (raw.containerRole === undefined) {
+-    return false;
+-  }
+-  if (DYNAMIC_CONTAINER_ROLES.has(raw.containerRole)) {
+-    return true;
+-  }
+-  if (
+-    (raw.containerRole === "list" || raw.containerRole === "region" || raw.containerRole === "grid" || raw.containerRole === "listbox") &&
+-    raw.containerName !== undefined &&
+-    CONVERSATION_CONTAINER_NAME_PATTERN.test(raw.containerName)
+-  ) {
+-    return true;
+-  }
+-  return false;
+-}
+-
+-/** Per-message or per-list-item action menus and attachment download buttons. */
+-export function isConversationItemControl(
+-  raw: Pick<RawElement, "role" | "name" | "occurrence" | "containerRole" | "containerName">,
+-): boolean {
+-  if (!ACTION_ROLES.has(raw.role)) {
+-    return false;
+-  }
+-  const folded = foldText(raw.name);
+-  if (CONVERSATION_ITEM_MENU_PATTERN.test(folded)) {
+-    return true;
+-  }
+-  if (INLINE_ATTACHMENT_DOWNLOAD_PATTERN.test(folded)) {
+-    return true;
+-  }
+-  if (
+-    (folded === "mas opciones" || folded === "more options" || folded === "more actions" || folded === "mas acciones") &&
+-    (raw.occurrence >= 1 || isConversationContainer(raw))
+-  ) {
+-    return true;
+-  }
+-  return false;
+-}
+-
+-/** True when a container represents a dynamic search results list, catalog feed, or entity stream. */
+-export function isDynamicResultsContainer(
+-  raw: Pick<RawElement, "containerRole" | "containerName">,
+-): boolean {
+-  if (raw.containerRole === undefined) {
+-    return false;
+-  }
+-  if (DYNAMIC_CONTAINER_ROLES.has(raw.containerRole)) {
+-    return true;
+-  }
+-  if (
+-    (raw.containerRole === "list" || raw.containerRole === "region" || raw.containerRole === "grid") &&
+-    raw.containerName !== undefined &&
+-    DYNAMIC_LIST_CONTAINER_NAME_PATTERN.test(raw.containerName)
+-  ) {
+-    return true;
+-  }
+-  return false;
+-}
+-
+-/** Structural controls (query inputs, filter toggles, sorting, pagination) that MUST NOT be pruned. */
+-export function isStructuralControl(
+-  raw: Pick<RawElement, "role" | "name" | "containerRole">,
+-): boolean {
+-  if (raw.role === "textbox" || raw.role === "searchbox" || raw.role === "combobox") {
+-    return true;
+-  }
+-  const folded = foldText(raw.name);
+-  if (STRUCTURAL_FILTER_NAME_PATTERN.test(folded)) {
+-    return true;
+-  }
+-  if (folded.startsWith("pagina ") || folded.startsWith("page ") || folded === "siguiente" || folded === "anterior" || folded === "next" || folded === "prev") {
+-    return true;
+-  }
+-  return false;
+-}
+-
+-/** True when an action represents an item-level or card-level transient button inside a dynamic collection. */
+-export function isDynamicListItemAction(
+-  raw: Pick<RawElement, "role" | "name" | "containerRole" | "containerName">,
+-): boolean {
+-  if (!ACTION_ROLES.has(raw.role)) {
+-    return false;
+-  }
+-  // Structural controls (filters, pagination, inputs) are never pruned
+-  if (isStructuralControl(raw)) {
+-    return false;
+-  }
+-
+-  const folded = foldText(raw.name);
+-  if (ITEM_LEVEL_ACTION_NAME_PATTERN.test(folded)) {
+-    return true;
+-  }
+-
+-  if (isDynamicResultsContainer(raw)) {
+-    // If it's inside a dynamic results container and is a card-like item (e.g. contains job details or company)
+-    // or generic "más opciones", prune it from global screen actions
+-    if (folded === "mas opciones" || folded === "more options" || folded === "opciones") {
+-      return true;
+-    }
+-    // Result card title buttons typically contain long composite names or qualifications
+-    if (raw.containerRole === "list" && (raw.name.includes(" (") || raw.name.length > 35)) {
+-      return true;
+-    }
+-  }
+-
+-  return false;
+-}
+-
+-/** Anonymous or generic checkboxes/switches inside list/feed/conversation viewports. */
+-export function isAnonymousListCheckbox(
+-  raw: Pick<RawElement, "role" | "name" | "containerRole">,
+-): boolean {
+-  if (raw.role !== "checkbox" && raw.role !== "switch") {
+-    return false;
+-  }
+-  const slug = foldText(raw.name).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+-  if (slug === "") {
+-    return true;
+-  }
+-  if (raw.containerRole !== undefined && GENERIC_CHECKBOX_SLUGS.has(slug)) {
+-    return true;
+-  }
+-  return false;
+-}
+-
+-/** Quick-reaction buttons and emoji affirmations. */
+-export function isQuickReactionControl(
+-  raw: Pick<RawElement, "role" | "name">,
+-): boolean {
+-  if (!ACTION_ROLES.has(raw.role) && raw.role !== "checkbox") {
+-    return false;
+-  }
+-  const trimmed = raw.name.trim();
+-  if (trimmed === "") {
+-    return false;
+-  }
+-  const slug = foldText(trimmed).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+-  if (slug === "" && REACTION_EMOJI_PATTERN.test(trimmed)) {
+-    return true;
+-  }
+-  const folded = foldText(trimmed)
+-    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+-    .replace(/\s+/g, " ")
+-    .trim();
+-  if (QUICK_REACTION_PHRASES.has(folded)) {
+-    return true;
+-  }
+-  if (REACTION_EMOJI_PATTERN.test(trimmed)) {
+-    const wordCount = folded === "" ? 0 : folded.split(" ").length;
+-    if (wordCount <= 6) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
+-/** External links pasted inside user messages/comments or outbound redirectors. */
+-export function isUserContentExternalLink(
+-  raw: Pick<RawElement, "name" | "href" | "containerRole" | "containerName">,
+-  classified: { href: string; external: boolean },
+-  pageUrl: string,
+-): boolean {
+-  if (LITERAL_URL_NAME_PATTERN.test(raw.name.trim())) {
+-    return true;
+-  }
+-  const rawHref = raw.href ?? "";
+-  if (OUTBOUND_REDIRECTOR_PATTERN.test(rawHref)) {
+-    return true;
+-  }
+-  if (classified.external) {
+-    if (isConversationContainer(raw) || isDynamicResultsContainer(raw)) {
+-      return true;
+-    }
+-    try {
+-      const targetHost = new URL(rawHref, pageUrl).hostname;
+-      if (USER_CONTENT_EXTERNAL_HOSTS.test(targetHost)) {
+-        return true;
+-      }
+-    } catch {
+-      // ignore unparsable URL
+-    }
+-  }
+-  return false;
+-}
+-
+-/** Transient or dynamic content links (e.g. news stories, articles) inside feed/results. */
+-export function isDynamicContentLink(
+-  raw: Pick<RawElement, "href" | "containerRole" | "containerName">,
+-): boolean {
+-  const href = raw.href ?? "";
+-  if (href.includes("/news/story/") || href.includes("/games/") || (href.includes("/company/") && href.includes("/life/"))) {
+-    return true;
+-  }
+-  return false;
+-}
+diff --git a/src/screens/screen-learn.ts b/src/screens/screen-learn.ts
+index 7d32e46..82c2b27 100644
+--- a/src/screens/screen-learn.ts
++++ b/src/screens/screen-learn.ts
+@@ -298,6 +298,18 @@ const CONVERSATION_CONTAINER_NAME_PATTERN = /\b(?:conversaci[oó]n|conversacione
+ const CONVERSATION_ITEM_MENU_PATTERN = /^(?:abre la lista de opciones en tu conversacion con\b|open options list in your conversation with\b|mas opciones para el mensaje\b|more actions for message\b|more options for message\b|descartar empleo\b|dismiss job\b)/i;
+ const INLINE_ATTACHMENT_DOWNLOAD_PATTERN = /\b\d+(?:[.,]\d+)?\s*(?:kb|mb|gb|b)\b.*\b(?:descargar|download)\b/i;
+ 
++// Dynamic list result container indicators (e.g. search hits, job listings, catalog feeds)
++const DYNAMIC_LIST_CONTAINER_NAME_PATTERN =
++  /\b(resultados|results|empleos|jobs|candidatos|candidates|articulos|articles|publicaciones|posts|productos|products|noticias|news)\b/i;
++
++// Item-level transient actions inside dynamic collections
++const ITEM_LEVEL_ACTION_NAME_PATTERN =
++  /^(descartar|dismiss|guardar empleo|save job|descartar empleo|dismiss job|solicitar empleo|mas opciones para el empleo)\b/i;
++
++// Structural filters/query controls that MUST be preserved even inside search/collection regions
++const STRUCTURAL_FILTER_NAME_PATTERN =
++  /^(filtrar por|filter by|fecha de|tipo de|nivel de|en remoto|modalidad|ordenar por|sort by|buscar|search|borrar seleccion|clear filters|limpiar filtros|menos de \d+|solicitud sencilla|easy apply|en mi red|in my network|todos los filtros|all filters)\b/i;
++
+ function foldText(text: string): string {
+   return text.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().trim();
+ }
+@@ -308,29 +320,194 @@ function isTransientName(name: string): boolean {
+   return TRANSIENT_NAME_PREFIXES.some((prefix) => folded.startsWith(prefix));
+ }
+ 
+-import {
+-  isAnonymousListCheckbox,
+-  isConversationContainer,
+-  isConversationItemControl,
+-  isDynamicContentLink,
+-  isDynamicListItemAction,
+-  isDynamicResultsContainer,
+-  isQuickReactionControl,
+-  isStructuralControl,
+-  isUserContentExternalLink,
+-} from "./screen-filtering.js";
+-
+-export {
+-  isAnonymousListCheckbox,
+-  isConversationContainer,
+-  isConversationItemControl,
+-  isDynamicContentLink,
+-  isDynamicListItemAction,
+-  isDynamicResultsContainer,
+-  isQuickReactionControl,
+-  isStructuralControl,
+-  isUserContentExternalLink,
+-};
++/** Anonymous or generic checkboxes/switches inside list/feed/conversation viewports (R1). */
++export function isAnonymousListCheckbox(
++  raw: Pick<RawElement, "role" | "name" | "containerRole">,
++): boolean {
++  if (raw.role !== "checkbox" && raw.role !== "switch") {
++    return false;
++  }
++  const slug = slugify(raw.name);
++  if (slug === "") {
++    return true;
++  }
++  if (raw.containerRole !== undefined && GENERIC_CHECKBOX_SLUGS.has(slug)) {
++    return true;
++  }
++  return false;
++}
++
++/** Quick-reaction buttons and emoji affirmations (R2). */
++export function isQuickReactionControl(
++  raw: Pick<RawElement, "role" | "name">,
++): boolean {
++  if (!ACTION_ROLES.has(raw.role) && raw.role !== "checkbox") {
++    return false;
++  }
++  const trimmed = raw.name.trim();
++  if (trimmed === "") {
++    return false;
++  }
++  const slug = slugify(trimmed);
++  if (slug === "" && REACTION_EMOJI_PATTERN.test(trimmed)) {
++    return true;
++  }
++  const folded = foldText(trimmed)
++    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
++    .replace(/\s+/g, " ")
++    .trim();
++  if (QUICK_REACTION_PHRASES.has(folded)) {
++    return true;
++  }
++  if (REACTION_EMOJI_PATTERN.test(trimmed)) {
++    const wordCount = folded === "" ? 0 : folded.split(" ").length;
++    if (wordCount <= 6) {
++      return true;
++    }
++  }
++  return false;
++}
++
++/** True when a container represents an informal dynamic conversation/message list (R5). */
++export function isConversationContainer(
++  raw: Pick<RawElement, "containerRole" | "containerName">,
++): boolean {
++  if (raw.containerRole === undefined) {
++    return false;
++  }
++  if (DYNAMIC_CONTAINER_ROLES.has(raw.containerRole)) {
++    return true;
++  }
++  if (
++    (raw.containerRole === "list" || raw.containerRole === "region" || raw.containerRole === "grid" || raw.containerRole === "listbox") &&
++    raw.containerName !== undefined &&
++    CONVERSATION_CONTAINER_NAME_PATTERN.test(raw.containerName)
++  ) {
++    return true;
++  }
++  return false;
++}
++
++/** Per-message or per-list-item action menus and attachment download buttons (R5). */
++export function isConversationItemControl(
++  raw: Pick<RawElement, "role" | "name" | "occurrence" | "containerRole" | "containerName">,
++): boolean {
++  if (!ACTION_ROLES.has(raw.role)) {
++    return false;
++  }
++  const folded = foldText(raw.name);
++  if (CONVERSATION_ITEM_MENU_PATTERN.test(folded)) {
++    return true;
++  }
++  if (INLINE_ATTACHMENT_DOWNLOAD_PATTERN.test(folded)) {
++    return true;
++  }
++  if (
++    (folded === "mas opciones" || folded === "more options" || folded === "more actions" || folded === "mas acciones") &&
++    (raw.occurrence >= 1 || isConversationContainer(raw))
++  ) {
++    return true;
++  }
++  return false;
++}
++
++export function isDynamicResultsContainer(
++  raw: Pick<RawElement, "containerRole" | "containerName">,
++): boolean {
++  if (raw.containerRole === undefined) {
++    return false;
++  }
++  if (DYNAMIC_CONTAINER_ROLES.has(raw.containerRole)) {
++    return true;
++  }
++  if (
++    (raw.containerRole === "list" || raw.containerRole === "region" || raw.containerRole === "grid") &&
++    raw.containerName !== undefined &&
++    DYNAMIC_LIST_CONTAINER_NAME_PATTERN.test(raw.containerName)
++  ) {
++    return true;
++  }
++  return false;
++}
++
++export function isStructuralControl(
++  raw: Pick<RawElement, "role" | "name" | "containerRole">,
++): boolean {
++  if (raw.role === "textbox" || raw.role === "searchbox" || raw.role === "combobox") {
++    return true;
++  }
++  const folded = foldText(raw.name);
++  if (STRUCTURAL_FILTER_NAME_PATTERN.test(folded)) {
++    return true;
++  }
++  if (folded.startsWith("pagina ") || folded.startsWith("page ") || folded === "siguiente" || folded === "anterior" || folded === "next" || folded === "prev") {
++    return true;
++  }
++  return false;
++}
++
++export function isDynamicListItemAction(
++  raw: Pick<RawElement, "role" | "name" | "containerRole" | "containerName">,
++): boolean {
++  if (!ACTION_ROLES.has(raw.role)) {
++    return false;
++  }
++  if (isStructuralControl(raw)) {
++    return false;
++  }
++  const folded = foldText(raw.name);
++  if (ITEM_LEVEL_ACTION_NAME_PATTERN.test(folded)) {
++    return true;
++  }
++  if (isDynamicResultsContainer(raw)) {
++    if (folded === "mas opciones" || folded === "more options" || folded === "opciones") {
++      return true;
++    }
++    if (raw.containerRole === "list" && (raw.name.includes(" (") || raw.name.length > 35)) {
++      return true;
++    }
++  }
++  return false;
++}
++
++export function isDynamicContentLink(
++  raw: Pick<RawElement, "href" | "containerRole" | "containerName">,
++): boolean {
++  const href = raw.href ?? "";
++  if (href.includes("/news/story/") || href.includes("/games/") || (href.includes("/company/") && href.includes("/life/"))) {
++    return true;
++  }
++  return false;
++}
++
++/** External links pasted inside user messages/comments or outbound redirectors (R4). */
++export function isUserContentExternalLink(
++  raw: Pick<RawElement, "name" | "href" | "containerRole" | "containerName">,
++  classified: { href: string; external: boolean },
++  pageUrl: string,
++): boolean {
++  if (LITERAL_URL_NAME_PATTERN.test(raw.name.trim())) {
++    return true;
++  }
++  const rawHref = raw.href ?? "";
++  if (OUTBOUND_REDIRECTOR_PATTERN.test(rawHref)) {
++    return true;
++  }
++  if (classified.external) {
++    if (isConversationContainer(raw)) {
++      return true;
++    }
++    try {
++      const targetHost = new URL(rawHref, pageUrl).hostname;
++      if (USER_CONTENT_EXTERNAL_HOSTS.test(targetHost)) {
++        return true;
++      }
++    } catch {
++      // ignore unparsable URL
++    }
++  }
++  return false;
++}
+ 
+ type Kind = "field" | "action" | "link";
+ 
+@@ -389,6 +566,21 @@ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options
+     allEntries.push({ raw: element, kind });
+   }
+ 
++  // Record pattern descriptors for dynamic collections before pruning
++  const dynamicContainers = new Map<string, { containerRole: string; containerName?: string; itemRole: string }>();
++  for (const element of raw) {
++    if (element.containerRole && isDynamicResultsContainer(element)) {
++      const key = `${element.containerRole}\t${element.containerName || ""}\t${element.role}`;
++      if (!dynamicContainers.has(key)) {
++        dynamicContainers.set(key, {
++          containerRole: element.containerRole,
++          ...(element.containerName ? { containerName: element.containerName } : {}),
++          itemRole: element.role,
++        });
++      }
++    }
++  }
++
+   // Detect patterns: repeating elements within the same semantic container
+   const groups = new Map<string, typeof allEntries>();
+   for (const entry of allEntries) {
+@@ -407,7 +599,27 @@ export function learnScreen(raw: readonly RawElement[], page: LearnPage, options
+   const patternKeys = new Set<string>();
+   const patternIds = new Set<string>();
+ 
++  for (const [key, info] of dynamicContainers) {
++    patternKeys.add(key);
++    let baseId = slugify(`${info.containerName || info.containerRole}-item`);
++    if (!baseId) baseId = "item";
++    let id = baseId;
++    for (let suffix = 2; patternIds.has(id); suffix += 1) {
++      id = `${baseId}-${suffix.toString()}`;
++    }
++    patternIds.add(id);
++    patterns.push({
++      id,
++      containerRole: info.containerRole,
++      ...(info.containerName ? { containerName: info.containerName } : {}),
++      itemRole: info.itemRole,
++      actionTarget: `@${id}`,
++      dynamicChildren: true,
++    });
++  }
++
+   for (const [key, group] of groups.entries()) {
++    if (patternKeys.has(key)) continue;
+     const [containerRole = "", containerName = "", itemRole = ""] = key.split("\t");
+     const isListContainer = ["list", "grid", "rowgroup", "treegrid", "table", "feed"].includes(containerRole);
+     const dynamic = isConversationContainer({ containerRole, containerName }) || isDynamicResultsContainer({ containerRole, containerName });
+diff --git a/src/screens/test/screen-filtering.test.ts b/src/screens/test/screen-filtering.test.ts
+index 65db641..95eadec 100644
+--- a/src/screens/test/screen-filtering.test.ts
++++ b/src/screens/test/screen-filtering.test.ts
+@@ -320,3 +320,53 @@ test("informal dynamic conversation lists and per-message item action menus are
+     [["list", "Lista de mensajes de la conversación", "button", true]],
+   );
+ });
++
++test("learnScreen prunes transient search results and card buttons while preserving structural controls (R1, R2, R3, R5)", () => {
++  // Given a search page with structural filters, query textbox, pagination, and a dynamic list of job search hits
++  const dom = new JSDOM(`<!doctype html><html><body>
++    <input type="text" placeholder="Buscar empleo" aria-label="Buscar empleo" />
++    <button>Filtrar por Solicitud sencilla</button>
++    <button>Fecha de publicación</button>
++    <button>En remoto</button>
++    <button>Borrar selección</button>
++    
++    <div role="region" aria-label="Resultados de búsqueda de empleos">
++      <ul role="list" aria-label="Empleos">
++        <li role="listitem">
++          <button>Senior Backend Engineer (empleo verificado) JOIN 80K</button>
++          <button>Descartar empleo 'Senior Backend Engineer'</button>
++        </li>
++        <li role="listitem">
++          <button>Staff Software Engineer Search (empleo verificado) Dow Jones</button>
++          <button>Descartar empleo 'Staff Software Engineer'</button>
++        </li>
++      </ul>
++    </div>
++
++    <button>Página 2</button>
++    <a href="/feed/">Ir a Feed</a>
++    <a href="/news/story/top-startups-de-2026-7680636/">Noticia destacada</a>
++  </body></html>`);
++
++  // When collecting and learning the screen
++  const collected = collectInteractive(dom.window.document);
++  const screen = learnScreen(collected, { url: "http://localhost:8080/jobs", title: "Empleos", appOrigin: "http://localhost:8080" }, { now: NOW });
++
++  // Then structural controls (search input, filters, pagination, internal link) are preserved
++  const actionIds = screen.actions.map((a) => a.id);
++  assert.equal(actionIds.includes("filtrar-por-solicitud-sencilla"), true);
++  assert.equal(actionIds.includes("fecha-de-publicacion"), true);
++  assert.equal(actionIds.includes("en-remoto"), true);
++  assert.equal(actionIds.includes("borrar-seleccion"), true);
++  assert.equal(actionIds.includes("pagina-2"), true);
++
++  // Then transient item titles, dismiss buttons and ephemeral news stories are pruned
++  assert.equal(actionIds.some((id) => id.includes("descartar-empleo")), false);
++  assert.equal(actionIds.some((id) => id.includes("senior-backend-engineer")), false);
++  assert.equal(screen.links.some((l) => l.href.includes("/news/story/")), false);
++  assert.equal(screen.links.some((l) => l.href.includes("/feed/")), true);
++
++  // And dynamic collections are cleanly registered as patterns with dynamicChildren
++  assert.equal((screen.patterns ?? []).length >= 1, true);
++  assert.equal((screen.patterns ?? []).some((p) => p.dynamicChildren === true), true);
++});

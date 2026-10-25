@@ -35,3 +35,6 @@ Index of every spec - status, dependencies, pipeline stage, and priority. Read t
 | 029 | tool-layer-and-contract-convergence | done        | 021, 022, 028 | —     | 29 |
 | 030 | assisted-auth-fallback | done        | 029 | —     | 30 |
 | 031 | package-and-docs-canonical-convergence | done        | 028, 030 | —      | 31 |
+| 032 | backend-factory-dynamic-storage | done        | 020, 029 | —      | 32 |
+| 033 | dynamic-list-noise-pruning | done        | 026 | —      | 33 |
+| 034 | lean-screen-view-and-journey-templates | done        | 033 | —      | 34 |

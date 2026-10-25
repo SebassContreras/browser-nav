@@ -1,0 +1,214 @@
+diff --git a/src/screens/screen-prune.ts b/src/screens/screen-prune.ts
+new file mode 100644
+index 0000000..f715835
+--- /dev/null
++++ b/src/screens/screen-prune.ts
+@@ -0,0 +1,119 @@
++import { copyFile, readFile, writeFile } from "node:fs/promises";
++import { PwaNavError } from "../core/errors.js";
++import { resolveAgentDir } from "../core/storage.js";
++import { isDynamicContentLink, isDynamicListItemAction, isStructuralControl } from "./screen-learn.js";
++import {
++  crossCheck,
++  fingerprintOf,
++  loadScreenMap,
++  screenElements,
++  type Screen,
++  type ScreenMap,
++} from "./screen-map.js";
++import { writeScreenMap } from "./screen-store.js";
++import { resolveScreensDir } from "./screen-match.js";
++
++export interface PruneResult {
++  appSlug: string;
++  screensPruned: number;
++  actionsRemoved: number;
++  linksRemoved: number;
++  backupPath: string;
++  outputPath: string;
++}
++
++export function pruneScreenNoise(screen: Screen): {
++  prunedScreen: Screen;
++  actionsRemoved: number;
++  linksRemoved: number;
++} {
++  const originalActionCount = screen.actions.length;
++  const originalLinkCount = screen.links.length;
++
++  // Filter actions that are dynamic card items or dismiss buttons
++  const actions = screen.actions.filter((a) => {
++    // If it's a structural control, preserve it
++    if (isStructuralControl({ role: a.role, name: a.name })) {
++      return true;
++    }
++    // If it's an item-level dynamic card action, prune it
++    if (isDynamicListItemAction({ role: a.role, name: a.name, containerRole: a.container })) {
++      return false;
++    }
++    return true;
++  });
++
++  // Filter links that are transient content stories or articles
++  const links = screen.links.filter((l) => {
++    if (isDynamicContentLink({ href: l.href })) {
++      return false;
++    }
++    return true;
++  });
++
++  const prunedScreen: Screen = {
++    ...screen,
++    actions,
++    links,
++  };
++
++  prunedScreen.fingerprint = fingerprintOf(screenElements(prunedScreen));
++
++  return {
++    prunedScreen,
++    actionsRemoved: originalActionCount - actions.length,
++    linksRemoved: originalLinkCount - links.length,
++  };
++}
++
++export async function pruneAppScreenMap(
++  appSlug: string,
++  options: { screensDir?: string; cacheDir?: string } = {},
++): Promise<PruneResult> {
++  const dir = resolveScreensDir({ screensDir: options.screensDir, cacheDir: options.cacheDir });
++  const mapPath = `${dir}/${appSlug}.screens.json`;
++
++  let map: ScreenMap;
++  try {
++    map = await loadScreenMap(mapPath);
++  } catch (err) {
++    throw new PwaNavError("invalid_args", `cannot load screen map for ${appSlug} at ${mapPath}: ${String(err)}`);
++  }
++
++  const backupPath = `${mapPath}.bak`;
++  await copyFile(mapPath, backupPath);
++
++  let totalActionsRemoved = 0;
++  let totalLinksRemoved = 0;
++  let screensPrunedCount = 0;
++
++  const prunedScreens: Screen[] = [];
++  for (const screen of map.screens) {
++    const { prunedScreen, actionsRemoved, linksRemoved } = pruneScreenNoise(screen);
++    prunedScreens.push(prunedScreen);
++    if (actionsRemoved > 0 || linksRemoved > 0) {
++      screensPrunedCount += 1;
++      totalActionsRemoved += actionsRemoved;
++      totalLinksRemoved += linksRemoved;
++    }
++  }
++
++  const updatedMap: ScreenMap = {
++    ...map,
++    screens: prunedScreens,
++  };
++
++  // Cross-check to verify fingerprint and relationship integrity
++  crossCheck(updatedMap);
++
++  await writeScreenMap(mapPath, updatedMap);
++
++  return {
++    appSlug,
++    screensPruned: screensPrunedCount,
++    actionsRemoved: totalActionsRemoved,
++    linksRemoved: totalLinksRemoved,
++    backupPath,
++    outputPath: mapPath,
++  };
++}
+diff --git a/src/screens/test/screen-prune.test.ts b/src/screens/test/screen-prune.test.ts
+new file mode 100644
+index 0000000..f3bc138
+--- /dev/null
++++ b/src/screens/test/screen-prune.test.ts
+@@ -0,0 +1,83 @@
++import assert from "node:assert/strict";
++import { test } from "node:test";
++import { pruneScreenNoise } from "../screen-prune.js";
++import type { Screen } from "../screen-map.js";
++
++test("pruneScreenNoise strips transient item actions and content links while recalculating valid sha256 fingerprint (R4)", () => {
++  // Given a screen with structural buttons, card dismiss buttons, and news links
++  const screen: Screen = {
++    id: "jobs",
++    route: "/jobs",
++    title: "Empleos",
++    access: "public",
++    fingerprint: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
++    observedAt: "2026-10-25T18:00:00Z",
++    fields: [
++      {
++        id: "search",
++        role: "textbox",
++        name: "Buscar",
++        nameSource: "placeholder",
++        sensitive: false,
++        agentFillable: true,
++        locator: { role: "textbox", name: "Buscar", occurrence: 0 },
++      },
++    ],
++    actions: [
++      {
++        id: "filtrar-por-solicitud-sencilla",
++        role: "button",
++        name: "Filtrar por Solicitud sencilla",
++        kind: "button",
++        effect: "ui-state",
++        locator: { role: "button", name: "Filtrar por Solicitud sencilla", occurrence: 0 },
++      },
++      {
++        id: "descartar-empleo-senior-backend",
++        role: "button",
++        name: "Descartar empleo 'Senior Backend Engineer'",
++        kind: "button",
++        effect: "none",
++        locator: { role: "button", name: "Descartar empleo 'Senior Backend Engineer'", occurrence: 0 },
++      },
++      {
++        id: "pagina-2",
++        role: "button",
++        name: "Página 2",
++        kind: "button",
++        effect: "submit",
++        locator: { role: "button", name: "Página 2", occurrence: 0 },
++      },
++    ],
++    links: [
++      {
++        id: "feed",
++        name: "Inicio",
++        href: "/feed/",
++        external: false,
++        locator: { role: "link", name: "Inicio", occurrence: 0 },
++      },
++      {
++        id: "noticia",
++        name: "Noticia",
++        href: "/news/story/top-startups-2026/",
++        external: false,
++        locator: { role: "link", name: "Noticia", occurrence: 0 },
++      },
++    ],
++    flows: [],
++  };
++
++  // When pruning noise from the screen
++  const { prunedScreen, actionsRemoved, linksRemoved } = pruneScreenNoise(screen);
++
++  // Then transient item actions and story links are removed
++  assert.equal(actionsRemoved, 1);
++  assert.equal(linksRemoved, 1);
++  assert.deepEqual(prunedScreen.actions.map((a) => a.id), ["filtrar-por-solicitud-sencilla", "pagina-2"]);
++  assert.deepEqual(prunedScreen.links.map((l) => l.id), ["feed"]);
++
++  // And the fingerprint is freshly calculated and non-empty
++  assert.match(prunedScreen.fingerprint, /^sha256:[0-9a-f]{64}$/);
++  assert.notEqual(prunedScreen.fingerprint, screen.fingerprint);
++});

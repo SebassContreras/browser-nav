@@ -1,0 +1,13 @@
+diff --git a/src/screens/screen-filtering.ts b/src/screens/screen-filtering.ts
+index 4fdf8b1..f162322 100644
+--- a/src/screens/screen-filtering.ts
++++ b/src/screens/screen-filtering.ts
+@@ -46,7 +46,7 @@ const ITEM_LEVEL_ACTION_NAME_PATTERN =
+ 
+ // Structural filters/query controls that MUST be preserved even inside search/collection regions
+ const STRUCTURAL_FILTER_NAME_PATTERN =
+-  /^(filtrar por|filter by|fecha de|tipo de|nivel de|en remoto|modalidad|ordenar por|sort by|buscar|search|borrar seleccion|clear filters|limpiar filtros|menos de \d+)\b/i;
++  /^(filtrar por|filter by|fecha de|tipo de|nivel de|en remoto|modalidad|ordenar por|sort by|buscar|search|borrar seleccion|clear filters|limpiar filtros|menos de \d+|solicitud sencilla|easy apply|en mi red|in my network|todos los filtros|all filters)\b/i;
+ 
+ /** True when a container represents an informal dynamic conversation/message list. */
+ export function isConversationContainer(

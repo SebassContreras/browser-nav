@@ -320,3 +320,53 @@ test("informal dynamic conversation lists and per-message item action menus are 
     [["list", "Lista de mensajes de la conversación", "button", true]],
   );
 });
+
+test("learnScreen prunes transient search results and card buttons while preserving structural controls (R1, R2, R3, R5)", () => {
+  // Given a search page with structural filters, query textbox, pagination, and a dynamic list of job search hits
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <input type="text" placeholder="Buscar empleo" aria-label="Buscar empleo" />
+    <button>Filtrar por Solicitud sencilla</button>
+    <button>Fecha de publicación</button>
+    <button>En remoto</button>
+    <button>Borrar selección</button>
+    
+    <div role="region" aria-label="Resultados de búsqueda de empleos">
+      <ul role="list" aria-label="Empleos">
+        <li role="listitem">
+          <button>Senior Backend Engineer (empleo verificado) JOIN 80K</button>
+          <button>Descartar empleo 'Senior Backend Engineer'</button>
+        </li>
+        <li role="listitem">
+          <button>Staff Software Engineer Search (empleo verificado) Dow Jones</button>
+          <button>Descartar empleo 'Staff Software Engineer'</button>
+        </li>
+      </ul>
+    </div>
+
+    <button>Página 2</button>
+    <a href="/feed/">Ir a Feed</a>
+    <a href="/news/story/top-startups-de-2026-7680636/">Noticia destacada</a>
+  </body></html>`);
+
+  // When collecting and learning the screen
+  const collected = collectInteractive(dom.window.document);
+  const screen = learnScreen(collected, { url: "http://localhost:8080/jobs", title: "Empleos", appOrigin: "http://localhost:8080" }, { now: NOW });
+
+  // Then structural controls (search input, filters, pagination, internal link) are preserved
+  const actionIds = screen.actions.map((a) => a.id);
+  assert.equal(actionIds.includes("filtrar-por-solicitud-sencilla"), true);
+  assert.equal(actionIds.includes("fecha-de-publicacion"), true);
+  assert.equal(actionIds.includes("en-remoto"), true);
+  assert.equal(actionIds.includes("borrar-seleccion"), true);
+  assert.equal(actionIds.includes("pagina-2"), true);
+
+  // Then transient item titles, dismiss buttons and ephemeral news stories are pruned
+  assert.equal(actionIds.some((id) => id.includes("descartar-empleo")), false);
+  assert.equal(actionIds.some((id) => id.includes("senior-backend-engineer")), false);
+  assert.equal(screen.links.some((l) => l.href.includes("/news/story/")), false);
+  assert.equal(screen.links.some((l) => l.href.includes("/feed/")), true);
+
+  // And dynamic collections are cleanly registered as patterns with dynamicChildren
+  assert.equal((screen.patterns ?? []).length >= 1, true);
+  assert.equal((screen.patterns ?? []).some((p) => p.dynamicChildren === true), true);
+});
