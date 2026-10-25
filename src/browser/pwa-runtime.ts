@@ -33,8 +33,8 @@ export class FirefoxNotFoundError extends PwaNavError {
     super("no_browser", "Firefox was not found", {
       hint:
         platform === "win32"
-          ? "ask the user whether to download the official Firefox from Mozilla (~95 MB, only into pwa-nav's folder, default browser unchanged); " +
-            "if they agree, call pwa_install_runtime (CLI: `pwa-nav runtime install`) and retry. " +
+          ? "ask the user whether to download the official Firefox from Mozilla (~95 MB, only into browser-nav's folder, default browser unchanged); " +
+            "if they agree, call browser_install_runtime (CLI: `browser-nav runtime install`) and retry. " +
             `Alternatives: ${manual ?? "install Firefox"}, or set ${BINARY_ENV}`
           : `${manual ?? "install Firefox"}, or set ${BINARY_ENV} to the firefox executable`,
     });
@@ -66,7 +66,7 @@ export function firefoxCandidates(platform: string, env: Env): string[] {
   }
 }
 
-// Directory owned by pwa-nav that holds the managed (downloaded) Firefox runtime.
+// Directory owned by browser-nav that holds the managed (downloaded) Firefox runtime.
 export function managedRuntimeDir(platform: string, env: Env): string | undefined {
   const override = env[RUNTIME_DIR_ENV];
   if (override !== undefined && override !== "") return override;
@@ -93,7 +93,7 @@ export function managedRuntimeBinary(platform: string, env: Env): string | undef
   return join(dir, "firefox", "firefox");
 }
 
-// Resolution order: explicit override, installed stock Firefox, pwa-nav managed runtime.
+// Resolution order: explicit override, installed stock Firefox, browser-nav managed runtime.
 export function locateFirefox(
   platform: string,
   env: Env,

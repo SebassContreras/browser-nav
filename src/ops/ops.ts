@@ -1,4 +1,4 @@
-// Shared perform layer for pwa-nav (specs 001/002/003).
+// Shared perform layer for browser-nav (specs 001/002/003).
 // Single source of truth for open/snapshot/click/fill/extract/act behavior.
 // Both src/cli.ts (command handlers) and src/qa.ts (check runner) call these
 // functions; no logic is duplicated between the two entry points.

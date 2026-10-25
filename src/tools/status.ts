@@ -1,5 +1,5 @@
 // Session health status (spec 007 D4): zero-launch, read-only check of an app's stored cookies.
-// Shared by the CLI (`pwa-nav status <app>`) and MCP (`pwa_auth({ action: "status" })`).
+// Shared by the CLI (`browser-nav status <app>`) and MCP (`browser_auth({ action: "status" })`).
 import { resolveAppTarget } from "../backend/backend.js";
 import { evaluateSessionHealth } from "../browser/session-health.js";
 import { readProfileCookies } from "../browser/session-reader.js";
@@ -19,7 +19,7 @@ export interface StatusOptions {
 
 export async function statusTool(args: StatusArgs, options: StatusOptions = {}): Promise<ToolOutcome> {
   if (args.app === undefined || args.app === "") {
-    throw new PwaNavError("invalid_args", "status needs an app name or URL", { hint: "pwa-nav status <app>" });
+    throw new PwaNavError("invalid_args", "status needs an app name or URL", { hint: "browser-nav status <app>" });
   }
   const target = resolveAppTarget(args.app);
   const profileDir = resolveStandaloneProfileDir(target.slug, options.cacheDir);
@@ -27,7 +27,7 @@ export async function statusTool(args: StatusArgs, options: StatusOptions = {}):
     host: target.host,
     nowMs: options.nowMs ?? Date.now(),
     ...(args.cookies === undefined ? {} : { authCookieNames: args.cookies }),
-    signInHint: `pwa-nav auth ${args.app} (MCP: pwa_auth({ action: "clean", app: "${args.app}" }))`,
+    signInHint: `browser-nav auth ${args.app} (MCP: browser_auth({ action: "clean", app: "${args.app}" }))`,
   });
 
   const ttl = health.ttlSeconds === undefined || health.ttlSeconds === 0 ? "" : ` (expires in ${formatTtl(health.ttlSeconds)})`;

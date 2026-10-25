@@ -51,8 +51,8 @@ export {
 export const EXTRACT_INLINE_CAP = 100;
 
 export const RUNTIME_INSTALL_PROMPT =
-  "pwa-nav needs Firefox to open this app and none was found. Download the official Firefox from Mozilla " +
-  "(about 95 MB) into pwa-nav's own folder? It is not installed system-wide and does not change your default browser.";
+  "browser-nav needs Firefox to open this app and none was found. Download the official Firefox from Mozilla " +
+  "(about 95 MB) into browser-nav's own folder? It is not installed system-wide and does not change your default browser.";
 
 export interface ToolDef {
   name: string;

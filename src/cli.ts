@@ -40,32 +40,32 @@ import { isSemanticToken, parseFlowInputs } from "./screens/screen-resolve.js";
 
 function usage(): string {
   return [
-    "pwa-nav — fluid QA CLI (specs 001-nav-snapshot, 004-firefox-bidi-backend)",
+    "browser-nav — fluid QA CLI (specs 001-nav-snapshot, 004-firefox-bidi-backend)",
     "",
     "Usage:",
-    "  pwa-nav open <url> [--launch] [--allow-origin]",
-    "  pwa-nav runtime status | runtime install   (Firefox used for --launch; install downloads it from Mozilla)",
-    "  pwa-nav snapshot [-i | --all] [--json] [--input <file>] [--url <url>] [--title <title>] [--out <path>]",
-    "  pwa-nav snapshot --screen [--screen-map <file>] [--screens-dir <dir>]",
-    "  pwa-nav snapshot --learn [--prune] [--locale <bcp47>] [--access public|authenticated|unknown]",
+    "  browser-nav open <url> [--launch] [--allow-origin]",
+    "  browser-nav runtime status | runtime install   (Firefox used for --launch; install downloads it from Mozilla)",
+    "  browser-nav snapshot [-i | --all] [--json] [--input <file>] [--url <url>] [--title <title>] [--out <path>]",
+    "  browser-nav snapshot --screen [--screen-map <file>] [--screens-dir <dir>]",
+    "  browser-nav snapshot --learn [--prune] [--locale <bcp47>] [--access public|authenticated|unknown]",
     "                   [--app-id <slug>] [--app-name <text>] [--screen-map <file>] [--screens-dir <dir>]",
-    "  pwa-nav click --snapshot <id> [--dry-run] <ref>   |   click [--dry-run] @<id>",
-    "  pwa-nav fill --snapshot <id> [--dry-run] <ref> <text>   |   fill [--dry-run] @<id> <text>",
-    "  pwa-nav upload --snapshot <id> [--dry-run] <ref> <path>...   |   upload [--dry-run] @<id> <path>...",
-    "  pwa-nav download <url|@id|ref> [--out <path>] [--dry-run]",
-    "  pwa-nav screenshot [--out <path>] [--format png|jpeg|webp]",
-    "  pwa-nav extract --snapshot <id> --mode text|links [--query <str>] [--role <str>] [--offset <n>] [--limit <n>]",
-    "  pwa-nav find [<query>] [--role <str>] [--dialog] [--offset <n>] [--limit <n>] [--snapshot <id>]",
-    "  pwa-nav wait <target> [--state visible|hidden|enabled] [--timeout <ms|s>] [--interval <ms|s>]",
-    "  pwa-nav wait --query <str> [--state visible|hidden|enabled] [--timeout <ms|s>] [--interval <ms|s>]",
-    "  pwa-nav act --snapshot <id> [--dry-run] <op>...   |   act [--dry-run] <semantic-op>...",
-    "  pwa-nav journey <name> [key=value...] [--dry-run] [--screen-map <file>] [--screens-dir <dir>]",
-    "  pwa-nav auth [<app-or-url>] [--clean] [--port <n>] [--timeout <s|ms>]",
-    "  pwa-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
-    "  pwa-nav profile backup <app> [--out <file>]",
-    "  pwa-nav profile restore <app> <file> [--force]",
-    "  pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]",
-    "  pwa-nav qa run <check-file>",
+    "  browser-nav click --snapshot <id> [--dry-run] <ref>   |   click [--dry-run] @<id>",
+    "  browser-nav fill --snapshot <id> [--dry-run] <ref> <text>   |   fill [--dry-run] @<id> <text>",
+    "  browser-nav upload --snapshot <id> [--dry-run] <ref> <path>...   |   upload [--dry-run] @<id> <path>...",
+    "  browser-nav download <url|@id|ref> [--out <path>] [--dry-run]",
+    "  browser-nav screenshot [--out <path>] [--format png|jpeg|webp]",
+    "  browser-nav extract --snapshot <id> --mode text|links [--query <str>] [--role <str>] [--offset <n>] [--limit <n>]",
+    "  browser-nav find [<query>] [--role <str>] [--dialog] [--offset <n>] [--limit <n>] [--snapshot <id>]",
+    "  browser-nav wait <target> [--state visible|hidden|enabled] [--timeout <ms|s>] [--interval <ms|s>]",
+    "  browser-nav wait --query <str> [--state visible|hidden|enabled] [--timeout <ms|s>] [--interval <ms|s>]",
+    "  browser-nav act --snapshot <id> [--dry-run] <op>...   |   act [--dry-run] <semantic-op>...",
+    "  browser-nav journey <name> [key=value...] [--dry-run] [--screen-map <file>] [--screens-dir <dir>]",
+    "  browser-nav auth [<app-or-url>] [--clean] [--port <n>] [--timeout <s|ms>]",
+    "  browser-nav status <app-or-url> [--cookie <name>]... [--json]   (read-only session check, launches nothing)",
+    "  browser-nav profile backup <app> [--out <file>]",
+    "  browser-nav profile restore <app> <file> [--force]",
+    "  browser-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]",
+    "  browser-nav qa run <check-file>",
     "",
     "Global options (open, snapshot, click, fill, upload, screenshot, act, journey, wait):",
     "  --backend offline|bidi  Default bidi (live Firefox PWA); env BROWSER_NAV_BACKEND / PWA_NAV_BACKEND.",
@@ -430,7 +430,7 @@ async function cmdSnapshot(rest: string[]): Promise<void> {
       throw new PwaNavError(
         "invalid_args",
         "no ARIA-tree input: pipe the tree via stdin or pass --input <file>.\n" +
-          "Example: pwa-nav snapshot -i --json --input tree.txt",
+          "Example: browser-nav snapshot -i --json --input tree.txt",
       );
     }
     rawTree = await readStdin();
@@ -611,7 +611,7 @@ async function cmdDownload(rest: string[]): Promise<void> {
   printHelpAndExit(values.help);
   const targetOrUrl = positionals[0];
   if (!targetOrUrl) {
-    throw invalid("usage: pwa-nav download <url|@id|ref> [--out <path>] [--dry-run]");
+    throw invalid("usage: browser-nav download <url|@id|ref> [--out <path>] [--dry-run]");
   }
   const isUrl = targetOrUrl.startsWith("http://") || targetOrUrl.startsWith("https://");
   const isTarget = targetOrUrl.startsWith("@");
@@ -1002,7 +1002,7 @@ async function cmdRuntime(rest: string[]): Promise<void> {
 async function cmdProfile(rest: string[]): Promise<void> {
   const [subcommand, ...subRest] = rest;
   if (subcommand === undefined || subcommand === "-h" || subcommand === "--help") {
-    throw invalid("usage: pwa-nav profile backup <app> [--out <file>] | pwa-nav profile restore <app> <file> [--force]");
+    throw invalid("usage: browser-nav profile backup <app> [--out <file>] | browser-nav profile restore <app> <file> [--force]");
   }
 
   if (subcommand === "backup") {
@@ -1014,7 +1014,7 @@ async function cmdProfile(rest: string[]): Promise<void> {
     printHelpAndExit(values.help);
     const [app, extra] = positionals;
     if (app === undefined || extra !== undefined) {
-      throw invalid("usage: pwa-nav profile backup <app> [--out <file>]");
+      throw invalid("usage: browser-nav profile backup <app> [--out <file>]");
     }
     const out = requireNonEmpty("--out", values.out);
     const cacheDir = requireNonEmpty("--cache-dir", values["cache-dir"]);
@@ -1035,7 +1035,7 @@ async function cmdProfile(rest: string[]): Promise<void> {
     printHelpAndExit(values.help);
     const [app, file, extra] = positionals;
     if (app === undefined || file === undefined || extra !== undefined) {
-      throw invalid("usage: pwa-nav profile restore <app> <file> [--force]");
+      throw invalid("usage: browser-nav profile restore <app> <file> [--force]");
     }
     const cacheDir = requireNonEmpty("--cache-dir", values["cache-dir"]);
     const result = await profileRestoreTool(
@@ -1052,7 +1052,7 @@ async function cmdProfile(rest: string[]): Promise<void> {
 async function cmdScreens(rest: string[]): Promise<void> {
   const [subcommand, ...subRest] = rest;
   if (subcommand === undefined || subcommand === "-h" || subcommand === "--help") {
-    throw invalid("usage: pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]");
+    throw invalid("usage: browser-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]");
   }
 
   if (subcommand === "discover") {
@@ -1067,7 +1067,7 @@ async function cmdScreens(rest: string[]): Promise<void> {
     printHelpAndExit(values.help);
     const [app, extra] = positionals;
     if (app === undefined || extra !== undefined) {
-      throw invalid("usage: pwa-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]");
+      throw invalid("usage: browser-nav screens discover <app> [--write] [--limit <n>] [--screen-map <file>] [--screens-dir <dir>]");
     }
     const limit = values.limit !== undefined ? Number(values.limit) : undefined;
     const cacheDir = requireNonEmpty("--cache-dir", values["cache-dir"]);

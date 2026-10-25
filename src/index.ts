@@ -1,4 +1,4 @@
-// Library entrypoint for pwa-nav.
+// Library entrypoint for browser-nav.
 // Exports core types, errors, screen-map tools, and the unified tools service layer.
 
 export * from "./core/errors.js";

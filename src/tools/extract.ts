@@ -32,7 +32,7 @@ export async function extractTool(args: ExtractArgs, ctx: ToolContext): Promise<
   const omitted = detailed.total - (detailed.offset + detailed.returned);
   const text = [
     ...detailed.lines,
-    ...(omitted > 0 ? [`… ${omitted.toString()} more omitted. Use pwa_find({ query: "..." }) to search or pass offset to paginate.`] : []),
+    ...(omitted > 0 ? [`… ${omitted.toString()} more omitted. Use browser_find({ query: "..." }) to search or pass offset to paginate.`] : []),
   ].join("\n");
 
   return {

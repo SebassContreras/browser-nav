@@ -1,5 +1,5 @@
-// Firefox runtime tools (spec 015): status and install of the pwa-nav managed runtime.
-// Shared by the CLI (`runtime status|install`) and the MCP server (`pwa_install_runtime`).
+// Firefox runtime tools (spec 015): status and install of the browser-nav managed runtime.
+// Shared by the CLI (`runtime status|install`) and the MCP server (`browser_install_runtime`).
 import { type Env, locateFirefox, managedRuntimeBinary } from "../browser/pwa-runtime.js";
 import { createRuntimeInstaller, type InstallProgress, type RuntimeInstaller } from "../browser/runtime-installer.js";
 import { type ToolOutcome } from "./types.js";
@@ -23,7 +23,7 @@ export async function runtimeStatusTool(options: RuntimeToolOptions = {}): Promi
   const managed = managedRuntimeBinary(platform, env);
   const text =
     found === undefined
-      ? "firefox: not found (run `pwa-nav runtime install`, MCP: pwa_install_runtime)"
+      ? "firefox: not found (run `browser-nav runtime install`, MCP: browser_install_runtime)"
       : `firefox: ${found.binary} (${found.source})`;
   return {
     text: managedVersion === undefined ? text : `${text}\nmanaged runtime: ${managedVersion}`,
@@ -40,7 +40,7 @@ export async function runtimeInstallTool(options: RuntimeToolOptions = {}): Prom
   const result = await installerFor(options).install(options.onProgress);
   const mb = (result.bytes / 1_000_000).toFixed(0);
   return {
-    text: `firefox ${result.version} installed for pwa-nav: ${result.binary} (${mb} MB downloaded)`,
+    text: `firefox ${result.version} installed for browser-nav: ${result.binary} (${mb} MB downloaded)`,
     structured: { version: result.version, binary: result.binary, bytes: result.bytes },
   };
 }

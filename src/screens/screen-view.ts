@@ -131,7 +131,7 @@ export function renderScreenView(screen: Screen, options: RenderOptions = {}): s
 export function renderUnmappedHint(pathname: string, origin: string): string {
   return [
     `unmapped screen: ${pathname} on ${origin}`,
-    "run `snapshot --learn` (or call MCP tool `pwa_learn` / `pwa_snapshot` with learn: true) on this screen to add it to the map",
+    "run `snapshot --learn` (or call MCP tool `screen_learn` / `browser_snapshot` with learn: true) on this screen to add it to the map",
   ].join("\n");
 }
 

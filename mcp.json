@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "pwa-nav": {
+    "browser-nav": {
       "command": "node",
       "args": ["dist/mcp.js", "--port", "9222"]
     }

@@ -1,4 +1,4 @@
-// runtime-installer: downloads the official Mozilla Firefox into pwa-nav's own runtime dir (spec 015).
+// runtime-installer: downloads the official Mozilla Firefox into browser-nav's own runtime dir (spec 015).
 // Extract-only (Windows full installer /ExtractDir): no registry, shortcuts, default browser or admin rights.
 // Vendors (HTTP, child processes) sit behind small injected interfaces so the flow is testable offline.
 import { spawn } from "node:child_process";

@@ -47,7 +47,7 @@ test("resolveFirefoxBinary honors override, picks first existing candidate, and 
   const user = join("/local", "Mozilla Firefox", "firefox.exe");
   assert.equal(resolveFirefoxBinary("win32", env, (p) => p === user), user);
   assert.equal(resolveFirefoxBinary("linux", {}, () => true), "/usr/bin/firefox");
-  expectCode(() => resolveFirefoxBinary("win32", env, () => false), "no_browser", /pwa_install_runtime.*winget install Mozilla\.Firefox/);
+  expectCode(() => resolveFirefoxBinary("win32", env, () => false), "no_browser", /browser_install_runtime.*winget install Mozilla\.Firefox/);
   expectCode(() => resolveFirefoxBinary("darwin", {}, () => false), "no_browser", /PWA_NAV_FIREFOX_BINARY/);
   assert.throws(() => resolveFirefoxBinary("freebsd", {}), FirefoxNotFoundError);
 });

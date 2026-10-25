@@ -95,7 +95,7 @@ When an action triggers a modal, dialog, or secondary view (for example, clickin
 ```
 
 - **Target Resolution**: Elements declared within `opens` branches are directly resolvable by name or `@id` (e.g., `@editor-post` or `@boton-publicar`).
-- **Dynamic Branch Expansion**: When `pwa_click` or `pwa_act` triggers an action that opens a modal, the response describes the opened branch and lists its available controls immediately.
+- **Dynamic Branch Expansion**: When `browser_click` or `browser_act` triggers an action that opens a modal, the response describes the opened branch and lists its available controls immediately.
 - **Per-Application Storage Isolation**: Sessions and raw snapshots are isolated under `.agent/apps/<appSlug>/` (e.g. `.agent/apps/linkedin.com/snapshot.json` and `.agent/apps/notebooklm.google.com/snapshot.json`) to prevent cross-contamination across different web apps.
 
 ## Dynamic Entity Patterns
@@ -117,7 +117,7 @@ When `snapshot --learn` detects repetitive list or grid items, it groups them in
 
 ### What learning never persists
 
-Learning (`pwa_learn` and the auto-learn in `pwa_snapshot`) keeps user content out of `screens.json`. Live snapshots are not filtered: every element below is still listed with a ref and can be found, clicked or filled.
+Learning (`screen_learn` and the auto-learn in `browser_snapshot`) keeps user content out of `screens.json`. Live snapshots are not filtered: every element below is still listed with a ref and can be found, clicked or filled.
 
 - **Dynamic content regions.** Elements inside an ARIA `feed`, `log` or `article`, or inside informal conversation/message lists (`ul`, `ol`, `list`, `grid`, `rowgroup` labeled with conversation/chat/message terms), never become fields, actions or links. The collector reports the outermost dynamic ancestor as the container, and learning folds every element in it into one pattern per item role with `dynamicChildren: true` - even a single element. Address items with the pattern syntax, e.g. `@conversation-with-fede-item(Hello)`.
 - **Anonymous list checkboxes.** `role="checkbox"` elements with an empty or generic selection name inside list, grid, table, rowgroup, feed, log, or article containers are excluded from permanent fields.
@@ -144,7 +144,7 @@ Flags:
 
 | Flag | Meaning |
 |---|---|
-| `--screens-dir <dir>` | Maps directory (env `PWA_NAV_SCREENS_DIR`, default `./screens`). |
+| `--screens-dir <dir>` | Maps directory (env `BROWSER_NAV_SCREENS_DIR` / `PWA_NAV_SCREENS_DIR`, default `./screens`). |
 | `--screen-map <file>` | Explicit map file; wins over directory selection. Default: the single map whose `app.origin` equals the current origin. |
 | `--prune` | With `--learn`: remove entries no longer on the page. Default keeps and flags them as missing. |
 | `--locale <bcp47>` | With `--learn`: UI language (`en`, `es-ES`). Required for a NEW map; ignored for an existing one (stored locale is kept). |

@@ -46,12 +46,12 @@ export async function loadFlowSource(source: ScreenSource, log: Log): Promise<Sc
     const maps = await loadScreenMapsFromDir(dir, source.cacheDir === undefined ? {} : { agentDir: source.cacheDir });
     if (maps.length === 1 && maps[0] !== undefined) return maps[0].map;
     log(
-      `pwa-nav-mcp: no flow tools or map resources: ${maps.length.toString()} screen maps in ${dir} (need exactly one; ` +
+      `browser-nav-mcp: no flow tools or map resources: ${maps.length.toString()} screen maps in ${dir} (need exactly one; ` +
         "or pass --screen-map <file>)",
     );
   } catch (error) {
     const first = (error instanceof Error ? error.message : String(error)).split("\n")[0] ?? "";
-    log(`pwa-nav-mcp: screen map ignored (no flow tools or map resources): ${first}`);
+    log(`browser-nav-mcp: screen map ignored (no flow tools or map resources): ${first}`);
   }
   return undefined;
 }
@@ -78,10 +78,10 @@ export function flowToolNames<T extends FlowRef>(refs: readonly T[], log: Log): 
     if ((uses.get(name) ?? 0) > 1 || name.length > MAX_TOOL_NAME) {
       const suffix = `_${hashOf(ref)}`;
       name = `${name.slice(0, MAX_TOOL_NAME - suffix.length)}${suffix}`;
-      log(`pwa-nav-mcp: flow ${ref.screenId}/${ref.flowId} registered as ${name} (name collision or length)`);
+      log(`browser-nav-mcp: flow ${ref.screenId}/${ref.flowId} registered as ${name} (name collision or length)`);
     }
     if (!NAME_PATTERN.test(name) || taken.has(name)) {
-      log(`pwa-nav-mcp: flow ${ref.screenId}/${ref.flowId} skipped: no valid unique tool name`);
+      log(`browser-nav-mcp: flow ${ref.screenId}/${ref.flowId} skipped: no valid unique tool name`);
       return;
     }
     taken.add(name);
@@ -122,10 +122,10 @@ export function journeyToolNames(journeyIds: readonly string[], log: Log): Map<s
     if ((uses.get(name) ?? 0) > 1 || name.length > MAX_TOOL_NAME) {
       const suffix = `_${createHash("sha256").update(id).digest("hex").slice(0, 8)}`;
       name = `${name.slice(0, MAX_TOOL_NAME - suffix.length)}${suffix}`;
-      log(`pwa-nav-mcp: journey ${id} registered as ${name} (name collision or length)`);
+      log(`browser-nav-mcp: journey ${id} registered as ${name} (name collision or length)`);
     }
     if (!NAME_PATTERN.test(name) || taken.has(name)) {
-      log(`pwa-nav-mcp: journey ${id} skipped: no valid unique tool name`);
+      log(`browser-nav-mcp: journey ${id} skipped: no valid unique tool name`);
       return;
     }
     taken.add(name);
@@ -155,7 +155,7 @@ export function buildJourneyTools(map: ScreenMap, log: Log): JourneyTools {
         schema: journey.inputSchema,
       });
     } else {
-      log(`pwa-nav-mcp: journey ${journey.id} skipped: inputSchema is not an object schema`);
+      log(`browser-nav-mcp: journey ${journey.id} skipped: inputSchema is not an object schema`);
     }
   }
 
@@ -202,7 +202,7 @@ export function buildFlowTools(map: ScreenMap, log: Log): FlowTools {
       } else if (isObjectSchema(flow.inputSchema)) {
         candidates.push({ screenId: screen.id, flowId: flow.id, description: flow.description, schema: flow.inputSchema });
       } else {
-        log(`pwa-nav-mcp: flow ${screen.id}/${flow.id} skipped: inputSchema is not an object schema`);
+        log(`browser-nav-mcp: flow ${screen.id}/${flow.id} skipped: inputSchema is not an object schema`);
       }
     }
   }

@@ -39,7 +39,7 @@ export async function discoverTool(
 ): Promise<ToolOutcome> {
   if (args.app === undefined || args.app === "") {
     throw new PwaNavError("invalid_args", "discover needs an app name or URL", {
-      hint: "pwa-nav screens discover <app> (or MCP: pwa_discover({ app: \"<app>\" }))",
+      hint: "browser-nav screens discover <app> (or MCP: browser_discover({ app: \"<app>\" }))",
     });
   }
 
@@ -74,7 +74,7 @@ export async function discoverTool(
             "unmapped_screen",
             `no screen map found for ${target.slug} (${target.host})`,
             {
-              hint: `learn the first screen first with 'pwa-nav snapshot --learn' or place screens.json in ${appScreensJson}`,
+              hint: `learn the first screen first with 'browser-nav snapshot --learn' or place screens.json in ${appScreensJson}`,
             },
           );
         }

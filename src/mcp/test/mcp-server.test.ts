@@ -418,7 +418,7 @@ test("extract is bounded and reports omitted lines; limit lowers the cap", async
     assert.equal(lines.length, EXTRACT_INLINE_CAP + 1);
     assert.equal(
       lines[EXTRACT_INLINE_CAP],
-      '… 30 more omitted. Use pwa_find({ query: "..." }) to search or pass offset to paginate.',
+      '… 30 more omitted. Use browser_find({ query: "..." }) to search or pass offset to paginate.',
     );
     assert.equal(r.structured["omitted"], 30);
     assert.equal(r.structured["total"], total);
@@ -948,7 +948,7 @@ test("MCP initialization handshake instructions declare primary authentic browse
     // And explicitly warn that synthetic Python, Playwright, and Selenium scripts trigger Cloudflare, CAPTCHAs, and bot-walls (R3)
     assert.match(instructions, /NEVER write or execute synthetic Python, Playwright, Puppeteer, Selenium/i);
     assert.match(instructions, /Cloudflare, CAPTCHAs, login walls, and bot-walls/i);
-    assert.match(instructions, /Always prioritize native browser_\* \(or pwa_\*\) MCP tools/i);
+    assert.match(instructions, /Always prioritize native browser_\* MCP tools/i);
     return Promise.resolve();
   });
 });

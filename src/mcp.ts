@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// pwa-nav-mcp: stdio MCP server entrypoint (spec 006). stdout carries ONLY protocol frames:
+// browser-nav-mcp: stdio MCP server entrypoint (spec 006). stdout carries ONLY protocol frames:
 // console.log/info/debug are redirected to stderr before anything else runs.
 // Operator options: --port, --dry-run, --screens-dir, --screen-map,
 // --cache-dir, --backend offline|bidi. Armed is never a tool argument.
@@ -20,7 +20,7 @@ console.info = stderrLog;
 console.debug = stderrLog;
 
 const USAGE =
-  "usage: pwa-nav-mcp [--port <n>] [--dry-run] [--armed] [--screens-dir <dir>] [--screen-map <file>] [--cache-dir <dir>] [--backend offline|bidi]";
+  "usage: browser-nav-mcp [--port <n>] [--dry-run] [--armed] [--screens-dir <dir>] [--screen-map <file>] [--cache-dir <dir>] [--backend offline|bidi]";
 
 function invalid(message: string): PwaNavError {
   return new PwaNavError("invalid_args", `${message}\n${USAGE}`);
@@ -116,7 +116,7 @@ async function main(): Promise<void> {
   process.stdin.on("end", () => {
     void server.close();
   });
-  console.error(`pwa-nav-mcp ready (backend ${opts.backend}, ${opts.armed ? "ARMED" : "dry-run"})`);
+  console.error(`browser-nav-mcp ready (backend ${opts.backend}, ${opts.armed ? "ARMED" : "dry-run"})`);
 }
 
 try {

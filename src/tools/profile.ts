@@ -28,7 +28,7 @@ export async function profileBackupTool(
 ): Promise<ToolOutcome & { structured: BackupProfileResult & Record<string, unknown> }> {
   if (!args.app || args.app.trim() === "") {
     throw new PwaNavError("invalid_args", "profile backup requires an app name", {
-      hint: "pwa-nav profile backup <app> [--out <file>]",
+      hint: "browser-nav profile backup <app> [--out <file>]",
     });
   }
 
@@ -57,12 +57,12 @@ export async function profileRestoreTool(
 ): Promise<ToolOutcome & { structured: RestoreProfileResult & Record<string, unknown> }> {
   if (!args.app || args.app.trim() === "") {
     throw new PwaNavError("invalid_args", "profile restore requires an app name", {
-      hint: "pwa-nav profile restore <app> <file> [--force]",
+      hint: "browser-nav profile restore <app> <file> [--force]",
     });
   }
   if (!args.file || args.file.trim() === "") {
     throw new PwaNavError("invalid_args", "profile restore requires an archive file path", {
-      hint: "pwa-nav profile restore <app> <file> [--force]",
+      hint: "browser-nav profile restore <app> <file> [--force]",
     });
   }
 

@@ -128,7 +128,7 @@ export async function resolveNavigationTarget(
     `cannot resolve navigation target "${input}": not a valid URL, domain, or registered app slug.`,
     {
       hint: `Did you mean a full URL like "https://${input}.com", or to search in the active page? ` +
-        `pwa-nav open only accepts full URLs, valid domains, or app slugs. Use pwa_fill or pwa_click to interact in-page.`,
+        `browser-nav open only accepts full URLs, valid domains, or app slugs. Use browser_fill or browser_click to interact in-page.`,
     },
   );
 }

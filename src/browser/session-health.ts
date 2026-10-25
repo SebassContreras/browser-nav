@@ -42,7 +42,7 @@ export function evaluateSessionHealth(
   cookies: readonly StoredCookie[] | null,
   options: SessionHealthOptions,
 ): SessionHealth {
-  const signIn = options.signInHint ?? "pwa-nav auth <app>";
+  const signIn = options.signInHint ?? "browser-nav auth <app>";
   if (cookies === null) {
     return {
       verdict: "no_profile",
@@ -71,7 +71,7 @@ export function evaluateSessionHealth(
       verdict: "unauthenticated",
       source: "disk",
       cookies: [],
-      hint: `no auth cookies stored for ${options.host}. Sign in: ${signIn}. A running window may still hold session-only cookies; confirm with pwa-nav snapshot.`,
+      hint: `no auth cookies stored for ${options.host}. Sign in: ${signIn}. A running window may still hold session-only cookies; confirm with browser-nav snapshot.`,
     };
   }
 
