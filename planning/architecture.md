@@ -20,7 +20,7 @@ Local-only CLI + MCP adapter driving standalone Firefox PWA instances over W3C W
 | Visual QA & Evidence | BiDi `captureScreenshot` saved directly to disk (`.agent/screenshot.png`, `.agent/evidence/`); zero base64 in LLM context | Strict context economy while capturing deterministic visual test evidence |
 | CI | `pnpm lint && pnpm build && pnpm test && pnpm smoke` (plus opt-in real Firefox E2E) | Minimal gate, 383+ automated tests |
 | Secrets | `.env`, never committed | Standard |
-| Observability | `.spectrace/logs` + per-run evidence files | Audit trail |
+| Observability | Per-run evidence files | Audit trail |
 
 ## Conventions
 

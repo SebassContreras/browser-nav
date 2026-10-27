@@ -19,7 +19,7 @@ This file is the single agent-instructions entrypoint; there is no `CLAUDE.md`. 
 - `planning/product.md` — Product scope, user persona, boundaries, and out-of-scope definitions.
 - `planning/architecture.md` — Technical stack decisions and rationale.
 - `planning/styles.md` — Formatting, style, and code guidelines.
-- `planning/roadmap.md` — Master specification index with status, dependencies, and priority.
+- `planning/roadmap.md` — Master specification index with status and dependencies.
 - `planning/handoff.md` — Current execution state, live testing log, safety notes, and next priorities.
 - `docs/firefox-runtime.md` — Firefox discovery, launch flags, and troubleshooting.
 - `docs/screen-map.md` — Screen map schema, route matching, compact view, and User Journeys.
@@ -163,7 +163,7 @@ Agents operate through two complementary navigation layers:
 ## Code Modification Rules
 
 - Maintain Clean Architecture boundaries strictly: domain logic in `src/core/`, screen map models in `src/screens/`, protocol logic in `src/bidi/`, browser adapters in `src/browser/`, business ops in `src/ops/`, CLI in `src/cli/`, MCP in `src/mcp/`.
-- Never invent stack requirements or bypass the interview/spec loop.
+- Never invent stack requirements or bypass the spec loop.
 - All code comments and documentation must be written in English. Communicate with the user in Spanish.
 
 <!-- spectrace -->
