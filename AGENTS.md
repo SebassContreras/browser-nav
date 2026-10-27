@@ -24,7 +24,7 @@ This file is the single agent-instructions entrypoint; there is no `CLAUDE.md`. 
 - `docs/firefox-runtime.md` — Firefox discovery, launch flags, and troubleshooting.
 - `docs/screen-map.md` — Screen map schema, route matching, compact view, and User Journeys.
 - `docs/mcp.md` — MCP stdio server setup, tool registry, resources, and client configuration.
-- `planning/NNN-name.md` — one file per spec: goal, requirements (R), design (D), tasks, changes.
+- `planning/specs/NNN-name.md` — one file per spec: goal, requirements (R), design (D), tasks, changes.
 
 ---
 
@@ -174,7 +174,7 @@ Work is planned in `planning/`:
 ```
 planning/product.md      what this is, who it's for, stack, how to run and test, docs
 planning/roadmap.md      specs in order, their status, and a free "Ideas" list
-planning/NNN-name.md     one file per spec
+planning/specs/NNN-name.md  one file per spec
 ```
 
 A spec file:
