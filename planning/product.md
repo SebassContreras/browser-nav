@@ -25,3 +25,7 @@ Solo developers, QA engineers, and autonomous AI coding agents pair-programming 
 - Native WebMCP (`document.modelContext`) tools (v2).
 - Multi-session management and dashboard UI (v2).
 - Any bot evasion, CAPTCHA bypass, or credential scraping. Credentials remain strictly in the user's custody.
+
+## Docs
+- README.md — what it is, install, usage
+- AGENTS.md — how agents work in this repo
