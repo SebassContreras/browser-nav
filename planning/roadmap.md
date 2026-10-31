@@ -12,6 +12,7 @@ Specs in order. `Status` is written by the pre-commit hook from each spec's chec
 | 036 | multicontext-tab-selection | todo | 035 |
 | 037 | screen-map-normalization | todo | — |
 | 038 | interactive-windows-launch | todo | 035 |
+| 039 | background-tab-resilience-and-map-precedence | todo | — |
 
 ## Ideas
 
