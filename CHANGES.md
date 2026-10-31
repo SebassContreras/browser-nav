@@ -19,3 +19,4 @@ When an existing design or requirement needs to change:
 | Date | Scope | What changed | Why |
 |---|---|---|---|
 | 2026-10-31 | Governance | Migrated to spectrace 0.32.0: 7 root contracts, 4 skills, .agentignore; removed .githooks, Spec: trailers and planning/product.md\|architecture.md\|styles.md | Adopt decoupled progressive disclosure and zero-hook model |
+| 2026-10-31 | Governance | ENGINEERING.md gains §7 (research only when the decision needs it, cited as `Source: <url> (accessed YYYY-MM-DD)`); §4 heading matches the spectrace template; AGENTS.md principle lists name DRY, research and trade-offs; spectrace skills updated | Spectrace principle 7; the file had no research rule |

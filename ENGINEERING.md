@@ -17,7 +17,7 @@ This document defines the craftsmanship and code quality standards for this repo
 ### 3. DRY via Composition, Not Inheritance
 - Extract shared logic into small functions or services; CLI and MCP share behavior through `src/tools/`, never by copying.
 
-### 4. Anti-Corruption / Dependency Inversion (DIP)
+### 4. Service Layer + Anti-Corruption / Dependency Inversion (DIP)
 - Domain code never calls BiDi, the filesystem, or vendor SDKs directly; it goes through the `Backend` port and adapters.
 
 ### 5. Follow the Stack's Standards
@@ -28,6 +28,16 @@ This document defines the craftsmanship and code quality standards for this repo
 
 ### 6. Document Trade-offs
 - Record pros, cons, and mitigations of significant choices in the relevant spec or [CHANGES.md](./CHANGES.md).
+
+### 7. Validate with Research — Only When It Changes the Decision
+- Research is not a ritual. Look it up only when at least one holds:
+  - the choice is hard to reverse (file format, protocol, public surface, contract shape);
+  - the answer is a fact outside this repository (WebDriver BiDi specification, browser version behaviour, MCP protocol rules, platform limits, licence terms);
+  - two credible options tie and the tie-break is factual, not stylistic.
+- Do not research what a root contract already states, what the stack's own documentation defines, or a local, reversible change you can settle by running it.
+- Source order: official specification or documentation, then maintainer issue or release notes, then vendor blog. One or two sources per question; stop when a primary source settles it.
+- Cite what you used where the decision lives — `D<n>` in the spec, a code comment, or `CHANGES.md` — as `Source: <url> (accessed YYYY-MM-DD)`.
+- A non-obvious claim that could have a source and has none is a review finding.
 
 ---
 

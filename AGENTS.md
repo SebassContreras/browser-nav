@@ -24,7 +24,7 @@ Durable decisions live at the root; execution plans live in `planning/`:
 AGENTS.md                   operational manual and commands for agents
 PRODUCT.md                  product vision, audience, capabilities, non-goals, docs list
 ARCHITECTURE.md             topology, stack, layers, directory map, MCP server flags
-ENGINEERING.md              KISS/YAGNI, SRP, DIP, code standards, hard rules
+ENGINEERING.md              KISS/YAGNI, SRP, DRY, DIP, research, trade-offs, hard rules
 DESIGN.md                   CLI conventions, output formats, error/exit codes, editorial style
 TESTING.md                  testing invariants, partitioning, hygiene, verification commands
 CHANGES.md                  ledger of pivots, replacements, and deprecations
@@ -66,7 +66,7 @@ A user signs in and stays signed in across reloads.
 ### Working on Tasks
 
 1. **Find Next Task:** Open `planning/roadmap.md`. Take the active spec (`todo` or `in progress`) whose dependencies are done. Open its spec file in `planning/specs/` and find the first open `[agent]` task. Skip `[human]` tasks and inform the user if blocked.
-2. **Execute & Consult Context:** Read [ARCHITECTURE.md](./ARCHITECTURE.md) for structural boundaries, [ENGINEERING.md](./ENGINEERING.md) for code principles (KISS, SRP, DIP), [DESIGN.md](./DESIGN.md) for CLI/content design rules, and [TESTING.md](./TESTING.md) for verification standards. Implement only the task scope. No speculative abstractions: abstract only for 2+ concrete uses.
+2. **Execute & Consult Context:** Read [ARCHITECTURE.md](./ARCHITECTURE.md) for structural boundaries, [ENGINEERING.md](./ENGINEERING.md) for code principles (KISS, SRP, DRY, DIP, research only when the decision requires it, trade-offs), [DESIGN.md](./DESIGN.md) for CLI/content design rules, and [TESTING.md](./TESTING.md) for verification standards. Implement only the task scope. No speculative abstractions: abstract only for 2+ concrete uses.
 3. **Verify:** Run the CI gate adhering to [TESTING.md](./TESTING.md) and [ENGINEERING.md](./ENGINEERING.md) (auditable via `spectrace-review`). Never mark a task done without verifying.
 4. **Mark Done & Commit:** Mark the task `[x]`. If all tasks in the spec are complete, update the roadmap status to `done`. Stage changed files and commit using Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`).
 5. **Stuck:** Add an indented `blocked: <reason>` line under the task, commit the note, inform the user, and move on.
