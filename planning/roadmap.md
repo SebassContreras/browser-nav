@@ -1,6 +1,6 @@
 # Roadmap
 
-Specs in order. `Status` is written by the pre-commit hook from each spec's checkboxes. Specs 003–034 not listed were finished under the old spectrace format (one folder per spec); they live in git history.
+Specs in order. `Status` (`todo`, `in progress`, `done`) is maintained by hand. Specs 003–034 not listed were finished under the old spectrace format (one folder per spec); they live in git history.
 
 | ID  | Spec | Status | Depends on |
 |-----|------|--------|------------|
