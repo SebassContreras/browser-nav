@@ -9,6 +9,7 @@ export interface BackendRequest {
   app?: string;
   cacheDir?: string;
   workspaceDir?: string;
+  contextId?: string;
 }
 
 export type BackendFactory = (request: BackendRequest) => Backend;
@@ -27,6 +28,7 @@ export interface ScreenSource {
 export interface CommonToolOptions {
   cacheDir?: string | undefined;
   workspaceDir?: string | undefined;
+  contextId?: string | undefined;
 }
 
 export interface ToolContext {
@@ -39,6 +41,7 @@ export interface ToolContext {
   backend?: Backend;
   port?: number;
   app?: string;
+  contextId?: string;
   /** Asks the human a yes/no question (MCP elicitation). Absent when the client cannot ask. */
   confirm?: (message: string) => Promise<boolean>;
   /** Firefox runtime installer override (tests). */

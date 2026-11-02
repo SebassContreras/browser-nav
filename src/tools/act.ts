@@ -32,7 +32,7 @@ export async function actTool(args: ActArgs, ctx: ToolContext): Promise<ToolOutc
 
   const ops = actTokens(rawOps, args.inputs);
   const snapshotId = args.snapshotId;
-  const backend = getBackend(effectiveCtx);
+  const backend = getBackend(effectiveCtx, args);
 
   if (ops.some(isSemanticToken)) {
     if (snapshotId !== undefined) {

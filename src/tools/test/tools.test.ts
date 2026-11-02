@@ -17,7 +17,9 @@ import {
   authTool,
   qaTool,
   learnTool,
+  getBackend,
   type ToolContext,
+  type BackendRequest,
 } from "../index.js";
 import { executeLearn } from "../learn.js";
 import { OfflineBackend } from "../../backend/backend.js";
@@ -315,4 +317,25 @@ test("spec 035 T003: snapshotTool({ learn: true }) defaults locale to 'es', pres
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("getBackend propagates contextId from request or context with request precedence (036/T004)", () => {
+  let captured: BackendRequest | undefined;
+  const ctx: ToolContext = {
+    backendFactory: (req: BackendRequest) => {
+      captured = req;
+      return new OfflineBackend();
+    },
+    armed: false,
+    mode: "offline",
+    screens: {},
+    contextId: "session-ctx",
+  };
+
+  getBackend(ctx);
+  assert.ok(captured !== undefined);
+  assert.equal(captured.contextId, "session-ctx");
+
+  getBackend(ctx, { contextId: "override-ctx" });
+  assert.equal(captured.contextId, "override-ctx");
 });

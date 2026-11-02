@@ -122,7 +122,7 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
     };
   }
 
-  const backend = getBackend(ctx);
+  const backend = getBackend(ctx, args);
   const snap = await performLiveSnapshot(backend, {
     outPath,
     quiet: json,

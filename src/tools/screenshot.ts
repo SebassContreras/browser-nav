@@ -1,14 +1,14 @@
 import { performScreenshot } from "../ops/ops.js";
 import { getBackend } from "./common.js";
-import { type ToolContext, type ToolOutcome } from "./types.js";
+import { type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
-export interface ScreenshotArgs {
+export interface ScreenshotArgs extends CommonToolOptions {
   outPath?: string;
   format?: "png" | "jpeg" | "webp";
 }
 
 export async function screenshotTool(args: ScreenshotArgs, ctx: ToolContext): Promise<ToolOutcome> {
-  const backend = getBackend(ctx, { armed: false });
+  const backend = getBackend(ctx, { armed: false, ...args });
   const result = await performScreenshot({
     backend,
     ...(args.outPath !== undefined ? { outPath: args.outPath } : {}),

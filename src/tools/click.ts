@@ -47,7 +47,7 @@ export async function clickTool(args: ClickArgs, ctx: ToolContext): Promise<Tool
     throw invalid("pass target (@id or visible text) or ref (eN).");
   }
 
-  const backend = getBackend(effectiveCtx);
+  const backend = getBackend(effectiveCtx, args);
 
   if (semanticTarget !== undefined) {
     if (effectiveCtx.mode === "offline") {

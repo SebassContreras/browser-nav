@@ -1,11 +1,11 @@
 import { latestSnapshotId } from "../core/refs.js";
 import { performFind } from "../ops/ops.js";
 import { getBackend } from "./common.js";
-import { type ToolContext, type ToolOutcome } from "./types.js";
+import { type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
 export const FIND_INLINE_CAP = 100;
 
-export interface FindArgs {
+export interface FindArgs extends CommonToolOptions {
   snapshotId?: string;
   query?: string;
   role?: string;
@@ -17,7 +17,7 @@ export interface FindArgs {
 export async function findTool(args: FindArgs, ctx: ToolContext): Promise<ToolOutcome> {
   const offset = typeof args.offset === "number" ? Math.max(0, args.offset) : 0;
   const limit = typeof args.limit === "number" ? Math.min(FIND_INLINE_CAP, Math.max(1, args.limit)) : FIND_INLINE_CAP;
-  const backend = getBackend(ctx, { armed: false });
+  const backend = getBackend(ctx, { armed: false, ...args });
   const snapshotId = args.snapshotId ?? (await latestSnapshotId({ agentDir: backend.agentDir })) ?? undefined;
 
   const result = await performFind(snapshotId, {

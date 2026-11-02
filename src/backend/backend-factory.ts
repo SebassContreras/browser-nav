@@ -67,6 +67,7 @@ export interface BackendFactoryRequest {
   launch?: boolean | undefined;
   port?: number | undefined;
   app?: string | undefined;
+  contextId?: string | undefined;
   /** Active `.agent` dir chosen by the caller (per-call override, browser_config or handshake). */
   cacheDir?: string | undefined;
 }
@@ -76,11 +77,13 @@ export function createBackendFactory(defaults: BackendDefaults): (request: Backe
   return (request) => {
     const app = request.app ?? defaults.app;
     const cacheDir = request.cacheDir ?? defaults.cacheDir;
+    const contextId = request.contextId ?? defaults.contextId;
     return createBackend({
       ...defaults,
       port: request.port ?? defaults.port,
       ...(app === undefined ? {} : { app }),
       ...(cacheDir === undefined ? {} : { cacheDir }),
+      ...(contextId === undefined ? {} : { contextId }),
       ...(request.armed === undefined ? {} : { armed: request.armed }),
       ...(request.launch === true ? { launch: true } : {}),
     });

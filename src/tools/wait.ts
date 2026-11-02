@@ -1,8 +1,8 @@
 import { performWait } from "../ops/ops.js";
 import { getBackend } from "./common.js";
-import { invalid, type ToolContext, type ToolOutcome } from "./types.js";
+import { invalid, type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
-export interface WaitArgs {
+export interface WaitArgs extends CommonToolOptions {
   target?: string;
   query?: string;
   state?: "visible" | "hidden" | "enabled";
@@ -15,7 +15,7 @@ export async function waitTool(args: WaitArgs, ctx: ToolContext): Promise<ToolOu
   if (target === undefined && query === undefined) {
     throw invalid("must pass either target or query to wait for.");
   }
-  const backend = getBackend(ctx, { armed: false });
+  const backend = getBackend(ctx, { armed: false, ...args });
   const result = await performWait(target, {
     backend,
     query,

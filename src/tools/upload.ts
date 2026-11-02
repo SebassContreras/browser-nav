@@ -3,9 +3,9 @@ import { performUpload } from "../ops/ops.js";
 import { parseTarget, resolveTarget } from "../screens/screen-resolve.js";
 import { actionOutcome, getBackend } from "./common.js";
 import { executeSemantic, screenAt, type SemanticContext } from "./semantic-exec.js";
-import { invalid, NO_INPUT_LINE, type ToolContext, type ToolOutcome } from "./types.js";
+import { invalid, NO_INPUT_LINE, type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
-export interface UploadArgs {
+export interface UploadArgs extends CommonToolOptions {
   target?: string;
   ref?: string;
   files?: readonly string[];
@@ -52,7 +52,7 @@ export async function uploadTool(args: UploadArgs, ctx: ToolContext): Promise<To
     throw invalid("pass target (@id or visible text) or ref (eN).");
   }
 
-  const backend = getBackend(effectiveCtx);
+  const backend = getBackend(effectiveCtx, args);
 
   if (semanticTarget !== undefined) {
     if (effectiveCtx.mode === "offline") {

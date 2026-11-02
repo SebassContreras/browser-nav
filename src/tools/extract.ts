@@ -1,11 +1,11 @@
 import { latestSnapshotId } from "../core/refs.js";
 import { performExtractDetailed } from "../ops/ops.js";
 import { getBackend } from "./common.js";
-import { type ToolContext, type ToolOutcome } from "./types.js";
+import { type CommonToolOptions, type ToolContext, type ToolOutcome } from "./types.js";
 
 export const EXTRACT_INLINE_CAP = 100;
 
-export interface ExtractArgs {
+export interface ExtractArgs extends CommonToolOptions {
   snapshotId?: string;
   mode?: "all" | "text" | "links";
   query?: string;
@@ -18,7 +18,7 @@ export async function extractTool(args: ExtractArgs, ctx: ToolContext): Promise<
   const mode = args.mode === "links" ? "links" : args.mode === "text" ? "text" : "all";
   const offset = typeof args.offset === "number" ? Math.max(0, args.offset) : 0;
   const limit = typeof args.limit === "number" ? Math.min(EXTRACT_INLINE_CAP, Math.max(1, args.limit)) : EXTRACT_INLINE_CAP;
-  const backend = getBackend(ctx, { armed: false });
+  const backend = getBackend(ctx, { armed: false, ...args });
   const snapshotId = args.snapshotId ?? (await latestSnapshotId({ agentDir: backend.agentDir })) ?? undefined;
 
   const detailed = await performExtractDetailed(snapshotId, mode, {

@@ -25,6 +25,7 @@ export function getBackend(
     app: req.app ?? ctx.app,
     cacheDir: effectiveCacheDir,
     workspaceDir: req.workspaceDir,
+    contextId: req.contextId ?? ctx.contextId,
   });
 }
 

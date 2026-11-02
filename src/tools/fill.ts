@@ -48,7 +48,7 @@ export async function fillTool(args: FillArgs, ctx: ToolContext): Promise<ToolOu
     throw invalid("pass target (@id or visible text) or ref (eN).");
   }
 
-  const backend = getBackend(effectiveCtx);
+  const backend = getBackend(effectiveCtx, args);
 
   if (semanticTarget !== undefined) {
     if (effectiveCtx.mode === "offline") {
