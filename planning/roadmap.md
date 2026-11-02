@@ -8,7 +8,7 @@ Specs in order. `Status` (`todo`, `in progress`, `done`) is maintained by hand. 
 | 002 | multi-pwa-isolation | done | - |
 | 005 | automatic-pwa-provisioning | done | — |
 | 009 | user-js-performance-tuning | done | — |
-| 035 | mcp-schema-consistency | todo | — |
+| 035 | mcp-schema-consistency | done | — |
 | 036 | multicontext-tab-selection | todo | 035 |
 | 037 | screen-map-normalization | todo | — |
 | 038 | interactive-windows-launch | todo | 035 |
