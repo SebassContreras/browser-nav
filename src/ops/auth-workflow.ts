@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { type AuthWatcher, DefaultAuthWatcher } from "../browser/auth-watcher.js";
 import { type ProcessTerminator, DefaultProcessTerminator } from "../browser/process-terminator.js";
 import {
@@ -24,6 +26,8 @@ export interface AssistedAuthResult {
   port: number;
   cleanResult: CleanStandaloneLaunchResult;
   debugResult: StandaloneLaunchResult;
+  command: string;
+  shortcutPath?: string | null;
 }
 
 export interface AuthWorkflowDeps {
@@ -31,6 +35,12 @@ export interface AuthWorkflowDeps {
   launchDebugFn?: typeof launchStandaloneApp;
   watcher?: AuthWatcher;
   terminator?: ProcessTerminator;
+  shortcutPathResolver?: (appSlug: string, profileDir: string) => string | null;
+}
+
+function defaultShortcutResolver(appSlug: string, profileDir: string): string | null {
+  const candidate = join(dirname(profileDir), `${appSlug}.lnk`);
+  return existsSync(candidate) ? candidate : null;
 }
 
 /**
@@ -43,12 +53,14 @@ export class AuthWorkflowOrchestrator {
   private readonly launchDebug: typeof launchStandaloneApp;
   private readonly watcher: AuthWatcher;
   private readonly terminator: ProcessTerminator;
+  private readonly resolveShortcut: (appSlug: string, profileDir: string) => string | null;
 
   constructor(deps: AuthWorkflowDeps = {}) {
     this.launchClean = deps.launchCleanFn ?? launchStandaloneAppClean;
     this.launchDebug = deps.launchDebugFn ?? launchStandaloneApp;
     this.watcher = deps.watcher ?? new DefaultAuthWatcher();
     this.terminator = deps.terminator ?? new DefaultProcessTerminator();
+    this.resolveShortcut = deps.shortcutPathResolver ?? defaultShortcutResolver;
   }
 
   async execute(options: AssistedAuthOptions): Promise<AssistedAuthResult> {
@@ -66,6 +78,7 @@ export class AuthWorkflowOrchestrator {
 
     const targetHost = new URL(url).hostname;
     const pid = cleanResult.pid;
+    const shortcutPath = this.resolveShortcut(appSlug, cleanResult.profileDir);
 
     try {
       report(`Monitoring authentication for ${targetHost}...`);
@@ -110,6 +123,8 @@ export class AuthWorkflowOrchestrator {
       port,
       cleanResult,
       debugResult,
+      command: cleanResult.command,
+      shortcutPath,
     };
   }
 }
