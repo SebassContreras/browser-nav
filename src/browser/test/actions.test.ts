@@ -590,3 +590,92 @@ test("uploadFiles: sets files via input.setFiles on located element with settle"
   });
 });
 
+
+test("checkActionable: table-driven window visibility and stability partitions", async () => {
+  const cases: Array<{
+    name: string;
+    hidden: boolean;
+    hasRaf: boolean;
+    stallRaf: boolean;
+    moving: boolean;
+    expectedOk: boolean;
+    expectedReason?: RegExp;
+  }> = [
+    {
+      name: "visible window with working rAF and stable element",
+      hidden: false,
+      hasRaf: true,
+      stallRaf: false,
+      moving: false,
+      expectedOk: true,
+    },
+    {
+      name: "hidden window (document.hidden = true) falling back to timer",
+      hidden: true,
+      hasRaf: true,
+      stallRaf: false,
+      moving: false,
+      expectedOk: true,
+    },
+    {
+      name: "background window with stalled rAF falling back to timer",
+      hidden: false,
+      hasRaf: true,
+      stallRaf: true,
+      moving: false,
+      expectedOk: true,
+    },
+    {
+      name: "hidden window without requestAnimationFrame function",
+      hidden: true,
+      hasRaf: false,
+      stallRaf: false,
+      moving: false,
+      expectedOk: true,
+    },
+    {
+      name: "hidden window with moving element detected across timer frames",
+      hidden: true,
+      hasRaf: true,
+      stallRaf: false,
+      moving: true,
+      expectedOk: false,
+      expectedReason: /not stable/,
+    },
+  ];
+
+  for (const tc of cases) {
+    const { doc, el } = page("<button id=\"t\">Go</button>");
+    const view = doc.defaultView as unknown as {
+      document: { hidden: boolean };
+      requestAnimationFrame?: (cb: () => void) => number;
+    };
+    Object.defineProperty(doc, "hidden", { value: tc.hidden, configurable: true });
+
+    if (!tc.hasRaf) {
+      delete view.requestAnimationFrame;
+    } else if (tc.stallRaf) {
+      // Simulate suspended/stalled rAF in background tab
+      view.requestAnimationFrame = () => 0;
+    }
+
+    let n = 0;
+    layout(
+      doc,
+      el,
+      () => el,
+      tc.moving ? () => rect(10 + n++, 10, 100, 20) : () => rect(10, 10, 100, 20),
+    );
+
+    const started = Date.now();
+    const result = await checkActionable(el);
+    const duration = Date.now() - started;
+
+    assert.equal(result.ok, tc.expectedOk, `${tc.name} ok mismatch`);
+    if (tc.expectedReason) {
+      assert.match(result.reason ?? "", tc.expectedReason, `${tc.name} reason mismatch`);
+    }
+    // Invariant: completes in bounded time without hanging
+    assert.ok(duration < 2000, `${tc.name} took too long (${duration}ms)`);
+  }
+});

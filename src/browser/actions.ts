@@ -95,9 +95,17 @@ export async function checkActionable(el: Element): Promise<ActionableResult> {
 
   const frame = (): Promise<void> =>
     new Promise<void>((resolve) => {
-      view.requestAnimationFrame(() => {
-        resolve();
-      });
+      let resolved = false;
+      const done = (): void => {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      };
+      if (typeof view.requestAnimationFrame === "function" && !view.document.hidden) {
+        view.requestAnimationFrame(done);
+      }
+      setTimeout(done, 32);
     });
   const sameRect = (a: DOMRect, b: DOMRect): boolean =>
     a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
