@@ -1,6 +1,6 @@
 // Tests for src/screen-match.ts (spec 005 T004). Run with `pnpm test`.
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, it } from "node:test";
@@ -295,4 +295,95 @@ describe("screens dir", () => {
       });
     });
   });
+
+  it("discovers screen maps across canonical, flat app, and legacy directory layouts with dictionary screens", async () => {
+    await withTmp(async (dir) => {
+      const agentDir = dir;
+      const appsDir = join(agentDir, "apps");
+      const legacyScreensDir = join(agentDir, "screens");
+      await mkdir(join(appsDir, "canonical-app"), { recursive: true });
+      await mkdir(legacyScreensDir, { recursive: true });
+
+      const canonicalMapRaw = {
+        schemaVersion: "1.0.0",
+        app: { id: "canonical-app", name: "Canonical", origin: "https://canonical.example.com", locale: "en", learnedAt: "2026-11-02T10:00:00Z" },
+        screens: {
+          main: {
+            route: "/main",
+            title: "Main",
+            access: "public",
+            observedAt: "2026-11-02T10:00:00Z",
+            fields: [],
+            actions: [],
+            links: [],
+            flows: [],
+            fingerprint: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          },
+        },
+      };
+
+      const flatAppMapRaw = {
+        schemaVersion: "1.0.0",
+        app: { id: "flat-app", name: "Flat", origin: "https://flat.example.com", locale: "en", learnedAt: "2026-11-02T10:00:00Z" },
+        screens: [
+          {
+            id: "dash",
+            route: "/dash",
+            title: "Dash",
+            access: "public",
+            observedAt: "2026-11-02T10:00:00Z",
+            fields: [],
+            actions: [],
+            links: [],
+            flows: [],
+            fingerprint: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          },
+        ],
+      };
+
+      const legacyMapRaw = {
+        schemaVersion: "1.0.0",
+        app: { id: "legacy-app", name: "Legacy", origin: "https://legacy.example.com", locale: "en", learnedAt: "2026-11-02T10:00:00Z" },
+        screens: {
+          root: {
+            route: "/",
+            title: "Root",
+            access: "public",
+            observedAt: "2026-11-02T10:00:00Z",
+            fields: [],
+            actions: [],
+            links: [],
+            flows: [],
+            fingerprint: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          },
+        },
+      };
+
+      const p1 = join(appsDir, "canonical-app", "screens.json");
+      const p2 = join(appsDir, "flat-app.screens.json");
+      const p3 = join(legacyScreensDir, "legacy-app.screens.json");
+
+      await writeFile(p1, JSON.stringify(canonicalMapRaw));
+      await writeFile(p2, JSON.stringify(flatAppMapRaw));
+      await writeFile(p3, JSON.stringify(legacyMapRaw));
+
+      const loaded = await loadScreenMapsFromDir(legacyScreensDir, { agentDir });
+      assert.equal(loaded.length, 3);
+      // Deduplication and alphabetical sorting invariant
+      const paths = loaded.map((item) => item.path);
+      const sortedPaths = [...paths].sort((a, b) => a.localeCompare(b));
+      assert.deepEqual(paths, sortedPaths);
+
+      // Verify canonical loaded normalized dictionary screen
+      const canonicalLoaded = loaded.find((l) => l.path === p1);
+      assert.ok(canonicalLoaded);
+      assert.equal(canonicalLoaded.map.screens[0]?.id, "main");
+
+      // Verify legacy loaded normalized dictionary screen
+      const legacyLoaded = loaded.find((l) => l.path === p3);
+      assert.ok(legacyLoaded);
+      assert.equal(legacyLoaded.map.screens[0]?.id, "root");
+    });
+  });
+
 });
