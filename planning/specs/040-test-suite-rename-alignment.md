@@ -26,7 +26,8 @@
 - Strict regex matching vs loose prefix matching for stderr banners: Matching exact banners (`/browser-nav-mcp ready \(backend bidi, ARMED\)/`) ensures strict contract verification, but can be brittle if startup options or formatting change. *Mitigation:* Assert the canonical prefix `browser-nav-mcp ready` and relevant backend/armed state flags in stdio integration tests, matching the exact format string emitted in `src/mcp.ts`.
 
 ## Tasks
-- [ ] 040/T001 [agent] Update install-hint assertions in `src/mcp/test/mcp-runtime.test.ts` to `/browser_install_runtime/` across elicitation and missing-runtime partitions (`decline`, `cancel`, `fails`, `unsupported`) — covers R1, D1
+- [x] 040/T001 [agent] Update install-hint assertions in `src/mcp/test/mcp-runtime.test.ts` to `/browser_install_runtime/` across elicitation and missing-runtime partitions (`decline`, `cancel`, `fails`, `unsupported`) — covers R1, D1
+      verified: `npx tsx --test src/mcp/test/mcp-runtime.test.ts` passed 6/6 tests with canonical `browser_install_runtime` hint assertions
 - [ ] 040/T002 [agent] Update ready-banner assertions in `src/mcp/test/mcp.stdio.test.ts` and `src/mcp/test/mcp.bidi.stdio.test.ts` to expect `/browser-nav-mcp ready/` across offline and BiDi partitions — covers R2, D2
 - [ ] 040/T003 [agent] Audit remaining test suites in `src/**/*.test.ts` for other stale legacy output assertions, updating only emitted string checks while preserving alias input invocations — covers R3, D3
 - [ ] 040/T004 [agent] Verify: run CI gate (`pnpm lint`, `pnpm build`, `pnpm test`, `pnpm smoke`) across all suites, confirming 0 test failures and zero broken legacy output assertions — covers R1, R2, R3, D1, D2, D3

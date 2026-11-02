@@ -85,7 +85,7 @@ for (const action of ["decline", "cancel", "fails"] as const) {
     await withRuntimeMcp(action, async (h) => {
       const result = await h.call("pwa_open", OPEN);
       assert.equal(result.isError, true);
-      assert.match(result.text, /pwa_install_runtime/);
+      assert.match(result.text, /browser_install_runtime/);
       assert.equal(h.prompts.length, 1);
       assert.equal(h.installs, 0);
     });
@@ -96,7 +96,7 @@ test("client without elicitation: no prompt, no download, hint to call pwa_insta
   await withRuntimeMcp("unsupported", async (h) => {
     const result = await h.call("pwa_open", OPEN);
     assert.equal(result.isError, true);
-    assert.match(result.text, /pwa_install_runtime/);
+    assert.match(result.text, /browser_install_runtime/);
     assert.equal(h.installs, 0);
 
     const install = await h.call("pwa_install_runtime", {});
