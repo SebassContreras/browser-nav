@@ -100,6 +100,14 @@ export async function withSession<T>(
   return result;
 }
 
+function formatContextItem(c: { context: string; url?: string }): string {
+  return `${c.context} (${c.url || "blank"})`;
+}
+
+function isContentUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
 // Resolves the single top-level context (or the explicit contextId) in a fresh session.
 export async function withTopLevelContext<T>(
   endpoint: string,
@@ -122,7 +130,7 @@ export async function withTopLevelContext<T>(
       if (contextId !== undefined) {
         if (!contexts.some((c) => c.context === contextId)) {
           throw new PwaNavError("invalid_args", `Unknown top-level context "${contextId}"`, {
-            hint: `Available: ${contexts.map((c) => c.context).join(", ") || "none"}`,
+            hint: `Available: ${contexts.map(formatContextItem).join(", ") || "none"}`,
           });
         }
         return fn(client, contextId);
@@ -134,8 +142,12 @@ export async function withTopLevelContext<T>(
         });
       }
       if (rest.length > 0) {
+        const contentContexts = contexts.filter((c) => isContentUrl(c.url));
+        if (contentContexts.length === 1 && contentContexts[0] !== undefined) {
+          return fn(client, contentContexts[0].context);
+        }
         throw new PwaNavError("invalid_args", `Multiple top-level contexts open (${String(contexts.length)})`, {
-          hint: `Pass --context <id>. Available: ${contexts.map((c) => c.context).join(", ")}`,
+          hint: `Pass contextId in MCP or --context <id> in CLI. Available: ${contexts.map(formatContextItem).join(", ")}`,
         });
       }
       return fn(client, only.context);

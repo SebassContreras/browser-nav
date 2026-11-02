@@ -179,8 +179,8 @@ test("SIGINT maps to exit code 130", async () => {
   });
 });
 
-function ctx(id: string): { context: string; url: string; userContext: string } {
-  return { context: id, url: "https://a/", userContext: "default" };
+function ctx(id: string, url = "https://a/"): { context: string; url: string; userContext: string } {
+  return { context: id, url, userContext: "default" };
 }
 
 test("withTopLevelContext: single context is passed to fn", async () => {
@@ -203,20 +203,95 @@ test("withTopLevelContext: zero contexts => no_browser with hint", async () => {
   });
 });
 
-test("withTopLevelContext: several => invalid_args unless contextId given and valid", async () => {
+test("withTopLevelContext: table-driven context auto-selection partitions (036/T001)", async () => {
+  const cases = [
+    {
+      description: "single context is passed through unconditionally even if internal",
+      contexts: [ctx("c-internal", "about:blank")],
+      contextId: undefined,
+      expectedResult: "c-internal",
+    },
+    {
+      description: "auto-selects single HTTP context when other tab is about:blank",
+      contexts: [ctx("c-http", "http://example.com"), ctx("c-blank", "about:blank")],
+      contextId: undefined,
+      expectedResult: "c-http",
+    },
+    {
+      description: "auto-selects single HTTPS context when other tabs are about:blank, about:home, about:welcome",
+      contexts: [
+        ctx("c-welcome", "about:welcome"),
+        ctx("c-app", "https://app.example.com/feed"),
+        ctx("c-home", "about:home"),
+      ],
+      contextId: undefined,
+      expectedResult: "c-app",
+    },
+    {
+      description: "explicit contextId bypasses content auto-selection and targets requested internal tab",
+      contexts: [ctx("c-app", "https://app.example.com"), ctx("c-blank", "about:blank")],
+      contextId: "c-blank",
+      expectedResult: "c-blank",
+    },
+  ];
+
   await withServer(async (server) => {
-    server.handle("browsingContext.getTree", () => ({ contexts: [ctx("c1"), ctx("c2")] }));
-    const signals = new FakeSignals();
-    await assert.rejects(
-      withTopLevelContext(server.url, () => Promise.resolve(1), { signals }),
-      (e: unknown) => e instanceof PwaNavError && e.code === "invalid_args" && /--context/.test(e.hint ?? ""),
-    );
-    const got = await withTopLevelContext(server.url, (_c, id) => Promise.resolve(id), { signals, contextId: "c2" });
-    assert.equal(got, "c2");
-    await assert.rejects(
-      withTopLevelContext(server.url, () => Promise.resolve(1), { signals, contextId: "zzz" }),
-      (e: unknown) => e instanceof PwaNavError && e.code === "invalid_args",
-    );
-    assert.equal(server.sessionActive, false);
+    for (const tc of cases) {
+      server.handle("browsingContext.getTree", () => ({ contexts: tc.contexts }));
+      const got = await withTopLevelContext(
+        server.url,
+        (_c, id) => Promise.resolve(id),
+        { signals: new FakeSignals(), contextId: tc.contextId },
+      );
+      assert.equal(got, tc.expectedResult, `Failed case: ${tc.description}`);
+    }
+  });
+});
+
+test("withTopLevelContext: table-driven error partitions and hint formatting (036/T002)", async () => {
+  const errorCases = [
+    {
+      description: "multiple content contexts without contextId throws invalid_args listing IDs and URLs",
+      contexts: [ctx("c1", "https://site-a.com"), ctx("c2", "https://site-b.com")],
+      contextId: undefined,
+      expectHintMatch: /Pass contextId in MCP or --context <id> in CLI\. Available: c1 \(https:\/\/site-a\.com\), c2 \(https:\/\/site-b\.com\)/,
+    },
+    {
+      description: "multiple internal contexts with zero content contexts throws invalid_args",
+      contexts: [ctx("c-b1", "about:blank"), ctx("c-b2", "about:home")],
+      contextId: undefined,
+      expectHintMatch: /Pass contextId in MCP or --context <id> in CLI\. Available: c-b1 \(about:blank\), c-b2 \(about:home\)/,
+    },
+    {
+      description: "unknown explicit contextId throws invalid_args with context IDs and URLs",
+      contexts: [ctx("c1", "https://site-a.com"), ctx("c2", "about:blank")],
+      contextId: "unknown-id",
+      expectHintMatch: /Available: c1 \(https:\/\/site-a\.com\), c2 \(about:blank\)/,
+    },
+    {
+      description: "context with empty URL falls back to 'blank' in hint",
+      contexts: [ctx("c1", "https://site-a.com"), ctx("c2", "")],
+      contextId: "missing-id",
+      expectHintMatch: /c2 \(blank\)/,
+    },
+  ];
+
+  await withServer(async (server) => {
+    for (const tc of errorCases) {
+      server.handle("browsingContext.getTree", () => ({ contexts: tc.contexts }));
+      await assert.rejects(
+        withTopLevelContext(
+          server.url,
+          () => Promise.resolve(1),
+          { signals: new FakeSignals(), contextId: tc.contextId },
+        ),
+        (e: unknown) => {
+          assert(e instanceof PwaNavError, `Expected PwaNavError for ${tc.description}`);
+          assert.equal(e.code, "invalid_args", `Expected invalid_args for ${tc.description}`);
+          assert(tc.expectHintMatch.test(e.hint ?? ""), `Hint "${e.hint ?? ""}" did not match for ${tc.description}`);
+          return true;
+        },
+      );
+    }
   });
 });
