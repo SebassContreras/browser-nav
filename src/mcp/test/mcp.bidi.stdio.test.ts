@@ -308,7 +308,7 @@ test("stdio+bidi: stdout carries only JSON-RPC frames while ops print; stderr ge
       }
       assert.deepEqual([...ids].sort(), [1, 2, 3, 4, 5, 6]);
       assert.ok(!stdout.includes("snapshot ok:") || stdout.includes('"content"'));
-      assert.match(stderr, /pwa-nav-mcp ready \(backend bidi, ARMED\)/);
+      assert.match(stderr, /browser-nav-mcp ready \(backend bidi, ARMED\)/);
     } finally {
       child.kill();
     }

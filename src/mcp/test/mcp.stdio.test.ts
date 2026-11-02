@@ -93,7 +93,7 @@ test("stdio: stdout carries only protocol frames; clean exit when stdin closes",
       assert.equal(frame.jsonrpc, "2.0", line);
     }
     assert.ok(!stdout.includes("open ok:") || stdout.includes('"content"'));
-    assert.match(stderr, /pwa-nav-mcp ready/);
+    assert.match(stderr, /browser-nav-mcp ready/);
   } finally {
     child.kill();
     await rm(dir, { recursive: true, force: true });
