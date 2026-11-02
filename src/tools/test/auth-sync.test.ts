@@ -20,7 +20,12 @@ describe("authTool and automated auth sync", () => {
 
   it("performs automated cookie check and returns structured outcome without prompts", async () => {
     // Arrange & Act
-    const outcome = await authTool({ app: "linkedin" }, { mode: "bidi" });
+    const mockDeps = {
+      orchestrator: {
+        execute: () => Promise.resolve({ status: "authenticated" }),
+      },
+    };
+    const outcome = await authTool({ app: "linkedin" }, { mode: "bidi" }, mockDeps);
 
     // Assert
     assert.ok(outcome.text !== undefined && outcome.text.length > 0);

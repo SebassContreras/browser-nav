@@ -72,7 +72,7 @@ export async function snapshotTool(args: SnapshotArgs, ctx: ToolContext): Promis
       {
         outPath: out,
         prune,
-        locale,
+        locale: locale ?? "es",
         access,
         appId,
         appName,

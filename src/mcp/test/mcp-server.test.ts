@@ -1065,3 +1065,53 @@ test("spec 028 R1 & R2: MCP manifest declares canonical browser_* and screen_lea
     assert.equal(legacyLearn.isError, false, legacyLearn.text);
   });
 });
+
+test("spec 035 T001: browser_auth schema validation accepts valid partitions and rejects invalid/additional properties", async () => {
+  await withMcp({}, async ({ client }) => {
+    const { tools } = await client.listTools();
+    const authTool = tools.find((t) => t.name === "browser_auth");
+    assert.ok(authTool !== undefined);
+
+    const ajv = new Ajv2020({ allErrors: true });
+    const validate = ajv.compile(authTool.inputSchema as Record<string, unknown>);
+
+    const validCases = [
+      { name: "nominal empty object (defaults to assisted clean)", input: {} },
+      { name: "explicit action clean", input: { action: "clean" } },
+      { name: "explicit clean boolean flag", input: { clean: true } },
+      { name: "explicit action status", input: { action: "status" } },
+      { name: "compound with app and timeoutMs", input: { app: "linkedin", action: "clean", clean: true, timeoutMs: 30000 } },
+    ];
+
+    for (const c of validCases) {
+      const valid = validate(c.input);
+      assert.equal(valid, true, `Expected valid for case: ${c.name}, errors: ${JSON.stringify(validate.errors)}`);
+    }
+
+    const invalidCases = [
+      { name: "invalid action enum", input: { action: "invalid_action" } },
+      { name: "non-boolean clean property", input: { clean: "true" } },
+      { name: "unexpected extra property", input: { extraProperty: "disallowed" } },
+    ];
+
+    for (const c of invalidCases) {
+      const valid = validate(c.input);
+      assert.equal(valid, false, `Expected invalid for case: ${c.name}`);
+    }
+  });
+});
+
+test("spec 035 T003: browser_snapshot and screen_learn schemas declare default: 'es' for locale", async () => {
+  await withMcp({}, async ({ client }) => {
+    const { tools } = await client.listTools();
+    const snapshotTool = tools.find((t) => t.name === "browser_snapshot");
+    assert.ok(snapshotTool !== undefined);
+    const snapshotLocale = (snapshotTool.inputSchema as { properties?: Record<string, { default?: string }> }).properties?.["locale"];
+    assert.equal(snapshotLocale?.default, "es");
+
+    const learnTool = tools.find((t) => t.name === "screen_learn");
+    assert.ok(learnTool !== undefined);
+    const learnLocale = (learnTool.inputSchema as { properties?: Record<string, { default?: string }> }).properties?.["locale"];
+    assert.equal(learnLocale?.default, "es");
+  });
+});

@@ -181,7 +181,7 @@ const snapshot: ToolDef = {
       learn: { type: "boolean", description: "Learn current web page screen into .agent/apps/<appSlug>/screens.json (eliminates expiring eN refs)." },
       query: { type: "string", description: "Optional substring filter to return matching elements inline in the output." },
       role: { type: "string", description: "Optional role filter (e.g. 'button', 'textbox') to return matching elements." },
-      locale: { type: "string", description: "BCP 47 tag (e.g. 'es' or 'en') for new map. Defaults to 'es'." },
+      locale: { type: "string", default: "es", description: "BCP 47 tag (e.g. 'es' or 'en') for new map. Defaults to 'es'." },
       appId: { type: "string", description: "Optional lowercase site/app ID slug (e.g. 'linkedin-com', 'mercadona')." },
       appName: { type: "string", description: "Optional human-readable website or app name." },
       access: { enum: ["public", "authenticated", "unknown"], description: "Screen access level (default: public)." },
@@ -493,7 +493,7 @@ const learnToolDef: ToolDef = {
   inputSchema: {
     type: "object",
     properties: {
-      locale: { type: "string", description: "BCP 47 language tag (e.g. 'es' or 'en'). Defaults to 'es' for new maps." },
+      locale: { type: "string", default: "es", description: "BCP 47 language tag (e.g. 'es' or 'en'). Defaults to 'es' for new maps." },
       appId: { type: "string", description: "Optional lowercase site/app slug (e.g. 'linkedin-com', 'mercadona'). Defaults to normalized hostname." },
       appName: { type: "string", description: "Optional human-readable website or app name." },
       access: { enum: ["public", "authenticated", "unknown"], description: "Access level (default: public)." },
@@ -549,8 +549,12 @@ const authToolDef: ToolDef = {
     type: "object",
     properties: {
       action: {
-        enum: ["status"],
-        description: "Optional. 'status': read-only session health check without launching the browser.",
+        enum: ["status", "clean"],
+        description: "Optional. 'status': read-only session health check without launching the browser. 'clean': launch clean profile for manual login.",
+      },
+      clean: {
+        type: "boolean",
+        description: "Launch clean profile for manual login (alias for action: 'clean').",
       },
       cookies: {
         type: "array",

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile, unlink } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, unlink, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -13,6 +13,7 @@ import {
   extractTool,
   waitTool,
   screenshotTool,
+  snapshotTool,
   authTool,
   qaTool,
   learnTool,
@@ -239,6 +240,78 @@ test("backend-factory: creates backend with app port lookup from FileInstanceReg
       cacheDir: dir,
     });
     assert.equal((backendExplicit as unknown as { port: number }).port, 9444);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("spec 035 T003: snapshotTool({ learn: true }) defaults locale to 'es', preserves explicit locale, and rejects invalid tags", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "snap-learn-locale-test-"));
+  try {
+    const fakeBackend = {
+      agentDir: dir,
+      mode: "bidi" as const,
+      currentUrl: () => Promise.resolve("https://example.com/login"),
+      open: () => Promise.resolve({ url: "https://example.com/login", title: "Example Login", openedAt: "" }),
+      collect: () => Promise.resolve({
+        url: "https://example.com/login",
+        title: "Example Login",
+        raw: [
+          { role: "button", name: "Log in", disabled: undefined, nameSource: "content" as const, occurrence: 0 },
+        ],
+      }),
+      getTopLevelContexts: () => Promise.resolve([{ context: "c1", url: "https://example.com/login" }]),
+      navigate: () => Promise.resolve({ navigation: "n1", url: "https://example.com/login" }),
+      snapshot: () => Promise.resolve({
+        snapshotId: "1",
+        url: "https://example.com/login",
+        title: "Example Login",
+        elements: [
+          { ref: "e1", role: "button", name: "Log in", value: null, disabled: false },
+        ],
+      }),
+      click: () => Promise.resolve({ kind: "done" as const, plan: "", snapshotId: "1", url: "", title: "" }),
+      fill: () => Promise.resolve({ kind: "done" as const, plan: "", snapshotId: "1", url: "", title: "" }),
+      upload: () => Promise.resolve({ kind: "done" as const, plan: "", snapshotId: "1", url: "", title: "" }),
+      act: () => Promise.resolve({ snapshotId: "1", results: [] }),
+      screenshot: () => Promise.resolve(Buffer.from("")),
+    };
+
+    const ctx: ToolContext = {
+      backendFactory: () => fakeBackend,
+      backend: fakeBackend,
+      armed: true,
+      mode: "bidi",
+      screens: { cacheDir: dir },
+      agentDir: dir,
+    };
+
+    // 1. Missing locale defaults to "es"
+    const outcomeDefault = await snapshotTool({ learn: true, appId: "test-app-default" }, ctx);
+    assert.equal(outcomeDefault.isError, undefined);
+    const mapPathDefault = join(dir, "apps", "test-app-default", "screens.json");
+    const contentDefault = JSON.parse(await readFile(mapPathDefault, "utf8")) as { app: { locale: string } };
+    assert.equal(contentDefault.app.locale, "es");
+
+    // 2. Explicit locale "en" on distinct origin is preserved
+    fakeBackend.collect = () => Promise.resolve({
+      url: "https://other-domain.test/login",
+      title: "Other Domain",
+      raw: [
+        { role: "button", name: "Log in", disabled: undefined, nameSource: "content" as const, occurrence: 0 },
+      ],
+    });
+    const outcomeExplicit = await snapshotTool({ learn: true, appId: "test-app-explicit", locale: "en" }, ctx);
+    assert.equal(outcomeExplicit.isError, undefined);
+    const mapPathExplicit = join(dir, "apps", "test-app-explicit", "screens.json");
+    const contentExplicit = JSON.parse(await readFile(mapPathExplicit, "utf8")) as { app: { locale: string } };
+    assert.equal(contentExplicit.app.locale, "en");
+
+    // 3. Invalid BCP 47 locale tag is rejected
+    await assert.rejects(
+      () => snapshotTool({ learn: true, appId: "test-app-invalid", locale: "123_invalid" }, ctx),
+      (err: unknown) => typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "invalid_args",
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
