@@ -1115,3 +1115,57 @@ test("spec 035 T003: browser_snapshot and screen_learn schemas declare default: 
     assert.equal(learnLocale?.default, "es");
   });
 });
+
+test("spec 036 T007: table-driven contextId schema validation and targeting across tools", async () => {
+  await withMcp({}, async ({ client }) => {
+    const { tools } = await client.listTools();
+    const ajv = new Ajv2020({ allErrors: true });
+
+    const toolsWithContextId = [
+      "browser_snapshot",
+      "browser_find",
+      "browser_click",
+      "browser_fill",
+      "browser_act",
+      "browser_wait",
+      "browser_extract",
+      "browser_screenshot",
+      "browser_upload",
+      "browser_config",
+    ];
+
+    for (const toolName of toolsWithContextId) {
+      const toolDef = tools.find((t) => t.name === toolName);
+      assert.ok(toolDef !== undefined, `Tool ${toolName} must be defined`);
+      const schema = toolDef.inputSchema as Record<string, unknown>;
+      const validate = ajv.compile(schema);
+
+      // 1. Schema allows valid contextId string
+      const basePayload: Record<string, unknown> = toolName === "browser_fill"
+        ? { text: "hello", target: "@input", contextId: "c1" }
+        : toolName === "browser_click"
+          ? { target: "@btn", contextId: "c1" }
+          : toolName === "browser_act"
+            ? { ops: ["click:@btn"], contextId: "c1" }
+            : toolName === "browser_upload"
+              ? { file: "test.txt", target: "@upload", contextId: "c1" }
+              : { contextId: "c1" };
+
+      assert.equal(validate(basePayload), true, `Tool ${toolName} should accept contextId string`);
+
+      // 2. Schema rejects non-string contextId (type boundary)
+      const invalidPayload = { ...basePayload, contextId: 12345 };
+      assert.equal(validate(invalidPayload), false, `Tool ${toolName} should reject non-string contextId`);
+    }
+
+    // 3. Test browser_config get and set for contextId over MCP
+    const initialConfig = await call(client, "browser_config", { action: "get" });
+    assert.match(initialConfig.text, /contextId: none/);
+
+    const setConfig = await call(client, "browser_config", { action: "set", contextId: "session-context-99" });
+    assert.match(setConfig.text, /contextId: session-context-99/);
+
+    const updatedConfig = await call(client, "browser_config", { action: "get" });
+    assert.match(updatedConfig.text, /contextId: session-context-99/);
+  });
+});

@@ -129,4 +129,24 @@ describe("configTool and performConfig", () => {
       });
     });
   });
+  it("inspects and updates session contextId via get and set (036/T006)", async () => {
+    await withTmp(async (dir) => {
+      const ctx = makeMockContext(dir);
+
+      const getInitial = await configTool({ action: "get" }, ctx);
+      assert.equal(getInitial.structured["contextId"], null);
+      assert.match(getInitial.text ?? "", /contextId: none/);
+
+      const setRes = await configTool({ action: "set", contextId: "c123" }, ctx);
+      assert.equal(setRes.structured["updated"], true);
+      assert.equal(setRes.structured["contextId"], "c123");
+      assert.equal(ctx.contextId, "c123");
+      assert.match(setRes.text ?? "", /contextId: c123/);
+
+      const getUpdated = await configTool({ action: "get" }, ctx);
+      assert.equal(getUpdated.structured["contextId"], "c123");
+      assert.match(getUpdated.text ?? "", /contextId: c123/);
+    });
+  });
+
 });

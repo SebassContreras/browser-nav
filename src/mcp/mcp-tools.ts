@@ -71,6 +71,7 @@ const TARGET_PROP = {
 };
 const SNAPSHOT_ID_PROP = { type: "string", description: "Optional snapshotId. Defaults to the latest snapshot." };
 const REF_PROP = { type: "string", minLength: 1, description: "Element ref (eN) or visible text from the snapshot." };
+const CONTEXT_ID_PROP = { type: "string", description: "Optional top-level browsing context (tab/window) ID to target." };
 
 const TARGET_ALTERNATIVES = [
   { required: ["target"], properties: { target: true } },
@@ -188,6 +189,7 @@ const snapshot: ToolDef = {
       prune: { type: "boolean", description: "Prune missing elements from existing map (default: false)." },
       cacheDir: { type: "string", description: "Optional per-call cache directory override." },
       workspaceDir: { type: "string", description: "Optional per-call workspace directory override." },
+      contextId: CONTEXT_ID_PROP,
       rawTree: { type: "string", description: "Optional raw ARIA tree input for testing/offline." },
       url: { type: "string", description: "Optional URL for offline snapshot." },
       title: { type: "string", description: "Optional title for offline snapshot." },
@@ -213,6 +215,7 @@ const snapshot: ToolDef = {
         title: str(args, "title"),
         cacheDir: str(args, "cacheDir"),
         workspaceDir: str(args, "workspaceDir"),
+        contextId: str(args, "contextId"),
       },
       ctx,
     );
@@ -230,6 +233,7 @@ const click: ToolDef = {
       snapshotId: SNAPSHOT_ID_PROP,
       ref: REF_PROP,
       target: TARGET_PROP,
+      contextId: CONTEXT_ID_PROP,
     },
     anyOf: TARGET_ALTERNATIVES,
     additionalProperties: false,
@@ -237,10 +241,11 @@ const click: ToolDef = {
   annotations: ACTION_HINTS,
   async handler(args, ctx) {
     const picked = pickTarget(args);
+    const contextId = str(args, "contextId");
     if ("target" in picked) {
-      return clickTool({ target: picked.target, dryRun: isDryRun(ctx) }, ctx);
+      return clickTool({ target: picked.target, dryRun: isDryRun(ctx), contextId }, ctx);
     }
-    return clickTool({ ref: picked.ref, snapshotId: picked.snapshotId, dryRun: isDryRun(ctx) }, ctx);
+    return clickTool({ ref: picked.ref, snapshotId: picked.snapshotId, dryRun: isDryRun(ctx), contextId }, ctx);
   },
 };
 
@@ -257,6 +262,7 @@ const fill: ToolDef = {
       ref: REF_PROP,
       target: TARGET_PROP,
       text: { type: "string", description: "Text to type into the input or search field." },
+      contextId: CONTEXT_ID_PROP,
     },
     required: ["text"],
     anyOf: TARGET_ALTERNATIVES,
@@ -266,10 +272,11 @@ const fill: ToolDef = {
   async handler(args, ctx) {
     const picked = pickTarget(args);
     const text = str(args, "text") ?? "";
+    const contextId = str(args, "contextId");
     if ("target" in picked) {
-      return fillTool({ target: picked.target, text, dryRun: isDryRun(ctx) }, ctx);
+      return fillTool({ target: picked.target, text, dryRun: isDryRun(ctx), contextId }, ctx);
     }
-    return fillTool({ ref: picked.ref, text, snapshotId: picked.snapshotId, dryRun: isDryRun(ctx) }, ctx);
+    return fillTool({ ref: picked.ref, text, snapshotId: picked.snapshotId, dryRun: isDryRun(ctx), contextId }, ctx);
   },
 };
 
@@ -328,6 +335,7 @@ const upload: ToolDef = {
         minLength: 1,
         description: "Single local file path to upload (convenience alias for files: [path]).",
       },
+      contextId: CONTEXT_ID_PROP,
     },
     anyOf: TARGET_ALTERNATIVES,
     additionalProperties: false,
@@ -345,10 +353,11 @@ const upload: ToolDef = {
     } else {
       throw invalid("missing files (expected string array 'files' or string 'file').");
     }
+    const contextId = str(args, "contextId");
     if ("target" in picked) {
-      return uploadTool({ target: picked.target, files, dryRun: isDryRun(ctx) }, ctx);
+      return uploadTool({ target: picked.target, files, dryRun: isDryRun(ctx), contextId }, ctx);
     }
-    return uploadTool({ ref: picked.ref, files, snapshotId: picked.snapshotId, dryRun: isDryRun(ctx) }, ctx);
+    return uploadTool({ ref: picked.ref, files, snapshotId: picked.snapshotId, dryRun: isDryRun(ctx), contextId }, ctx);
   },
 };
 
@@ -374,6 +383,7 @@ const screenshotToolDef: ToolDef = {
         enum: ["png", "jpeg", "webp"],
         description: "Image format (default: png).",
       },
+      contextId: CONTEXT_ID_PROP,
     },
     additionalProperties: false,
   },
@@ -385,7 +395,8 @@ const screenshotToolDef: ToolDef = {
     if (rawFormat === "png" || rawFormat === "jpeg" || rawFormat === "webp") {
       format = rawFormat;
     }
-    return runScreenshotTool({ outPath, format }, ctx);
+    const contextId = str(args, "contextId");
+    return runScreenshotTool({ outPath, format, contextId }, ctx);
   },
 };
 
@@ -404,6 +415,7 @@ const extract: ToolDef = {
       role: { type: "string", description: "Filter elements by role (e.g. 'button', 'textbox', 'link')." },
       offset: { type: "integer", minimum: 0, description: "Starting element offset for pagination (default: 0)." },
       limit: { type: "integer", minimum: 1, maximum: EXTRACT_INLINE_CAP, description: `Max lines to return (default: ${EXTRACT_INLINE_CAP.toString()}).` },
+      contextId: CONTEXT_ID_PROP,
     },
     additionalProperties: false,
   },
@@ -416,7 +428,8 @@ const extract: ToolDef = {
     const role = str(args, "role");
     const offset = typeof args["offset"] === "number" ? Math.max(0, args["offset"]) : 0;
     const limit = typeof args["limit"] === "number" ? Math.min(EXTRACT_INLINE_CAP, Math.max(1, args["limit"])) : EXTRACT_INLINE_CAP;
-    return extractTool({ snapshotId, mode, query, role, offset, limit }, ctx);
+    const contextId = str(args, "contextId");
+    return extractTool({ snapshotId, mode, query, role, offset, limit, contextId }, ctx);
   },
 };
 
@@ -435,6 +448,7 @@ const findToolDef: ToolDef = {
       inDialog: { type: "boolean", description: "When true, returns only elements inside the active modal/dialog." },
       offset: { type: "integer", minimum: 0, description: "Starting offset for pagination (default: 0)." },
       limit: { type: "integer", minimum: 1, maximum: EXTRACT_INLINE_CAP, description: `Max lines to return (default: ${EXTRACT_INLINE_CAP.toString()}).` },
+      contextId: CONTEXT_ID_PROP,
     },
     additionalProperties: false,
   },
@@ -446,7 +460,8 @@ const findToolDef: ToolDef = {
     const inDialog = args["inDialog"] === true;
     const offset = typeof args["offset"] === "number" ? Math.max(0, args["offset"]) : 0;
     const limit = typeof args["limit"] === "number" ? Math.min(EXTRACT_INLINE_CAP, Math.max(1, args["limit"])) : EXTRACT_INLINE_CAP;
-    return runFindTool({ snapshotId, query, role, inDialog, offset, limit }, ctx);
+    const contextId = str(args, "contextId");
+    return runFindTool({ snapshotId, query, role, inDialog, offset, limit, contextId }, ctx);
   },
 };
 
@@ -467,6 +482,7 @@ const act: ToolDef = {
         additionalProperties: { type: "string" },
         description: "Flow inputs (key: value) for the single flow:<id> op.",
       },
+      contextId: CONTEXT_ID_PROP,
     },
     required: ["ops"],
     additionalProperties: false,
@@ -480,7 +496,8 @@ const act: ToolDef = {
     const ops = (rawOps as string[]).slice();
     const inputs = args["inputs"] as Record<string, string> | undefined;
     const snapshotId = str(args, "snapshotId");
-    return actTool({ ops, inputs, snapshotId, dryRun: isDryRun(ctx) }, ctx);
+    const contextId = str(args, "contextId");
+    return actTool({ ops, inputs, snapshotId, dryRun: isDryRun(ctx), contextId }, ctx);
   },
 };
 
@@ -525,6 +542,7 @@ const waitToolDef: ToolDef = {
       state: { enum: ["visible", "hidden", "enabled"], description: "DOM condition to wait for (default: visible)." },
       timeoutMs: { type: "integer", minimum: 250, maximum: 60000, description: "Maximum wait time in ms (default: 15000)." },
       intervalMs: { type: "integer", minimum: 50, maximum: 5000, description: "Polling interval in ms (default: 1000)." },
+      contextId: CONTEXT_ID_PROP,
     },
     additionalProperties: false,
   },
@@ -535,7 +553,8 @@ const waitToolDef: ToolDef = {
     const state = (str(args, "state") as "visible" | "hidden" | "enabled" | undefined) ?? "visible";
     const timeoutMs = typeof args["timeoutMs"] === "number" ? args["timeoutMs"] : undefined;
     const intervalMs = typeof args["intervalMs"] === "number" ? args["intervalMs"] : undefined;
-    return runWaitTool({ target, query, state, timeoutMs, intervalMs }, ctx);
+    const contextId = str(args, "contextId");
+    return runWaitTool({ target, query, state, timeoutMs, intervalMs, contextId }, ctx);
   },
 };
 
@@ -657,6 +676,7 @@ const configToolDef: ToolDef = {
         type: "string",
         description: "Screens directory path to set for this session.",
       },
+      contextId: CONTEXT_ID_PROP,
     },
     additionalProperties: false,
   },
@@ -666,7 +686,8 @@ const configToolDef: ToolDef = {
     const cacheDir = str(args, "cacheDir");
     const workspaceDir = str(args, "workspaceDir");
     const screensDir = str(args, "screensDir");
-    return configTool({ action, cacheDir, workspaceDir, screensDir }, ctx);
+    const contextId = str(args, "contextId");
+    return configTool({ action, cacheDir, workspaceDir, screensDir, contextId }, ctx);
   },
 };
 
