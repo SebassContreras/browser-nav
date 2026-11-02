@@ -11,7 +11,7 @@ Specs in order. `Status` (`todo`, `in progress`, `done`) is maintained by hand. 
 | 035 | mcp-schema-consistency | done | — |
 | 036 | multicontext-tab-selection | done | 035 |
 | 037 | screen-map-normalization | done | — |
-| 038 | interactive-windows-launch | todo | 035 |
+| 038 | interactive-windows-launch | done | 035 |
 | 039 | background-tab-resilience-and-map-precedence | todo | — |
 | 040 | test-suite-rename-alignment | todo | — |
 
