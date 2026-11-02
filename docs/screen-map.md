@@ -147,12 +147,12 @@ Flags:
 | `--screens-dir <dir>` | Maps directory (env `BROWSER_NAV_SCREENS_DIR` / `PWA_NAV_SCREENS_DIR`, default `./screens`). |
 | `--screen-map <file>` | Explicit map file; wins over directory selection. Default: the single map whose `app.origin` equals the current origin. |
 | `--prune` | With `--learn`: remove entries no longer on the page. Default keeps and flags them as missing. |
-| `--locale <bcp47>` | With `--learn`: UI language (`en`, `es-ES`). Required for a NEW map; ignored for an existing one (stored locale is kept). |
+| `--locale <bcp47>` | With `--learn`: UI language (`en`, `es-ES`). Default `en` for a NEW map; ignored for an existing one (stored locale is kept). |
 | `--access public\|authenticated\|unknown` | With `--learn`: access level of the screen (default `unknown`). |
 | `--app-id <slug>` | New map only. Default: slug of `host[-port]`. |
 | `--app-name <text>` | New map only. Default: page title. |
 
-Why `--locale` is required: `<html lang>` was measured untrustworthy on a real Spanish app (it said `en`), so the locale is never inferred. Accessible names are locale-bound; a name change surfaces as drift.
+Why `--locale` is explicit: `<html lang>` was measured untrustworthy on a real Spanish app (it said `en`), so the page attribute is never inferred; when omitted, `en` is used as the default. Accessible names are locale-bound; a name change surfaces as drift.
 
 Map selection: `--screen-map`, else the one `*.screens.json` in the screens dir whose `app.origin` matches. Zero or several matches on `--screen` is `unmapped_screen`; several on `--learn` is `invalid_args`.
 
@@ -222,7 +222,7 @@ browser-nav click @nope                          # exit 12 unknown_target (lists
 browser-nav snapshot --learn --access public     # after a UI change: ~ renamed ... / DRIFT
 ```
 
-New map from scratch (live): `browser-nav snapshot --learn --locale es-ES --access public` prints `new screen` and `screen map: screens/<host-port>.screens.json (written)`; without `--locale` it exits 2.
+New map from scratch (live): `browser-nav snapshot --learn --locale es-ES --access public` prints `new screen` and `screen map: screens/<host-port>.screens.json (written)`; omitting `--locale` defaults `locale` to `en`.
 
 ## Measured size
 

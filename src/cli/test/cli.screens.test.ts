@@ -189,14 +189,13 @@ test("--screen / --learn flag validation exits 2", async () => {
   });
 });
 
-test("--learn creates a new map (locale required), then is idempotent", async () => {
+test("--learn creates a new map (defaults locale to en, or uses explicit --locale), then is idempotent", async () => {
   await withFake(async (dir, server) => {
     const p = ["--port", port(server)];
-    const missing = await run(dir, ["snapshot", "--learn", ...p]);
-    assert.equal(missing.status, 2, missing.stderr);
-    assert.match(missing.stderr, /--locale/);
-    assert.match(missing.stderr, /lang attribute is not\s+trustworthy/);
-    assert.ok(!existsSync(join(dir, "screens")));
+    const defaulted = await run(dir, ["snapshot", "--learn", "--screen-map", "default.screens.json", ...p]);
+    assert.equal(defaulted.status, 0, defaulted.stderr);
+    const defaultMap = JSON.parse(await readFile(join(dir, "default.screens.json"), "utf8")) as ScreenMap;
+    assert.equal(defaultMap.app.locale, "en");
 
     const first = await run(dir, ["snapshot", "--learn", "--locale", "es-ES", "--access", "public", ...p]);
     assert.equal(first.status, 0, first.stderr);

@@ -5,16 +5,18 @@ Fix schema definition discrepancies in the Model Context Protocol (MCP) server f
 
 ## Requirements
 - R1: `browser_auth` input schema accepts all valid parameter combinations (nominal empty `{}` defaulting to clean assisted auth, `{ action: "clean" }`, `{ clean: true }`, `{ action: "status" }`, and valid `{ app, timeoutMs }`), while rejecting invalid action enums, malformed flag types, and unrecognized additional properties (`additionalProperties: false`).
-- R2: Calling `browser_snapshot({ learn: true })` or `screen_learn` without passing `locale` defaults cleanly to `"es"`; explicit valid BCP 47 locale tags (e.g. `"en"`) are preserved, and invalid locale strings continue to fail with `invalid_args`.
+- ~~R2: Calling `browser_snapshot({ learn: true })` or `screen_learn` without passing `locale` defaults cleanly to `"es"`; explicit valid BCP 47 locale tags (e.g. `"en"`) are preserved, and invalid locale strings continue to fail with `invalid_args`.~~ → R4
 - R3: The unit test `src/tools/test/auth-sync.test.ts` adheres to the determinism and isolation invariants (TEST-H4, TEST-H5), executing within milliseconds in unauthenticated environments without active cookies by mocking the orchestrator boundary and avoiding browser spawns.
+- R4: Calling `browser_snapshot({ learn: true })`, `screen_learn`, or CLI `snapshot --learn` without passing `locale` defaults cleanly to `"en"` across both MCP and CLI; explicit valid BCP 47 locale tags (e.g. `"es"`, `"es-ES"`) are preserved, and invalid locale strings continue to fail with `invalid_args`.
 
 ## Design
 - D1 (R1): In `src/mcp/mcp-tools.ts`, update `authToolDef.inputSchema` to include `"clean"` in `properties.action.enum` (`["status", "clean"]`) and declare optional property `clean: { type: "boolean", description: "Launch clean profile for manual login (alias for action: 'clean')." }`.
-- D2 (R2): In `src/tools/snapshot.ts`, pass `locale: locale ?? "es"` when delegating to `learnTool` during `learn: true`. In `src/mcp/mcp-tools.ts`, declare `default: "es"` in the `locale` property definition across `snapshot.inputSchema` and `learnToolDef.inputSchema`.
+- ~~D2 (R2): In `src/tools/snapshot.ts`, pass `locale: locale ?? "es"` when delegating to `learnTool` during `learn: true`. In `src/mcp/mcp-tools.ts`, declare `default: "es"` in the `locale` property definition across `snapshot.inputSchema` and `learnToolDef.inputSchema`.~~ → D4
 - D3 (R3): In `src/tools/test/auth-sync.test.ts`, provide a mock `deps.orchestrator` to `authTool({ app: "linkedin" }, { mode: "bidi" }, mockDeps)` so unauthenticated test cases resolve immediately without spawning Firefox or waiting on timeouts.
+- D4 (R4): In `src/tools/learn.ts` (`executeLearn`), default `o.locale ?? "en"` when creating a new screen map; in `src/tools/snapshot.ts` and `src/mcp/mcp-tools.ts`, default `locale` to `"en"` and declare `default: "en"` in `snapshot.inputSchema` and `learnToolDef.inputSchema`; update CLI help in `src/cli.ts` and documentation in `docs/screen-map.md`.
 
 ### Trade-offs & Mitigations
-- Defaulting `locale` to `"es"` in `snapshotTool` aligns with the MCP server default, but assumes Spanish for new screen maps when unspecified. *Mitigation:* Explicit BCP 47 tags passed by callers (e.g. `locale: "en"`) take precedence; schema and docs clearly indicate `"default": "es"`.
+- Defaulting `locale` to `"en"` in `executeLearn`, `snapshotTool`, and MCP schemas ensures uniform behavior across CLI and MCP without requiring `--locale` on new screen maps, though non-English apps that omit `--locale` will record `"en"`. *Mitigation:* Explicit BCP 47 tags passed by callers (e.g. `locale: "es"`, `--locale es-ES`) take precedence; schemas and CLI help clearly state `"default": "en"`.
 - Mocking `deps.orchestrator` in `auth-sync.test.ts` isolates unit tests from real browser launches. *Mitigation:* Opt-in E2E tests (`src/test/e2e.test.ts`) verify end-to-end browser launch behavior, preserving fast deterministic local test runs.
 
 ## Tasks
@@ -30,6 +32,11 @@ Fix schema definition discrepancies in the Model Context Protocol (MCP) server f
       verified: `src/tools/test/auth-sync.test.ts` completes in ~42ms deterministically with mock orchestrator boundary injected
 - [x] 035/T006 [agent] Verify: run `pnpm test` and `pnpm lint` across touched test suites (`src/mcp/test/mcp-server.test.ts`, `src/tools/test/auth-sync.test.ts`, `src/tools/test/tools.test.ts`) — covers R1, R2, R3
       verified: `pnpm lint` passed with 0 errors; tests across touched suites passed 46/46 tests successfully
+- [x] 035/T007 [agent] Default `locale` to `"en"` across `src/tools/learn.ts`, `src/tools/snapshot.ts`, `src/mcp/mcp-tools.ts`, `src/cli.ts`, and `docs/screen-map.md` — covers R4, D4, replaces R2, D2
+      verified: `executeLearn`, `snapshotTool`, and MCP schemas default `locale` to `"en"` across both CLI and MCP
+- [x] 035/T008 [agent] Update CLI, MCP, and tool locale default tests in `src/cli/test/cli.screens.test.ts`, `src/mcp/test/mcp-server.test.ts`, and `src/tools/test/tools.test.ts` to assert `"en"` default and explicit BCP 47 preservation — covers R4, D4
+      verified: `npx tsx --test src/cli/test/cli.screens.test.ts src/mcp/test/mcp-server.test.ts src/tools/test/tools.test.ts` passed 58/58 tests
 
 ## Changes
 - 2026-11-02: Audit refined R1-R3 with systematic input partitions and determinism invariants, added D2 schema default property, and added Trade-offs & Mitigations (F1-F6).
+- 2026-11-02: R2 → R4, D2 → D4. Why: unify default screen-map `locale` to `"en"` across both CLI (`snapshot --learn`) and MCP (`browser_snapshot({ learn: true })`, `screen_learn`). Work: T007–T008.

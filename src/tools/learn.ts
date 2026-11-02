@@ -86,11 +86,9 @@ export async function executeLearn(backend: Backend, o: LearnArgs): Promise<Lear
   if (existing !== undefined) {
     app = { ...existing.app };
   } else {
-    if (o.locale === undefined) {
-      throw new PwaNavError("invalid_args", LOCALE_REQUIRED);
-    }
+    const locale = o.locale ?? "en";
     const appId = o.appId ?? (appSlugFromUrl(snapshot.url) || slugify(page.hostname) || "app");
-    app = { id: appId, name: o.appName ?? (snapshot.title === "" ? appId : snapshot.title), origin, locale: o.locale };
+    app = { id: appId, name: o.appName ?? (snapshot.title === "" ? appId : snapshot.title), origin, locale };
     if (o.screenMap === undefined) {
       path = o.screensDir !== undefined
         ? join(dir, `${appId}.screens.json`)

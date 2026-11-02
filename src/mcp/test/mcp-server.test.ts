@@ -1101,18 +1101,18 @@ test("spec 035 T001: browser_auth schema validation accepts valid partitions and
   });
 });
 
-test("spec 035 T003: browser_snapshot and screen_learn schemas declare default: 'es' for locale", async () => {
+test("spec 035 T003: browser_snapshot and screen_learn schemas declare default: 'en' for locale", async () => {
   await withMcp({}, async ({ client }) => {
     const { tools } = await client.listTools();
     const snapshotTool = tools.find((t) => t.name === "browser_snapshot");
     assert.ok(snapshotTool !== undefined);
     const snapshotLocale = (snapshotTool.inputSchema as { properties?: Record<string, { default?: string }> }).properties?.["locale"];
-    assert.equal(snapshotLocale?.default, "es");
+    assert.equal(snapshotLocale?.default, "en");
 
     const learnTool = tools.find((t) => t.name === "screen_learn");
     assert.ok(learnTool !== undefined);
     const learnLocale = (learnTool.inputSchema as { properties?: Record<string, { default?: string }> }).properties?.["locale"];
-    assert.equal(learnLocale?.default, "es");
+    assert.equal(learnLocale?.default, "en");
   });
 });
 

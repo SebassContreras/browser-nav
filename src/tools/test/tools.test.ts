@@ -247,7 +247,7 @@ test("backend-factory: creates backend with app port lookup from FileInstanceReg
   }
 });
 
-test("spec 035 T003: snapshotTool({ learn: true }) defaults locale to 'es', preserves explicit locale, and rejects invalid tags", async () => {
+test("spec 035 T003: snapshotTool({ learn: true }) defaults locale to 'en', preserves explicit locale, and rejects invalid tags", async () => {
   const dir = await mkdtemp(join(tmpdir(), "snap-learn-locale-test-"));
   try {
     const fakeBackend = {
@@ -288,14 +288,14 @@ test("spec 035 T003: snapshotTool({ learn: true }) defaults locale to 'es', pres
       agentDir: dir,
     };
 
-    // 1. Missing locale defaults to "es"
+    // 1. Missing locale defaults to "en"
     const outcomeDefault = await snapshotTool({ learn: true, appId: "test-app-default" }, ctx);
     assert.equal(outcomeDefault.isError, undefined);
     const mapPathDefault = join(dir, "apps", "test-app-default", "screens.json");
     const contentDefault = JSON.parse(await readFile(mapPathDefault, "utf8")) as { app: { locale: string } };
-    assert.equal(contentDefault.app.locale, "es");
+    assert.equal(contentDefault.app.locale, "en");
 
-    // 2. Explicit locale "en" on distinct origin is preserved
+    // 2. Explicit locale "es" on distinct origin is preserved
     fakeBackend.collect = () => Promise.resolve({
       url: "https://other-domain.test/login",
       title: "Other Domain",
@@ -303,11 +303,11 @@ test("spec 035 T003: snapshotTool({ learn: true }) defaults locale to 'es', pres
         { role: "button", name: "Log in", disabled: undefined, nameSource: "content" as const, occurrence: 0 },
       ],
     });
-    const outcomeExplicit = await snapshotTool({ learn: true, appId: "test-app-explicit", locale: "en" }, ctx);
+    const outcomeExplicit = await snapshotTool({ learn: true, appId: "test-app-explicit", locale: "es" }, ctx);
     assert.equal(outcomeExplicit.isError, undefined);
     const mapPathExplicit = join(dir, "apps", "test-app-explicit", "screens.json");
     const contentExplicit = JSON.parse(await readFile(mapPathExplicit, "utf8")) as { app: { locale: string } };
-    assert.equal(contentExplicit.app.locale, "en");
+    assert.equal(contentExplicit.app.locale, "es");
 
     // 3. Invalid BCP 47 locale tag is rejected
     await assert.rejects(

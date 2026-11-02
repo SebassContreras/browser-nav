@@ -182,7 +182,7 @@ const snapshot: ToolDef = {
       learn: { type: "boolean", description: "Learn current web page screen into .agent/apps/<appSlug>/screens.json (eliminates expiring eN refs)." },
       query: { type: "string", description: "Optional substring filter to return matching elements inline in the output." },
       role: { type: "string", description: "Optional role filter (e.g. 'button', 'textbox') to return matching elements." },
-      locale: { type: "string", default: "es", description: "BCP 47 tag (e.g. 'es' or 'en') for new map. Defaults to 'es'." },
+      locale: { type: "string", default: "en", description: "BCP 47 tag (e.g. 'en' or 'es') for new map. Defaults to 'en'." },
       appId: { type: "string", description: "Optional lowercase site/app ID slug (e.g. 'linkedin-com', 'mercadona')." },
       appName: { type: "string", description: "Optional human-readable website or app name." },
       access: { enum: ["public", "authenticated", "unknown"], description: "Screen access level (default: public)." },
@@ -510,7 +510,7 @@ const learnToolDef: ToolDef = {
   inputSchema: {
     type: "object",
     properties: {
-      locale: { type: "string", default: "es", description: "BCP 47 language tag (e.g. 'es' or 'en'). Defaults to 'es' for new maps." },
+      locale: { type: "string", default: "en", description: "BCP 47 language tag (e.g. 'en' or 'es'). Defaults to 'en' for new maps." },
       appId: { type: "string", description: "Optional lowercase site/app slug (e.g. 'linkedin-com', 'mercadona'). Defaults to normalized hostname." },
       appName: { type: "string", description: "Optional human-readable website or app name." },
       access: { enum: ["public", "authenticated", "unknown"], description: "Access level (default: public)." },
@@ -520,7 +520,7 @@ const learnToolDef: ToolDef = {
   },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   async handler(args, ctx) {
-    const locale = str(args, "locale") ?? "es";
+    const locale = str(args, "locale") ?? "en";
     const appId = str(args, "appId");
     const appName = str(args, "appName");
     const access = str(args, "access");
