@@ -20,6 +20,7 @@ import {
   resolveScreensDir,
   routeSpecificity,
   selectMap,
+  disambiguateOriginHits,
 } from "../screen-match.js";
 import { renderScreenView } from "../screen-view.js";
 
@@ -386,4 +387,74 @@ describe("screens dir", () => {
     });
   });
 
+});
+
+describe("disambiguateOriginHits and screen map precedence", () => {
+  const mapA = mapOf("http://app.test", [["s1", "/"]]);
+  const mapB = mapOf("http://app.test", [["s2", "/"]]);
+
+  it("table-driven origin hit disambiguation across tiers", () => {
+    const cases = [
+      {
+        name: "single match returns immediately",
+        hits: [{ path: "app.screens.json", map: mapA }],
+        expected: mapA,
+      },
+      {
+        name: "workspace local map overrides global fallback cache map",
+        hits: [
+          { path: "C:/Users/user/.browser-nav/apps/demo/screens.json", map: mapB },
+          { path: "C:/project/.agent/apps/demo/screens.json", map: mapA },
+        ],
+        expected: mapA,
+      },
+      {
+        name: "workspace flat map overrides global app map",
+        hits: [
+          { path: "/home/user/.pwa-nav/apps/demo/screens.json", map: mapB },
+          { path: "/workspace/.agent/screens/demo.screens.json", map: mapA },
+        ],
+        expected: mapA,
+      },
+      {
+        name: "canonical apps layout overrides flat map within the same tier",
+        hits: [
+          { path: "/workspace/.agent/screens/demo.screens.json", map: mapB },
+          { path: "/workspace/.agent/apps/demo/screens.json", map: mapA },
+        ],
+        expected: mapA,
+      },
+    ];
+
+    for (const tc of cases) {
+      const resolved = disambiguateOriginHits(tc.hits, "http://app.test");
+      assert.equal(resolved.map, tc.expected, `${tc.name} map mismatch`);
+    }
+  });
+
+  it("throws invalid_args when collision occurs within the same precedence tier", () => {
+    const collisionHits = [
+      { path: "/workspace/.agent/screens/one.screens.json", map: mapA },
+      { path: "/workspace/.agent/screens/two.screens.json", map: mapB },
+    ];
+    try {
+      disambiguateOriginHits(collisionHits, "http://app.test");
+      assert.fail("expected error");
+    } catch (err: unknown) {
+      assert.ok(err instanceof PwaNavError);
+      assert.equal(err.code, "invalid_args");
+      assert.match(err.message, /several screen maps cover origin/);
+    }
+  });
+
+  it("selectMap leverages disambiguateOriginHits for workspace precedence", () => {
+    const selected = selectMap(
+      [
+        { path: "C:/Users/scontreras/.pwa-nav/screens/global.screens.json", map: mapB },
+        { path: "C:/workspace/.agent/screens/local.screens.json", map: mapA },
+      ],
+      "http://app.test/",
+    );
+    assert.equal(selected, mapA);
+  });
 });

@@ -5,7 +5,7 @@ import { resolveAppScreenMapPath } from "../core/storage.js";
 import { captureLiveSnapshot } from "../ops/ops.js";
 import { learnScreen, slugify } from "../screens/screen-learn.js";
 import type { Screen, ScreenMap } from "../screens/screen-map.js";
-import { loadExplicitMap, loadScreenMapsFromDir } from "../screens/screen-match.js";
+import { loadExplicitMap, loadScreenMapsFromDir, disambiguateOriginHits } from "../screens/screen-match.js";
 import { learnIntoFile, renderDiff } from "../screens/screen-store.js";
 import { getBackend } from "./common.js";
 import { dirOf } from "./screen.js";
@@ -73,12 +73,13 @@ export async function executeLearn(backend: Backend, o: LearnArgs): Promise<Lear
   } else {
     const hits = (await loadScreenMapsFromDir(dir, { agentDir: backend.agentDir })).filter((entry) => new URL(entry.map.app.origin).origin === origin);
     if (hits.length > 1) {
-      throw new PwaNavError("invalid_args", `several screen maps cover origin ${origin}: ${hits.map((h) => h.path).join(", ")}`, {
-        hint: "keep one map per origin or pass --screen-map <file>",
-      });
+      const resolved = disambiguateOriginHits(hits, origin);
+      path = resolved.path;
+      existing = resolved.map;
+    } else {
+      path = hits[0]?.path ?? "";
+      existing = hits[0]?.map;
     }
-    path = hits[0]?.path ?? "";
-    existing = hits[0]?.map;
   }
 
   let app;

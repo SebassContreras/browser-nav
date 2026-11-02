@@ -676,6 +676,6 @@ test("checkActionable: table-driven window visibility and stability partitions",
       assert.match(result.reason ?? "", tc.expectedReason, `${tc.name} reason mismatch`);
     }
     // Invariant: completes in bounded time without hanging
-    assert.ok(duration < 2000, `${tc.name} took too long (${duration}ms)`);
+    assert.ok(duration < 2000, `${tc.name} took too long (${String(duration)}ms)`);
   }
 });

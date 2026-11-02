@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { PwaNavError } from "../core/errors.js";
-import { resolveAgentDir } from "../core/storage.js";
+import { getGlobalDataDir, resolveAgentDir } from "../core/storage.js";
 import { loadScreenMap, ScreenMapError } from "./screen-map.js";
 import type { Screen, ScreenMap } from "./screen-map.js";
 
@@ -276,6 +276,40 @@ export async function loadScreenMapsFromDir(
   return loaded;
 }
 
+export function disambiguateOriginHits(
+  hits: readonly LoadedMap[],
+  origin: string,
+): LoadedMap {
+  if (hits.length === 1 && hits[0] !== undefined) {
+    return hits[0];
+  }
+
+  // Precedence tier 1: workspace-local / explicit screensDir over global fallback cache
+  const globalDataDir = getGlobalDataDir();
+  const isGlobal = (p: string): boolean => {
+    const normalized = p.replace(/\\/g, "/");
+    const normGlobal = globalDataDir.replace(/\\/g, "/");
+    return normalized.startsWith(normGlobal) || /\/\.(browser-nav|pwa-nav)\//i.test(normalized);
+  };
+
+  const localHits = hits.filter((h) => !isGlobal(h.path));
+  const candidatePool = localHits.length > 0 ? localHits : hits;
+
+  // Precedence tier 2: canonical apps/<slug>/screens.json over flat *.screens.json
+  const appDirHits = candidatePool.filter((h) => /[\/\\]apps[\/\\][^\/\\]+[\/\\]screens\.json$/i.test(h.path));
+  const finalCandidates = appDirHits.length > 0 ? appDirHits : candidatePool;
+
+  if (finalCandidates.length === 1 && finalCandidates[0] !== undefined) {
+    return finalCandidates[0];
+  }
+
+  throw new PwaNavError(
+    "invalid_args",
+    `several screen maps cover origin ${origin}: ${finalCandidates.map((entry) => entry.path).join(", ")}`,
+    { hint: "keep one map per origin or pass --screen-map <file>" },
+  );
+}
+
 // The single map whose app.origin equals the URL origin.
 export function selectMap(
   maps: readonly ScreenMap[] | readonly LoadedMap[],
@@ -298,18 +332,8 @@ export function selectMap(
     });
   }
 
-  // If there are multiple hits for the same origin, prioritize canonical app path:
-  // e.g. <agentDir>/apps/<slug>/screens.json over legacy <agentDir>/screens/<app>.screens.json
   if (hits.length > 1) {
-    const appDirHit = hits.find((h) => /[/\\]apps[/\\][^/\\]+[/\\]screens\.json$/i.test(h.path));
-    if (appDirHit !== undefined) {
-      return appDirHit.map;
-    }
-    throw new PwaNavError(
-      "invalid_args",
-      `several screen maps cover origin ${origin}: ${hits.map((entry) => entry.path).join(", ")}`,
-      { hint: "keep one map per origin or pass --screen-map <file>" },
-    );
+    return disambiguateOriginHits(hits, origin).map;
   }
 
   const first = hits[0];
