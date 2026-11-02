@@ -434,14 +434,38 @@ export function crossCheck(map: ScreenMap): ScreenMapIssue[] {
   return issues;
 }
 
+// Normalizes raw screen map input before schema validation.
+// Converts object dictionary screens { [id]: screen } to Screen[].
+export function normalizeScreenMapRaw(raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null) {
+    return raw;
+  }
+  const obj = raw as Record<string, unknown>;
+  if (!("screens" in obj)) {
+    return raw;
+  }
+  const { screens } = obj;
+  if (typeof screens !== "object" || screens === null || Array.isArray(screens)) {
+    return raw;
+  }
+  const normalizedScreens: unknown[] = Object.entries(screens).map(([key, val]: [string, unknown]) => {
+    if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+      return { ...(val as Record<string, unknown>), id: key };
+    }
+    return val;
+  });
+  return { ...obj, screens: normalizedScreens };
+}
+
 // Validates raw JSON against the schema, then the cross-reference rules.
 // Throws ScreenMapError listing every issue; returns the typed map otherwise.
 export async function validateScreenMap(raw: unknown): Promise<ScreenMap> {
+  const normalized = normalizeScreenMapRaw(raw);
   const validate = await schemaValidator();
-  if (!validate(raw)) {
+  if (!validate(normalized)) {
     throw new ScreenMapError(cachedErrors());
   }
-  const map = raw as ScreenMap;
+  const map = normalized as ScreenMap;
   const issues = crossCheck(map);
   if (issues.length > 0) {
     throw new ScreenMapError(issues);

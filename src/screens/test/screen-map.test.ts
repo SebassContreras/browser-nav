@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { fingerprintOf, loadScreenMap, ScreenMapError, validateScreenMap } from "../screen-map.js";
+import { fingerprintOf, loadScreenMap, normalizeScreenMapRaw, ScreenMapError, validateScreenMap } from "../screen-map.js";
 import type { ScreenMap } from "../screen-map.js";
 
 const EXAMPLE = fileURLToPath(new URL("../../../examples/screens/demo-app.screens.json", import.meta.url));
@@ -258,5 +258,106 @@ describe("fingerprintOf", () => {
     ]);
     const expected = `sha256:${createHash("sha256").update("button\tz\nbutton\té", "utf8").digest("hex")}`;
     assert.equal(actual, expected);
+  });
+});
+
+describe("normalizeScreenMapRaw and validateScreenMap dictionary partitions", () => {
+  it("normalizes dictionary object screens to array with entry keys as ids", async () => {
+    const raw = {
+      schemaVersion: "1.0.0",
+      app: { id: "test-app", name: "Test App", origin: "https://example.com", locale: "en", learnedAt: "2026-11-02T10:00:00Z" },
+      screens: {
+        home: {
+          route: "/home",
+          title: "Home",
+          access: "public",
+          observedAt: "2026-11-02T10:00:00Z",
+          fields: [],
+          actions: [],
+          links: [],
+          flows: [],
+          fingerprint: fingerprintOf([]),
+        },
+      },
+    };
+    const normalized = normalizeScreenMapRaw(raw) as { screens: { id: string }[] };
+    assert.ok(Array.isArray(normalized.screens));
+    assert.equal(normalized.screens.length, 1);
+    assert.equal(normalized.screens[0]?.id, "home");
+
+    const validated = await validateScreenMap(raw);
+    assert.equal(validated.screens.length, 1);
+    assert.equal(validated.screens[0]?.id, "home");
+  });
+
+  it("handles table-driven input partitions for normalization", () => {
+    const cases = [
+      {
+        name: "non-object returns input unmodified",
+        input: "invalid",
+        expected: "invalid",
+      },
+      {
+        name: "null returns input unmodified",
+        input: null,
+        expected: null,
+      },
+      {
+        name: "screens missing returns input unmodified",
+        input: { app: {} },
+        expected: { app: {} },
+      },
+      {
+        name: "canonical array screens is untouched",
+        input: { screens: [{ id: "s1" }] },
+        expected: { screens: [{ id: "s1" }] },
+      },
+      {
+        name: "empty object screens normalizes to empty array",
+        input: { screens: {} },
+        expected: { screens: [] },
+      },
+      {
+        name: "dictionary entry preserves explicit id if present",
+        input: { screens: { s1: { id: "custom-id", route: "/test" } } },
+        expected: { screens: [{ id: "s1", route: "/test" }] },
+      },
+      {
+        name: "non-object screen value is kept as-is for Ajv rejection",
+        input: { screens: { invalid: "not an object" } },
+        expected: { screens: ["not an object"] },
+      },
+      {
+        name: "preserves extra top-level fields like journeys and unmapped",
+        input: {
+          schemaVersion: "1.0.0",
+          app: { id: "app" },
+          screens: { s1: { route: "/" } },
+          journeys: [{ id: "j1" }],
+          unmapped: [],
+        },
+        expected: {
+          schemaVersion: "1.0.0",
+          app: { id: "app" },
+          screens: [{ id: "s1", route: "/" }],
+          journeys: [{ id: "j1" }],
+          unmapped: [],
+        },
+      },
+    ];
+
+    for (const c of cases) {
+      const res = normalizeScreenMapRaw(c.input);
+      assert.deepEqual(res, c.expected, c.name);
+    }
+  });
+
+  it("rejects non-object screens with schema validation error", async () => {
+    const raw = {
+      schemaVersion: "1.0.0",
+      app: { id: "test-app", name: "Test App", origin: "https://example.com", locale: "en", learnedAt: "2026-11-02T10:00:00Z" },
+      screens: 12345,
+    };
+    await assert.rejects(async () => validateScreenMap(raw), ScreenMapError);
   });
 });
