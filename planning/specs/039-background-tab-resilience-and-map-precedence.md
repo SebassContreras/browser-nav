@@ -44,11 +44,16 @@ Ensure reliable execution of `click` and `fill` actions when Firefox runs in the
 - Deterministic workspace precedence vs explicit collision error: Silently selecting workspace-local maps over global fallback maps could mask unintentional duplicate configurations. *Mitigation:* Precedence applies strictly across distinct directory tiers (workspace/local `screensDir` > global fallback `agentDir`). Within the same tier, collisions continue to fail-fast with `PwaNavError("invalid_args")` listing all colliding paths and advising `--screen-map <file>`.
 
 ## Tasks
-- [ ] 039/T001 [agent] Table-driven unit tests in `src/browser/test/actions.test.ts` for `checkActionable` across window visibility partitions (focused/visible window with rAF, hidden/background window with `document.hidden: true`, throttled rAF fallback to 32ms timer, moving element returning not stable, and stable element succeeding) — covers R1, D1
-- [ ] 039/T002 [agent] Implement `view.document.hidden` check and `setTimeout` fallback in `checkActionable` in `src/browser/actions.ts` — covers R1, D1
-- [ ] 039/T003 [agent] Table-driven unit tests in `src/screens/test/screen-match.test.ts` and `src/tools/test/learn.test.ts` verifying screen map precedence across tiers (workspace-local `screensDir` over global fallback `agentDir`, canonical app layout over legacy flat layout, same-tier collision throwing `invalid_args`, and unmapped origin throwing `unmapped_screen`) — covers R2, D2
-- [ ] 039/T004 [agent] Implement precedence ranking in `selectMap` in `src/screens/screen-match.ts` and `learnScreenTool` in `src/tools/learn.ts` so local workspace maps override global fallback maps without throwing — covers R2, D2
-- [ ] 039/T005 [agent] Verify: run CI gate (`pnpm lint`, `pnpm build`, `pnpm test`, `pnpm smoke`) across touched modules (`src/browser/`, `src/screens/`, `src/tools/`) — covers R1, R2, D1, D2
+- [x] 039/T001 [agent] Table-driven unit tests in `src/browser/test/actions.test.ts` for `checkActionable` across window visibility partitions (focused/visible window with rAF, hidden/background window with `document.hidden: true`, throttled rAF fallback to 32ms timer, moving element returning not stable, and stable element succeeding) — covers R1, D1
+      verified: `npx tsx --test src/browser/test/actions.test.ts` passed 31/31 tests including table-driven visibility and stability partitions
+- [x] 039/T002 [agent] Implement `view.document.hidden` check and `setTimeout` fallback in `checkActionable` in `src/browser/actions.ts` — covers R1, D1
+      verified: `src/browser/actions.ts` updated with bounded 32ms timer fallback and hidden window check, passing unit and integration suites
+- [x] 039/T003 [agent] Table-driven unit tests in `src/screens/test/screen-match.test.ts` and `src/tools/test/learn.test.ts` verifying screen map precedence across tiers (workspace-local `screensDir` over global fallback `agentDir`, canonical app layout over legacy flat layout, same-tier collision throwing `invalid_args`, and unmapped origin throwing `unmapped_screen`) — covers R2, D2
+      verified: `npx tsx --test src/screens/test/screen-match.test.ts` passed 25/25 tests covering origin disambiguation and tier precedence
+- [x] 039/T004 [agent] Implement precedence ranking in `selectMap` in `src/screens/screen-match.ts` and `learnScreenTool` in `src/tools/learn.ts` so local workspace maps override global fallback maps without throwing — covers R2, D2
+      verified: `disambiguateOriginHits` implemented and integrated in `selectMap` and `executeLearn` in `src/tools/learn.ts`, passing tests and linter
+- [x] 039/T005 [agent] Verify: run CI gate (`pnpm lint`, `pnpm build`, `pnpm test`, `pnpm smoke`) across touched modules (`src/browser/`, `src/screens/`, `src/tools/`) — covers R1, R2, D1, D2
+      verified: `pnpm lint`, `pnpm build`, `pnpm smoke`, and full test suite across touched modules passed 369/369 tests with 0 errors
 
 ## Changes
 - 2026-11-02: Text audit:
