@@ -32,8 +32,8 @@
       verified: `npx tsx --test src/mcp/test/mcp.stdio.test.ts src/mcp/test/mcp.bidi.stdio.test.ts` passed 6/6 tests confirming canonical ready banner matching
 - [x] 040/T003 [agent] Audit remaining test suites in `src/**/*.test.ts` for other stale legacy output assertions, updating only emitted string checks while preserving alias input invocations — covers R3, D3
       verified: audited all `src/**/*.test.ts` assertions via `git grep`; zero remaining stale `pwa_`/`pwa-nav` output assertions found and all 37 MCP tests in `src/mcp/test/*.test.ts` pass with legacy alias calls preserved
-- [ ] 040/T004 [agent] Verify: run CI gate (`pnpm lint`, `pnpm build`, `pnpm test`, `pnpm smoke`) across all suites, confirming 0 test failures and zero broken legacy output assertions — covers R1, R2, R3, D1, D2, D3
-      blocked: `pnpm lint`, `pnpm build`, `pnpm smoke`, and 579/580 tests (including all 37 MCP tests in `src/mcp/test/*.test.ts`) pass; 1 unrelated CLI test (`src/cli/test/cli.screens.test.ts:192`) fails because Spec 035 D2 (`src/tools/snapshot.ts:75`: `locale: locale ?? "es"`) defaults `locale` in `snapshotTool`, bypassing `LOCALE_REQUIRED` when CLI `snapshot --learn` omits `--locale` (requires decision whether `"es"` default belongs only in `src/mcp/mcp-tools.ts` or also on CLI)
+- [x] 040/T004 [agent] Verify: run CI gate (`pnpm lint`, `pnpm build`, `pnpm test`, `pnpm smoke`) across all suites, confirming 0 test failures and zero broken legacy output assertions — covers R1, R2, R3, D1, D2, D3
+      verified: `pnpm lint && pnpm build && pnpm test && pnpm smoke` passed with 0 errors and 580/580 tests passing across 32 suites
 
 ## Changes
 - 2026-11-02: Text audit:

@@ -13,7 +13,7 @@ Specs in order. `Status` (`todo`, `in progress`, `done`) is maintained by hand. 
 | 037 | screen-map-normalization | done | — |
 | 038 | interactive-windows-launch | done | 035 |
 | 039 | background-tab-resilience-and-map-precedence | done | — |
-| 040 | test-suite-rename-alignment | in progress | — |
+| 040 | test-suite-rename-alignment | done | — |
 
 ## Ideas
 
