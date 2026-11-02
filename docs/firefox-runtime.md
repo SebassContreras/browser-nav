@@ -26,6 +26,15 @@ browser-nav can download its own copy of the official Mozilla Firefox, so users 
 - Consent: never downloaded silently. CLI: `browser-nav runtime install` (and `browser-nav runtime status` to see which binary is used). MCP: `browser_open` with `launch: true` asks the user through elicitation when the client supports it; otherwise it fails with `no_browser` and the agent may call `browser_install_runtime` (approved by the client like any tool).
 - Updating: run the install again. Windows only for now; Linux and macOS print a manual-install hint.
 
+### Windows Background Agent Harnesses & Interactive Desktop Rendering
+
+When running rowser-nav or assisted authentication (uth) from non-interactive or background agent harnesses on Windows (such as Antigravity exebox sandboxes, CI jobs, or Windows Session 0 / secondary virtual desktops), processes spawned by the agent do not render windows to the active user's interactive monitor (WinSta0\\Default).
+
+In these environments:
+- Spawning Firefox directly from the background shell can leave the browser running invisibly in the agent's isolated desktop station, causing assisted login workflows to time out while waiting for user interaction.
+- The uth tool and CLI detect assisted authentication and return explicit interactive launch commands (Start-Process -FilePath ... -ArgumentList ...) as well as the provisioned desktop shortcut (.agent/apps/<appSlug>/<appSlug>.lnk).
+- Users should launch the browser on their visible monitor using the provided PowerShell Start-Process command or double-click the desktop shortcut. The background agent harness continues polling via AuthWatcher until login succeeds, then restarts Firefox with --remote-debugging-port for automation.
+
 ### Launch Commands per Platform
 
 #### Windows (PowerShell)
