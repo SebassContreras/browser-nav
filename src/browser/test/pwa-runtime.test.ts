@@ -41,14 +41,19 @@ test("firefoxCandidates lists stock Firefox install locations per platform", () 
 });
 
 test("resolveFirefoxBinary honors override, picks first existing candidate, and hints when missing", () => {
+  assert.equal(resolveFirefoxBinary("win32", { BROWSER_NAV_FIREFOX_BINARY: "/x/firefox-canonical" }), "/x/firefox-canonical");
   assert.equal(resolveFirefoxBinary("win32", { PWA_NAV_FIREFOX_BINARY: "/x/firefox" }), "/x/firefox");
+  assert.equal(
+    resolveFirefoxBinary("win32", { BROWSER_NAV_FIREFOX_BINARY: "/x/canonical", PWA_NAV_FIREFOX_BINARY: "/x/legacy" }),
+    "/x/canonical",
+  );
   assert.equal(resolveFirefoxBinary("freebsd", { PWA_NAV_FIREFOX_BINARY: "/x/firefox" }), "/x/firefox");
   const env = { ProgramFiles: "/pf", LOCALAPPDATA: "/local" };
   const user = join("/local", "Mozilla Firefox", "firefox.exe");
   assert.equal(resolveFirefoxBinary("win32", env, (p) => p === user), user);
   assert.equal(resolveFirefoxBinary("linux", {}, () => true), "/usr/bin/firefox");
   expectCode(() => resolveFirefoxBinary("win32", env, () => false), "no_browser", /browser_install_runtime.*winget install Mozilla\.Firefox/);
-  expectCode(() => resolveFirefoxBinary("darwin", {}, () => false), "no_browser", /PWA_NAV_FIREFOX_BINARY/);
+  expectCode(() => resolveFirefoxBinary("darwin", {}, () => false), "no_browser", /BROWSER_NAV_FIREFOX_BINARY/);
   assert.throws(() => resolveFirefoxBinary("freebsd", {}), FirefoxNotFoundError);
 });
 
@@ -57,8 +62,14 @@ test("managed runtime lives in pwa-nav's user data dir and is overridable", () =
   assert.equal(managedRuntimeDir("linux", { HOME: "/h" }), join("/h", ".local", "share", "pwa-nav", "runtime"));
   assert.equal(managedRuntimeDir("linux", { XDG_DATA_HOME: "/xdg" }), join("/xdg", "pwa-nav", "runtime"));
   assert.equal(managedRuntimeDir("darwin", { HOME: "/h" }), join("/h", "Library", "Application Support", "pwa-nav", "runtime"));
+  assert.equal(managedRuntimeDir("win32", { BROWSER_NAV_RUNTIME_DIR: "/rt-canonical" }), "/rt-canonical");
   assert.equal(managedRuntimeDir("win32", { PWA_NAV_RUNTIME_DIR: "/rt" }), "/rt");
+  assert.equal(
+    managedRuntimeDir("win32", { BROWSER_NAV_RUNTIME_DIR: "/rt-canonical", PWA_NAV_RUNTIME_DIR: "/rt-legacy" }),
+    "/rt-canonical",
+  );
   assert.equal(managedRuntimeDir("win32", {}), undefined);
+  assert.equal(managedRuntimeBinary("win32", { BROWSER_NAV_RUNTIME_DIR: "/rt" }), join("/rt", "firefox", "firefox.exe"));
   assert.equal(managedRuntimeBinary("win32", { PWA_NAV_RUNTIME_DIR: "/rt" }), join("/rt", "firefox", "firefox.exe"));
 });
 

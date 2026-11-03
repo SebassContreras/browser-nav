@@ -4,9 +4,15 @@ import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 import { PwaNavError } from "../core/errors.js";
+import { readEnv } from "../core/storage.js";
 
-export const BINARY_ENV = "PWA_NAV_FIREFOX_BINARY";
-export const RUNTIME_DIR_ENV = "PWA_NAV_RUNTIME_DIR";
+export const CANONICAL_BINARY_ENV = "BROWSER_NAV_FIREFOX_BINARY";
+export const LEGACY_BINARY_ENV = "PWA_NAV_FIREFOX_BINARY";
+export const BINARY_ENV = CANONICAL_BINARY_ENV;
+
+export const CANONICAL_RUNTIME_DIR_ENV = "BROWSER_NAV_RUNTIME_DIR";
+export const LEGACY_RUNTIME_DIR_ENV = "PWA_NAV_RUNTIME_DIR";
+export const RUNTIME_DIR_ENV = CANONICAL_RUNTIME_DIR_ENV;
 export const MIN_PORT = 1024;
 export const MAX_PORT = 65535;
 export const POLL_INTERVAL_MS = 200;
@@ -68,7 +74,7 @@ export function firefoxCandidates(platform: string, env: Env): string[] {
 
 // Directory owned by browser-nav that holds the managed (downloaded) Firefox runtime.
 export function managedRuntimeDir(platform: string, env: Env): string | undefined {
-  const override = env[RUNTIME_DIR_ENV];
+  const override = readEnv(env, CANONICAL_RUNTIME_DIR_ENV, LEGACY_RUNTIME_DIR_ENV);
   if (override !== undefined && override !== "") return override;
   switch (platform) {
     case "win32":
@@ -99,7 +105,7 @@ export function locateFirefox(
   env: Env,
   checkExists: (path: string) => boolean = existsSync,
 ): ResolvedFirefox | undefined {
-  const override = env[BINARY_ENV];
+  const override = readEnv(env, CANONICAL_BINARY_ENV, LEGACY_BINARY_ENV);
   if (override !== undefined && override !== "") return { binary: override, source: "override" };
   const installed = firefoxCandidates(platform, env).find((path) => checkExists(path));
   if (installed !== undefined) return { binary: installed, source: "installed" };

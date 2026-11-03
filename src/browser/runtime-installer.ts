@@ -206,7 +206,7 @@ export class UnsupportedPlatformInstaller implements RuntimeInstaller {
   install(): Promise<InstallResult> {
     return Promise.reject(
       new PwaNavError("no_browser", `automatic Firefox install is not available on "${this.platform}" yet`, {
-        hint: "install Firefox with your package manager (macOS: brew install --cask firefox), or set PWA_NAV_FIREFOX_BINARY",
+        hint: "install Firefox with your package manager (macOS: brew install --cask firefox), or set BROWSER_NAV_FIREFOX_BINARY",
       }),
     );
   }
