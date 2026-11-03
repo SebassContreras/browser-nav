@@ -45,7 +45,7 @@ Both CLI and MCP delegate 100% of their operations to the unified Tools Service 
 | **Download asset** | `browser-nav download <url|@id|ref> [--out <path>]` | `browser_download` (`url`, `target`, `ref`, `out`) | Explicit on-demand download of remote files or in-page SVG/image/media extraction. |
 | **Capture screenshot** | `browser-nav screenshot [--out <path>]` | `browser_screenshot` (`path`, `format`) | Saves binary PNG to disk. **NEVER use for navigation or state inspection** (breaks text-only agents). |
 | **Batch actions** | `browser-nav act <ops...> [--dry-run]` | `browser_act` (`ops`) | Combines clicks, fills, uploads, and flows in a single turn. |
-| **Read page content** | `browser-nav extract [--mode all\|text\|links] [--query <str>] [--role <str>]` | `browser_extract` (`mode`, `query`, `role`, `offset`, `limit`) | Read-only; supports query and role filtering, offset pagination. |
+| **Read page content** | `browser-nav extract --snapshot <id> --mode text|links [--query <str>] [--role <str>]` | `browser_extract` (`mode`, `query`, `role`, `offset`, `limit`) | Read-only; CLI requires --snapshot and text\|links; MCP defaults to all. |
 | **Search elements / modals** | `browser-nav find [<query>] [--role <str>] [--dialog]` | `browser_find` (`query`, `role`, `inDialog`, `offset`, `limit`) | Fast targeted element search across name, role, placeholder, dialog, container, and value. |
 | **Multi-screen journey** | `browser-nav journey <name> [k=v] [--dry-run]` | `journey_<name>` (`params`) | Executes multi-route journeys with screen validation. |
 | **Single-screen flow** | `browser-nav act flow:<id> [k=v] [--dry-run]` | `flow_<screen>_<id>` (`params`) | Reusable parameterized screen flow. |
@@ -96,12 +96,12 @@ Always follow this decision path to minimize token consumption and avoid breakin
 
 ### Loop A: Semantic Screen Map Loop (Mandatory First-Pass & Autonomous)
 1. **Initial Screen Check**: Upon opening or navigating to an app, run `browser_snapshot({ screen: true })` (or CLI `browser-nav snapshot --screen`) to inspect the screen map.
-2. **Autonomous Learning on Unmapped Route**: If the screen is new or the route changed (`unmapped_screen`), the agent autonomously calls `screen_learn({ locale: "es" })` (or CLI `browser-nav snapshot --learn`) to register `screens/<app>.screens.json` without asking the user.
+2. **Autonomous Learning on Unmapped Route**: If the screen is new or the route changed (`unmapped_screen`), the agent autonomously calls `screen_learn()` (or CLI `browser-nav snapshot --learn`) to register `screens/<app>.screens.json` without asking the user.
 3. **Continuous Screen Map Enrichment & Zero Loose Files**: Every snapshot or learn step collaborates in enriching `screens/<app>.screens.json` with newly observed fields, actions, flows, and nested modal trees (`opens`). No loose snapshot or ref files are created in the workspace (raw session data is strictly confined to `.agent/apps/<appSlug>/snapshot.json`).
 4. **Plan & Execute Semantic Actions**: Plan actions using stable `'@id'` targets, dynamic patterns (`@pattern(query)>@scopedId[occurrence]`), or invoke journeys/flows:
    - In MCP: `browser_click({ target: "@submit-btn" })` or `browser_click({ target: "@contact(Fede)>@delete-btn" })`
-   - In CLI: `browser-nav click --snapshot <id> '@submit-btn'`
-   - Batch: `browser-nav act --snapshot <id> "fill:'@query'=laptop" "click:'@search-btn'"`
+   - In CLI: `browser-nav click '@submit-btn'` (or with refs: `browser-nav click --snapshot <id> e1`)
+   - Batch: `browser-nav act "fill:'@query'=laptop" "click:'@search-btn'"`
    - Journey: `browser-nav journey checkout address="Main St 12"`
 5. **Action Trees & Modal Branches (`opens`)**: When an action triggers a modal or subdialog (e.g. clicking `@crear-publicacion`), `browser-nav` models this inside `action.opens`. The response describes the opened modal and its available controls immediately. Elements within the modal (e.g. `@editor-post`, `@boton-publicar`) can be targeted directly with `@id` without re-scanning background elements.
 6. **State Change Inspection (Zero Screenshots)**: When an action causes a modal, dialog, or view change, **call `browser_snapshot` again** to inspect the new DOM in pure text. If a modal opens, `browser_snapshot` highlights `Active Dialog: "..."` with its elements at the top. **NEVER take a screenshot**.
