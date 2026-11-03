@@ -15,6 +15,7 @@ Specs in order. `Status` (`todo`, `in progress`, `done`) is maintained by hand. 
 | 039 | background-tab-resilience-and-map-precedence | done | — |
 | 040 | test-suite-rename-alignment | done | — |
 | 041 | tolerant-flow-map-selection | done | 039, 040 |
+| 042 | custom-form-controls-and-bidi-actionability | todo | 041 |
 
 ## Ideas
 

@@ -125,7 +125,9 @@ export async function checkActionable(el: Element): Promise<ActionableResult> {
   const hit = root.elementFromPoint(cx, cy);
   if (hit === null) return { ok: false, reason: "element center is outside the viewport" };
   const label = hit.closest<HTMLLabelElement>("label");
-  if (hit !== el && !el.contains(hit) && label?.control !== el) {
+  const isLabelForEl = label?.control === el || (label !== null && label.contains(el));
+  const isAncestor = hit.contains(el);
+  if (hit !== el && !el.contains(hit) && !isAncestor && !isLabelForEl) {
     return { ok: false, reason: `element is covered by <${hit.localName}>` };
   }
   return { ok: true };
