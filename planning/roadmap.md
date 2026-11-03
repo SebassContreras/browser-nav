@@ -1,6 +1,6 @@
 # Roadmap
 
-Specs in order. `Status` (`todo`, `in progress`, `done`) is maintained by hand. Specs 003–034 not listed were finished under the old spectrace format (one folder per spec); they live in git history.
+Specs in order. `Status` (`todo`, `in progress`, `done`) is maintained by hand. `done` status indicates that all automated `[agent]` tasks are fully implemented and verified; open `[human]` manual verification tasks do not block spec closure. Specs 003–034 not listed were finished under the old spectrace format (one folder per spec); they live in git history.
 
 | ID  | Spec | Status | Depends on |
 |-----|------|--------|------------|
