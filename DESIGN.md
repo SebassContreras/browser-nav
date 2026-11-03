@@ -8,7 +8,7 @@ This repository has no graphical UI. This document governs the CLI surface (argu
 
 ### 1. Commands & Arguments
 - Binaries: `browser-nav` (aliases `bnav`, legacy `pwa-nav`) and `browser-nav-mcp` (legacy `pwa-nav-mcp`).
-- Verb-first subcommands: `open`, `snapshot`, `find`, `click`, `fill`, `upload`, `download`, `act`, `journey`, `wait`, `extract`, `screenshot`, `auth`, `qa`, `screens`.
+- Verb-first subcommands: `open`, `snapshot`, `find`, `click`, `fill`, `upload`, `download`, `act`, `journey`, `wait`, `extract`, `screenshot`, `auth`, `qa`, `screens`, `runtime`, `status`, `profile`.
 - Targets are semantic `@id`s (screen map), ephemeral refs (`eN`), or accessible names. In shells, always quote: `'@id'`.
 - Batch actions use `kind:target=value` tokens (`fill:@search=query`, `click:@submit`); flow/journey params are `key="value"`.
 

@@ -37,7 +37,7 @@ Declined: custom WebSocket bridge in MVP (reuse existing MCP servers); headless 
 | Backend Ports | `src/backend/` | `Backend` interface, `OfflineBackend`, `BidiBackend`, `createBackend` factory | `core`, `browser` |
 | Tools | `src/tools/` | Unified service layer (`open`, `snapshot`, `click`, `fill`, `upload`, `act`, `journey`, `find`, `extract`, `wait`, `screenshot`, `auth`, `qa`) for CLI and MCP | `core`, `screens`, `backend`, `ops` |
 | Operations | `src/ops/` | High-level use cases (`ops.ts`, `qa.ts`, `journey.ts`) | `core`, `screens`, `backend` |
-| CLI Adapter | `src/cli/` | CLI options and subcommand handlers | `tools` |
+| CLI Adapter | `src/cli.ts` (with `src/cli/test/`) | CLI options and subcommand handlers | `tools` |
 | MCP Adapter | `src/mcp/` | Stdio MCP server, tools, dynamic flow/journey tool generators | `tools` |
 | Entrypoints | `src/` | `cli.ts` (CLI bin), `mcp.ts` (MCP bin), `index.ts` (library exports) | Layer modules |
 
@@ -47,7 +47,7 @@ Other top-level directories: `schemas/` (JSON Schemas), `checks/`, `examples/`, 
 
 ```mermaid
 flowchart TD
-    Agent["Agent / User"] --> CLI["src/cli/"]
+    Agent["Agent / User"] --> CLI["src/cli.ts"]
     Agent --> MCP["src/mcp/ (stdio)"]
     CLI --> Tools["src/tools/"]
     MCP --> Tools
