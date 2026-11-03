@@ -2,7 +2,7 @@
 
 > **Stable CLI + MCP bridge for fluid QA testing and lawful, bot-proof browser automation on login-walled web apps using your own authenticated Firefox browser.**
 
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.13.0-brightgreen.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![BiDi: W3C Standard](https://img.shields.io/badge/WebDriver-BiDi%20Standard-orange.svg)](https://w3c.github.io/webdriver-bidi/)
 
@@ -60,7 +60,7 @@ Traditional browser automation tools (Playwright, Puppeteer, Selenium with Chrom
 - **Attaches to Your Real Browser**: Connects directly to your dedicated, standalone **Firefox** runtime over standard **W3C WebDriver BiDi** on loopback (`localhost:9222`).
 - **Zero Bot Footprints**: It runs in authentic Firefox profiles with your active sessions, cookies, and human hardware fingerprint. You log in once by hand; the agent operates lawfully and seamlessly alongside you.
 - **Accessibility Tree Contracts**: Instead of pixel coordinates or brittle CSS selectors, `browser-nav` uses a clean accessibility snapshot with ephemeral refs (`e1`, `e2`, ...). Mutations invalidate refs immediately, preventing stale misclicks.
-- **Screen Maps & User Journeys**: Declarative screen models (`screens/<app>.screens.json`) provide permanent semantic `@id` targets, slashing LLM token consumption by up to **86%** and enabling declarative multi-screen workflows (`browser-nav journey <name>`).
+- **Screen Maps & User Journeys**: Declarative screen models (`.agent/apps/<appSlug>/screens.json`) provide permanent semantic `@id` targets, slashing LLM token consumption by up to **86%** and enabling declarative multi-screen workflows (`browser-nav journey <name>`).
 - **Native Model Context Protocol (MCP)**: Exposes all browser tools and workflows directly to AI coding assistants (Claude Desktop, Cursor, Antigravity, Claude Code, Windsurf, etc.).
 
 ---
@@ -70,7 +70,7 @@ Traditional browser automation tools (Playwright, Puppeteer, Selenium with Chrom
 Before installing `browser-nav`, ensure you have the following installed on your system:
 
 ### 1. Node.js & Package Manager
-- **Node.js**: `v22.0.0` or higher (`node --version`).
+- **Node.js**: `v22.13.0` or higher (`node --version`).
 - **pnpm**: `v10.0.0` or higher (`pnpm --version`), or `npm` / `corepack`.
 
 ### 2. Standalone Firefox Runtime
@@ -202,23 +202,23 @@ If you linked globally, you can also specify the binary command directly:
 > ```text
 > browser-nav-mcp ready (backend bidi, ARMED)
 > ```
-> **This is completely normal and expected.** The repository does not ship with pre-baked screen maps for your personal apps. `browser-nav` is fully functional from the very first second: as the AI agent navigates to an unmapped screen, it calls `screen_learn` to autonomously generate and enrich `screens/<app>.screens.json`.
+> **This is completely normal and expected.** The repository does not ship with pre-baked screen maps for your personal apps. `browser-nav` is fully functional from the very first second: as the AI agent navigates to an unmapped screen, it calls `screen_learn` to autonomously generate and enrich `.agent/apps/<appSlug>/screens.json`.
 
 #### 2. Key MCP Tools Available to Agents
 
 | MCP Tool (Canonical) | Legacy Alias | Description |
 |---|---|---|
-| `browser_open` | `browser_open` | Opens a website, domain, app alias (e.g. `"notebook"`), or full URL in the authenticated browser. |
-| `browser_auth` | `browser_auth` | Assisted login workflow for Google Accounts and anti-bot protected login pages. |
-| `browser_snapshot` | `browser_snapshot` | Inspects the active screen in clean text (`screen: true` for compact screen map view). |
-| `browser_find` | `browser_find` | Fast element search across accessible names, roles, placeholders, and modal dialogs. |
-| `browser_click` | `browser_click` | Clicks elements by semantic `@id` (e.g. `@submit-btn`) or ref (`e1`). |
-| `browser_fill` | `browser_fill` | Types text into inputs, textareas, and rich `contenteditable` editors. |
-| `browser_upload` | `browser_upload` | Safely uploads local files to `<input type="file">`. |
-| `browser_download` | `browser_download` | On-demand download of remote media assets or in-page SVG/image/video extraction. |
-| `browser_wait` | `browser_wait` | Deterministically waits for background AI generation or DOM conditions (no arbitrary sleeps). |
-| `screen_learn` | `screen_learn` | Autonomously learns and persists new screen maps into `.agent/apps/<appSlug>/screens.json`. |
-| `browser_act` | `browser_act` | Executes batched mutations (e.g. `fill:@input=query`, `click:@submit`) in a single BiDi turn. |
+| `browser_open` | `pwa_open` | Opens a website, domain, app alias (e.g. `"notebook"`), or full URL in the authenticated browser. |
+| `browser_auth` | `pwa_auth` | Assisted login workflow for Google Accounts and anti-bot protected login pages. |
+| `browser_snapshot` | `pwa_snapshot` | Inspects the active screen in clean text (`screen: true` for compact screen map view). |
+| `browser_find` | `pwa_find` | Fast element search across accessible names, roles, placeholders, and modal dialogs. |
+| `browser_click` | `pwa_click` | Clicks elements by semantic `@id` (e.g. `@submit-btn`) or ref (`e1`). |
+| `browser_fill` | `pwa_fill` | Types text into inputs, textareas, and rich `contenteditable` editors. |
+| `browser_upload` | `pwa_upload` | Safely uploads local files to `<input type="file">`. |
+| `browser_download` | `pwa_download` | On-demand download of remote media assets or in-page SVG/image/video extraction. |
+| `browser_wait` | `pwa_wait` | Deterministically waits for background AI generation or DOM conditions (no arbitrary sleeps). |
+| `screen_learn` | `pwa_learn` | Autonomously learns and persists new screen maps into `.agent/apps/<appSlug>/screens.json`. |
+| `browser_act` | `pwa_act` | Executes batched mutations (e.g. `fill:@input=query`, `click:@submit`) in a single BiDi turn. |
 
 ---
 
@@ -332,13 +332,13 @@ Navigate to any page in your web app and run:
 ```powershell
 browser-nav snapshot --learn --locale en-US --access authenticated
 ```
-This generates or enriches `screens/<app-id>.screens.json` with semantic IDs (`@search-input`, `@submit-button`, `@cart-link`). Subsequent snapshots enrich the same map without creating loose files in your workspace.
+This generates or enriches `.agent/apps/<appSlug>/screens.json` with semantic IDs (`@search-input`, `@submit-button`, `@cart-link`). Subsequent snapshots enrich the same map without creating loose files in your workspace.
 
 ### 2. Modals and Subdialogs (`opens`)
 When clicking a button opens a modal or subdialog (e.g. clicking `@new-post` opens a post composer), `browser-nav` stores this in `action.opens`. The controls inside the modal (`@post-textarea`, `@publish-button`) become addressable immediately by `@id` without re-scanning background elements.
 
 ### 3. Declarative Multi-Screen User Journeys
-Declare multi-step user journeys in `screens/<app>.screens.json` and execute them across route transitions with route verification and network settling:
+Declare multi-step user journeys in `.agent/apps/<appSlug>/screens.json` and execute them across route transitions with route verification and network settling:
 
 ```powershell
 # Preview journey steps:
@@ -356,10 +356,10 @@ If any intermediate step fails or the destination URL does not match `expectScre
 | Command | Description |
 |---|---|
 | `browser-nav open <url|app> [--launch] [--allow-origin]` | Open an installed app or navigate to a URL. Auto-whitelists installed apps. |
-| `browser-nav auth [<app\|url>] [--clean] [--debug] [--port <n>]` | Assisted login workflow for Google accounts and bot-walled login screens. |
+| `browser-nav auth [<app\|url>] [--clean] [--port <n>] [--timeout <s\|ms>]` | Assisted login workflow for Google accounts and bot-walled login screens. |
 | `browser-nav snapshot [-i \| --all] [--query <str>] [--role <str>] [--json] [--out <path>]` | Capture live accessibility DOM snapshot. Highlights active modal/dialogs. |
 | `browser-nav snapshot --screen [--screen-map <f>] [--screens-dir <dir>]` | Print compact view of mapped screen matching current URL (no DOM dump). |
-| `browser-nav snapshot --learn [--prune] [--locale <lang>] [--access <level>]` | Learn live screen into `screens/<app>.screens.json` and show diff. |
+| `browser-nav snapshot --learn [--prune] [--locale <lang>] [--access <level>]` | Learn live screen into `.agent/apps/<appSlug>/screens.json` and show diff. |
 | `browser-nav find [<query>] [--role <str>] [--dialog] [--offset <n>] [--limit <n>]` | Fast targeted element search across names, roles, placeholders, and dialogs. |
 | `browser-nav click [--armed] '@<id>'` | Click element by permanent semantic ID (e.g. `'@submit-btn'`). |
 | `browser-nav click --snapshot <id> [--armed] <ref>` | Click element by snapshot ref (e.g. `e3`). |
@@ -371,7 +371,7 @@ If any intermediate step fails or the destination URL does not match `expectScre
 | `browser-nav journey <name> [key=value...] [--armed]` | Execute declarative multi-screen user journey across route transitions. |
 | `browser-nav wait <target> [--state visible\|hidden\|enabled] [--timeout <ms>]` | Wait deterministically for an element or query condition. |
 | `browser-nav screenshot [--out <path>] [--format png\|jpeg\|webp]` | Capture visual screenshot to disk (`.agent/screenshot.png` by default). |
-| `browser-nav extract [--snapshot <id>] [--mode all\|text\|links] [--query <str>]` | Extract clean text or links for bulk scraping without altering state. |
+| `browser-nav extract --snapshot <id> --mode text\|links [--query <str>] [--role <str>]` | Extract clean text or links for bulk scraping without altering state. |
 | `browser-nav qa run <check-file>` | Run offline JSON QA test suite and save per-step evidence to `.agent/evidence/`. |
 
 ### Global Flags
