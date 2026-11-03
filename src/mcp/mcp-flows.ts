@@ -1,5 +1,5 @@
 // Flow tools + screen-map resources for the MCP server (spec 006, T005).
-// One `flow_<screen>_<flow>` tool per non-humanOnly flow of the single loaded map. humanOnly flows are
+// One `flow_<screen>_<flow>` tool per non-humanOnly flow of the selected map. humanOnly flows are
 // never callable: only their (slug) names are surfaced in server instructions and the resource note.
 // Descriptions use only slugs plus a capped, control-stripped flow.description (map data, human-authored).
 // Handlers reuse the `act flow:<id>` code path of the CLI (runSemanticAct); they never navigate.
@@ -11,7 +11,7 @@ import { getBackend } from "../tools/common.js";
 import { ACTION_HINTS, actionOutcome, invalid } from "./mcp-tools.js";
 import type { ToolDef } from "./mcp-tools.js";
 import { isSemanticToken } from "../screens/screen-resolve.js";
-import { findScreen, loadExplicitMap, loadScreenMapsFromDir, resolveScreensDir } from "../screens/screen-match.js";
+import { findScreen, loadExplicitMap, loadScreenMapsFromDir, preferFlowMap, resolveScreensDir } from "../screens/screen-match.js";
 import type { ScreenMap } from "../screens/screen-map.js";
 import { performJourney } from "../ops/journey.js";
 
@@ -39,17 +39,34 @@ export interface JourneyTools {
   humanOnly: string[];
 }
 
-/** Map source rule: --screen-map wins; else the screens dir must hold exactly one map. Never throws. */
+/**
+ * Map source rule: `--screen-map` wins; otherwise every map in the screens dir is considered,
+ * invalid siblings are logged and skipped, and the highest-precedence valid map drives the tools.
+ * Never throws.
+ */
 export async function loadFlowSource(source: ScreenSource, log: Log): Promise<ScreenMap | undefined> {
   try {
     if (source.screenMap !== undefined) return await loadExplicitMap(source.screenMap);
     const dir = resolveScreensDir({ screensDir: source.screensDir, cacheDir: source.cacheDir });
-    const maps = await loadScreenMapsFromDir(dir, source.cacheDir === undefined ? {} : { agentDir: source.cacheDir });
-    if (maps.length === 1 && maps[0] !== undefined) return maps[0].map;
-    log(
-      `browser-nav-mcp: no flow tools or map resources: ${maps.length.toString()} screen maps in ${dir} (need exactly one; ` +
-        "or pass --screen-map <file>)",
-    );
+    const maps = await loadScreenMapsFromDir(dir, {
+      ...(source.cacheDir === undefined ? {} : { agentDir: source.cacheDir }),
+      onInvalid: (path, error) => {
+        const first = (error instanceof Error ? error.message : String(error)).split("\n")[0] ?? "";
+        log(`browser-nav-mcp: ignoring invalid screen map ${path}: ${first}`);
+      },
+    });
+    const chosen = preferFlowMap(maps);
+    if (chosen === undefined) {
+      log(
+        `browser-nav-mcp: no flow tools or map resources: no valid screen maps in ${dir} ` +
+          "(or pass --screen-map <file>)",
+      );
+      return undefined;
+    }
+    if (maps.length > 1) {
+      log(`browser-nav-mcp: ${maps.length.toString()} valid screen maps found; flow tools use ${chosen.path}`);
+    }
+    return chosen.map;
   } catch (error) {
     const first = (error instanceof Error ? error.message : String(error)).split("\n")[0] ?? "";
     log(`browser-nav-mcp: screen map ignored (no flow tools or map resources): ${first}`);
@@ -169,7 +186,7 @@ export function buildJourneyTools(map: ScreenMap, log: Log): JourneyTools {
       name,
       description:
         `Run multi-screen user journey "${candidate.id}" on app "${map.app.id}". ` +
-        `${note === "" ? "" : `Description: ${note} `}Dry-run unless the server operator armed it.`,
+        `${note === "" ? "" : `Description: ${note} `}Executes live unless the server operator launched it with --dry-run.`,
       inputSchema: candidate.schema,
       annotations: {
         readOnlyHint: false,
@@ -218,7 +235,7 @@ export function buildFlowTools(map: ScreenMap, log: Log): FlowTools {
       name,
       description:
         `Run flow "${flowId}" on screen "${screenId}" of app "${map.app.id}"; the current page must already be on that screen. ` +
-        `${note === "" ? "" : `Map note: ${note} `}Dry-run unless the server operator armed it.`,
+        `${note === "" ? "" : `Map note: ${note} `}Executes live unless the server operator launched it with --dry-run.`,
       inputSchema: candidate.schema,
       annotations: ACTION_HINTS,
       async handler(args, ctx) {

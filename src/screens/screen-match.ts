@@ -225,9 +225,11 @@ export async function loadExplicitMap(path: string): Promise<ScreenMap> {
 }
 
 // Every `*.screens.json` or `screens.json` in dir or app subdirectories, sorted by name.
+// With `onInvalid`, an unreadable/invalid map is reported and skipped instead of aborting the
+// whole scan, so one stale sibling file cannot disable every other map.
 export async function loadScreenMapsFromDir(
   dir: string,
-  options: { agentDir?: string } = {},
+  options: { agentDir?: string; onInvalid?: (path: string, error: unknown) => void } = {},
 ): Promise<LoadedMap[]> {
   const dirsToScan: string[] = [dir];
   const effectiveAgentDir = options.agentDir ?? resolveAgentDir();
@@ -238,6 +240,16 @@ export async function loadScreenMapsFromDir(
 
   const loaded: LoadedMap[] = [];
   const seenPaths = new Set<string>();
+
+  const tryLoad = async (fullPath: string): Promise<LoadedMap | undefined> => {
+    try {
+      return { path: fullPath, map: await loadExplicitMap(fullPath) };
+    } catch (error) {
+      if (options.onInvalid === undefined) throw error;
+      options.onInvalid(fullPath, error);
+      return undefined;
+    }
+  };
 
   for (const scanDir of dirsToScan) {
     let entries: import("node:fs").Dirent[];
@@ -255,7 +267,8 @@ export async function loadScreenMapsFromDir(
         const fullPath = join(scanDir, entry.name);
         if (!seenPaths.has(fullPath)) {
           seenPaths.add(fullPath);
-          loaded.push({ path: fullPath, map: await loadExplicitMap(fullPath) });
+          const loadedEntry = await tryLoad(fullPath);
+          if (loadedEntry !== undefined) loaded.push(loadedEntry);
         }
       } else if (entry.isDirectory()) {
         const subDirPath = join(scanDir, entry.name);
@@ -263,10 +276,12 @@ export async function loadScreenMapsFromDir(
         const slugScreensJsonPath = join(subDirPath, `${entry.name}.screens.json`);
         if (existsSync(screensJsonPath) && !seenPaths.has(screensJsonPath)) {
           seenPaths.add(screensJsonPath);
-          loaded.push({ path: screensJsonPath, map: await loadExplicitMap(screensJsonPath) });
+          const loadedEntry = await tryLoad(screensJsonPath);
+          if (loadedEntry !== undefined) loaded.push(loadedEntry);
         } else if (existsSync(slugScreensJsonPath) && !seenPaths.has(slugScreensJsonPath)) {
           seenPaths.add(slugScreensJsonPath);
-          loaded.push({ path: slugScreensJsonPath, map: await loadExplicitMap(slugScreensJsonPath) });
+          const loadedEntry = await tryLoad(slugScreensJsonPath);
+          if (loadedEntry !== undefined) loaded.push(loadedEntry);
         }
       }
     }
@@ -274,6 +289,27 @@ export async function loadScreenMapsFromDir(
 
   loaded.sort((a, b) => a.path.localeCompare(b.path));
   return loaded;
+}
+
+/**
+ * Choose the single map that should drive flow/journey tools.
+ *
+ * Precedence: workspace-local over global fallback, canonical `apps/<slug>/screens.json` over
+ * flat `*.screens.json`, then path order. Deterministic so tool names never flap between runs.
+ */
+export function preferFlowMap(maps: readonly LoadedMap[]): LoadedMap | undefined {
+  if (maps.length === 0) return undefined;
+  const globalDataDir = getGlobalDataDir().replace(/\\/g, "/");
+  const isGlobal = (p: string): boolean => {
+    const normalized = p.replace(/\\/g, "/");
+    return normalized.startsWith(globalDataDir) || /\/\.(browser-nav|pwa-nav)\//i.test(normalized);
+  };
+
+  const local = maps.filter((entry) => !isGlobal(entry.path));
+  const pool = local.length > 0 ? local : [...maps];
+  const canonical = pool.filter((entry) => /[\/\\]apps[\/\\][^\/\\]+[\/\\]screens\.json$/i.test(entry.path));
+  const finalPool = canonical.length > 0 ? canonical : pool;
+  return [...finalPool].sort((a, b) => a.path.localeCompare(b.path))[0];
 }
 
 export function disambiguateOriginHits(

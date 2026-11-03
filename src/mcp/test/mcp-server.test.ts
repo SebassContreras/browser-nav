@@ -616,29 +616,36 @@ test("flow tool descriptions: control characters stripped, length capped; non-ob
   assert.equal(humanOnly.length, 0);
   const description = tools[0]?.description ?? "";
   assert.ok(!/\p{Cc}/u.test(description));
-  const note = description.split("Map note: ")[1]?.split(" Dry-run")[0] ?? "";
+  const note = description.split("Map note: ")[1]?.split(" Executes live")[0] ?? "";
   assert.ok(note.length <= MAX_FLOW_DESCRIPTION, String(note.length));
   assert.ok(logs.some((l) => l.includes("search/other skipped")));
 });
 
-test("startup tolerates missing, invalid, ambiguous and Ajv-invalid maps (no flow tools, server still starts)", async () => {
-  const cases: [string, Record<string, string>, RegExp][] = [
-    ["invalid json", { "broken.screens.json": "{not json" }, /screen map ignored/],
-    ["schema-invalid", { "broken.screens.json": JSON.stringify({ schemaVersion: "1.0.0" }) }, /screen map ignored/],
+test("startup tolerates missing, invalid, ambiguous and Ajv-invalid maps (server still starts)", async () => {
+  const cases: [string, Record<string, string>, RegExp, number][] = [
+    ["invalid json", { "broken.screens.json": "{not json" }, /ignoring invalid screen map/, 16],
+    ["schema-invalid", { "broken.screens.json": JSON.stringify({ schemaVersion: "1.0.0" }) }, /ignoring invalid screen map/, 16],
     [
       "ambiguous",
       { ...SEARCH_MAPS(), "demo-app.screens.json": searchMapText().replace('"synthetic"', '"other-app"') },
-      /2 screen maps/,
+      /2 valid screen maps found/,
+      17,
     ],
-    ["none", {}, /0 screen maps/],
+    ["none", {}, /no valid screen maps/, 16],
   ];
-  for (const [label, maps, expected] of cases) {
+  for (const [label, maps, expected, expectedTools] of cases) {
     await withMcp({ maps }, async ({ client, logs }) => {
       const { tools } = await client.listTools();
-      assert.equal(tools.length, 16, label);
+      assert.equal(tools.length, expectedTools, label);
       assert.ok(logs.some((l) => expected.test(l)), `${label}: ${logs.join(" | ")}`);
       const { resources } = await client.listResources();
-      assert.deepEqual(resources.map((r) => r.uri), ["pwa-nav://snapshot/latest"], label);
+      const uris = resources.map((r) => r.uri);
+      assert.ok(uris.includes("pwa-nav://snapshot/latest"), label);
+      if (label === "ambiguous") {
+        assert.ok(uris.some((uri) => uri.startsWith("pwa-nav://screens/")), label);
+      } else {
+        assert.deepEqual(uris, ["pwa-nav://snapshot/latest"], label);
+      }
     });
   }
   const strictInvalid: ScreenFlow = {

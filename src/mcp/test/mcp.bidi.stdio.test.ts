@@ -315,7 +315,7 @@ test("stdio+bidi: stdout carries only JSON-RPC frames while ops print; stderr ge
   });
 });
 
-test("stdio+bidi: ambiguous screens dir logs one stderr line and starts without flow tools", async () => {
+test("stdio+bidi: ambiguous screens dir selects one map and logs the choice", async () => {
   await withEnv(async (env) => {
     const second = searchMap();
     second.app = { ...second.app, id: "other", origin: "http://localhost:9090" };
@@ -333,9 +333,11 @@ test("stdio+bidi: ambiguous screens dir logs one stderr line and starts without 
     try {
       await client.connect(transport);
       const { tools } = await client.listTools();
-      assert.equal(tools.length, 16);
-      assert.deepEqual((await client.listResources()).resources.map((r) => r.uri), ["pwa-nav://snapshot/latest"]);
-      assert.match(stderr, /2 screen maps/);
+      assert.equal(tools.length, 17);
+      const resources = (await client.listResources()).resources.map((r) => r.uri);
+      assert.ok(resources.includes("pwa-nav://snapshot/latest"), resources.join());
+      assert.ok(resources.some((uri) => uri.startsWith("pwa-nav://screens/")), resources.join());
+      assert.match(stderr, /2 valid screen maps found/);
     } finally {
       const pid = transport.pid;
       await client.close().catch(() => undefined);
