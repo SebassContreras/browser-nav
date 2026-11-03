@@ -1,9 +1,39 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { PwaNavError } from "./errors.js";
-import { appSlugFromUrl } from "../backend/backend.js";
 
 export const DEFAULT_AGENT_DIR = ".agent";
+
+/**
+ * Determines whether a given string is a valid HTTP or HTTPS URL.
+ */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Derives a deterministic application slug from a URL or origin.
+ */
+export function appSlugFromUrl(urlOrOrigin: string): string {
+  try {
+    const raw = isHttpUrl(urlOrOrigin) ? urlOrOrigin : `https://${urlOrOrigin}`;
+    const u = new URL(raw);
+    const hostWithoutWww = u.hostname.replace(/^www\./i, "").toLowerCase();
+    return (
+      hostWithoutWww
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .toLowerCase() || "default"
+    );
+  } catch {
+    return "default";
+  }
+}
 
 export interface AppDefinition {
   name?: string;

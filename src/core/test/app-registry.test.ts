@@ -177,3 +177,21 @@ test("resolveCanonicalSlug: uniformly strips leading www. and handles apex and w
   assert.equal(resolveCanonicalSlug("www.mercadona.es", config), "mercadona-es");
   assert.equal(resolveCanonicalSlug("mercadona.es", config), "mercadona-es");
 });
+
+test("architecture guard: src/core/** must not import outer layers (backend, browser, tools, cli, mcp)", async () => {
+  const { readdir, readFile } = await import("node:fs/promises");
+  const coreDir = join(process.cwd(), "src", "core");
+  const entries = await readdir(coreDir, { withFileTypes: true });
+  // Type-only imports (import type { ... }) are erased at runtime; check runtime value imports.
+  const forbiddenRuntimeImport = /(?:^|\n)\s*import\s+(?:(?!\btype\b)[^"';]+)\s+from\s+["']\.\.\/(backend|browser|tools|cli|mcp)/;
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.endsWith(".ts")) {
+      const content = await readFile(join(coreDir, entry.name), "utf8");
+      assert.equal(
+        forbiddenRuntimeImport.test(content),
+        false,
+        `File src/core/${entry.name} imports runtime code from an outer layer`,
+      );
+    }
+  }
+});

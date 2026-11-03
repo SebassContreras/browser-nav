@@ -83,14 +83,8 @@ export function agentPath(agentDir: string, name: string): string {
   return `${agentDir}/${name}`;
 }
 
-export function isHttpUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
+export { isHttpUrl } from "../core/app-registry.js";
+import { isHttpUrl } from "../core/app-registry.js";
 
 export async function ensureParentDir(filePath: string): Promise<void> {
   await mkdir(dirname(resolve(filePath)), { recursive: true });
@@ -123,19 +117,8 @@ export async function loadSession(sessionPath: string): Promise<Session | null> 
   }
 }
 
-export function appSlugFromUrl(urlOrOrigin: string): string {
-  try {
-    const raw = isHttpUrl(urlOrOrigin) ? urlOrOrigin : `https://${urlOrOrigin}`;
-    const u = new URL(raw);
-    const hostWithoutWww = u.hostname.replace(/^www\./i, "").toLowerCase();
-    return hostWithoutWww
-      .replace(/[^a-z0-9]+/gi, "-")
-      .replace(/^-+|-+$/g, "")
-      .toLowerCase() || "default";
-  } catch {
-    return "default";
-  }
-}
+export { appSlugFromUrl } from "../core/app-registry.js";
+import { appSlugFromUrl } from "../core/app-registry.js";
 
 export interface AppTarget {
   slug: string;
