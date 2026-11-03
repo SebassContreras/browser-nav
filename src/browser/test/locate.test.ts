@@ -22,6 +22,71 @@ test("sameDocumentUrl ignores fragment, rejects invalid", () => {
   assert.equal(sameDocumentUrl("nope", "nope"), false);
 });
 
+test("sameDocumentUrl table-driven query string and path partitions", () => {
+  interface UrlTestCase {
+    name: string;
+    urlA: string;
+    urlB: string;
+    expected: boolean;
+  }
+
+  const cases: UrlTestCase[] = [
+    {
+      name: "stripped query parameters by client-side router",
+      urlA: "https://x.test/jobs/view/123?refId=abc&trackingId=def",
+      urlB: "https://x.test/jobs/view/123",
+      expected: true,
+    },
+    {
+      name: "added query parameters by SPA tracking",
+      urlA: "https://x.test/dashboard",
+      urlB: "https://x.test/dashboard?utm_source=nav&session=xyz",
+      expected: true,
+    },
+    {
+      name: "reordered query parameters",
+      urlA: "https://x.test/search?q=engineer&loc=remote",
+      urlB: "https://x.test/search?loc=remote&q=engineer",
+      expected: true,
+    },
+    {
+      name: "fragment change combined with query change",
+      urlA: "https://x.test/page?tab=1#section1",
+      urlB: "https://x.test/page?tab=2#section2",
+      expected: true,
+    },
+    {
+      name: "pathname changes to different route",
+      urlA: "https://x.test/jobs/view/123",
+      urlB: "https://x.test/jobs/view/456",
+      expected: false,
+    },
+    {
+      name: "origin changes",
+      urlA: "https://auth.x.test/login",
+      urlB: "https://app.x.test/login",
+      expected: false,
+    },
+    {
+      name: "empty string URL input",
+      urlA: "",
+      urlB: "https://x.test/a",
+      expected: false,
+    },
+    {
+      name: "both invalid URL strings",
+      urlA: "not-a-url",
+      urlB: "not-a-url",
+      expected: false,
+    },
+  ];
+
+  for (const tc of cases) {
+    const actual = sameDocumentUrl(tc.urlA, tc.urlB);
+    assert.equal(actual, tc.expected, `${tc.name} result mismatch`);
+  }
+});
+
 function stale(fn: () => unknown): string {
   try {
     fn();

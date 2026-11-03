@@ -50,21 +50,15 @@ export function findByLocator(
   return null;
 }
 
-function stripFragment(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    parsed.hash = "";
-    return parsed.href;
-  } catch {
-    return null;
-  }
-}
-
-/** Equal ignoring the #fragment; invalid URLs never match. */
+/** Equal ignoring #fragment and query parameters; invalid URLs never match. */
 export function sameDocumentUrl(a: string, b: string): boolean {
-  const left = stripFragment(a);
-  const right = stripFragment(b);
-  return left !== null && right !== null && left === right;
+  try {
+    const left = new URL(a);
+    const right = new URL(b);
+    return left.origin === right.origin && left.pathname === right.pathname;
+  } catch {
+    return false;
+  }
 }
 
 export function assertFresh(args: {

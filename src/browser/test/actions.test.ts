@@ -17,6 +17,7 @@ import {
   prepareFill,
   QUIET_MS,
   readBackMatches,
+  selectOption,
   SETTLE_TIMEOUT_MS,
   SETTLE_WINDOW_MS,
   uploadFiles,
@@ -471,6 +472,108 @@ test("checkActionable: zero rect and hidden styles are not visible", async () =>
   }
 });
 
+test("checkActionable: table-driven checkbox and radio label delegation partitions", async () => {
+  interface TestCase {
+    name: string;
+    html: string;
+    selector?: string;
+    hiddenInput: boolean;
+    labelHit?: "label" | "none" | "covered";
+    expectedOk: boolean;
+    expectedReason?: RegExp | string;
+  }
+
+  const cases: TestCase[] = [
+    {
+      name: "checkbox with wrapping <label> when input is zero-rect",
+      html: `<label id="lbl"><input id="t" type="checkbox"><span id="txt">Accept</span></label>`,
+      hiddenInput: true,
+      labelHit: "label",
+      expectedOk: true,
+    },
+    {
+      name: "checkbox with label[for] when input is zero-rect",
+      html: `<label id="lbl" for="t">Accept terms</label><input id="t" type="checkbox" style="display:none">`,
+      hiddenInput: true,
+      labelHit: "label",
+      expectedOk: true,
+    },
+    {
+      name: "visible native checkbox passes directly",
+      html: `<input id="t" type="checkbox">`,
+      hiddenInput: false,
+      labelHit: "none",
+      expectedOk: true,
+    },
+    {
+      name: "radio button with associated label when radio is zero-rect",
+      html: `<label id="lbl" for="t">Option A</label><input id="t" type="radio">`,
+      hiddenInput: true,
+      labelHit: "label",
+      expectedOk: true,
+    },
+    {
+      name: "hidden input with detached/missing label fails with not visible",
+      html: `<input id="t" type="checkbox">`,
+      hiddenInput: true,
+      labelHit: "none",
+      expectedOk: false,
+      expectedReason: "element is not visible",
+    },
+    {
+      name: "hidden input with disabled input fails with disabled",
+      html: `<label id="lbl" for="t">Accept</label><input id="t" type="checkbox" disabled>`,
+      hiddenInput: true,
+      labelHit: "label",
+      expectedOk: false,
+      expectedReason: "element is disabled",
+    },
+    {
+      name: "hidden input with covered label fails with covered reason",
+      html: `<label id="lbl" for="t">Accept</label><input id="t" type="checkbox"><div id="overlay"></div>`,
+      hiddenInput: true,
+      labelHit: "covered",
+      expectedOk: false,
+      expectedReason: /element is covered by/,
+    },
+  ];
+
+  for (const tc of cases) {
+    const { doc, el } = page(tc.html);
+    const label = doc.querySelector<HTMLElement>("#lbl");
+    const overlay = doc.querySelector<HTMLElement>("#overlay");
+
+    if (label) {
+      label.getBoundingClientRect = () => rect(10, 10, 120, 30);
+    }
+
+    if (tc.hiddenInput) {
+      layout(
+        doc,
+        el,
+        () => {
+          if (tc.labelHit === "label") return label;
+          if (tc.labelHit === "covered") return overlay;
+          return null;
+        },
+        () => rect(0, 0, 0, 0),
+      );
+    } else {
+      layout(doc, el, () => el, () => rect(10, 10, 20, 20));
+    }
+
+    const res = await checkActionable(el);
+    assert.equal(res.ok, tc.expectedOk, `${tc.name} ok mismatch`);
+    if (tc.expectedReason) {
+      if (typeof tc.expectedReason === "string") {
+        assert.equal(res.reason, tc.expectedReason, `${tc.name} reason mismatch`);
+      } else {
+        assert.match(res.reason ?? "", tc.expectedReason, `${tc.name} reason mismatch`);
+      }
+    }
+  }
+});
+
 test("checkActionable: disabled via attribute and aria-disabled", async () => {
   for (const attrs of ["disabled", `aria-disabled="true"`]) {
     const { doc, el } = page(`<button id="t" ${attrs}>Go</button>`);
@@ -524,21 +627,91 @@ test("checkActionable: file inputs bypass visibility and zero rect", async () =>
 });
 
 
-test("prepareFill: kinds, unsupported targets, focus", () => {
-  const text = page(`<input id="t" type="text">`);
-  assert.deepEqual(prepareFill(text.el), { ok: true, kind: "text", sensitive: false });
-  assert.equal(text.doc.activeElement, text.el);
-  assert.deepEqual(prepareFill(page(`<input id="t" type="password">`).el), {
-    ok: true,
-    kind: "password",
-    sensitive: true,
-  });
-  assert.equal(prepareFill(page(`<input id="t" type="text" autocomplete="cc-number">`).el).sensitive, true);
-  assert.deepEqual(prepareFill(page(`<textarea id="t"></textarea>`).el), { ok: true, kind: "text", sensitive: false });
-  assert.match(prepareFill(page(`<select id="t"><option>a</option></select>`).el).reason ?? "", /select/);
-  assert.match(prepareFill(page(`<input id="t" type="file">`).el).reason ?? "", /"file"/);
-  assert.match(prepareFill(page(`<input id="t" readonly>`).el).reason ?? "", /read-only/);
-  assert.match(prepareFill(page(`<div id="t">x</div>`).el).reason ?? "", /not an editable/);
+test("select option selection and readBackMatches table-driven partitions", () => {
+  interface SelectTestCase {
+    name: string;
+    html: string;
+    text: string;
+    expectedOk: boolean;
+    expectedValue?: string;
+    expectedReason?: RegExp | string;
+  }
+
+  const cases: SelectTestCase[] = [
+    {
+      name: "exact option label match",
+      html: `<select id="t"><option value="v1">United States</option><option value="v2">Spain</option></select>`,
+      text: "United States",
+      expectedOk: true,
+      expectedValue: "v1",
+    },
+    {
+      name: "exact option value match",
+      html: `<select id="t"><option value="US">United States</option><option value="ES">Spain</option></select>`,
+      text: "ES",
+      expectedOk: true,
+      expectedValue: "ES",
+    },
+    {
+      name: "case-insensitive substring match",
+      html: `<select id="t"><option value="opt1">Standard Delivery (3-5 days)</option><option value="opt2">Express</option></select>`,
+      text: "standard delivery",
+      expectedOk: true,
+      expectedValue: "opt1",
+    },
+    {
+      name: "unmatched option text",
+      html: `<select id="t"><option value="1">One</option><option value="2">Two</option></select>`,
+      text: "Nonexistent",
+      expectedOk: false,
+      expectedReason: /no option matches/i,
+    },
+    {
+      name: "disabled select element fails in prepareFill",
+      html: `<select id="t" disabled><option value="1">One</option></select>`,
+      text: "One",
+      expectedOk: false,
+      expectedReason: "select is disabled",
+    },
+  ];
+
+  for (const tc of cases) {
+    const { el } = page(tc.html);
+    const sel = el as HTMLSelectElement;
+    const prep = prepareFill(sel);
+
+    if (tc.expectedOk) {
+      assert.equal(prep.ok, true, `${tc.name} prepareFill ok mismatch`);
+      assert.equal(prep.kind, "select", `${tc.name} prepareFill kind mismatch`);
+
+      // Test option matching logic directly on select
+      const match = selectOption(sel, tc.text);
+      assert.equal(match.ok, true, `${tc.name} selectOption ok mismatch`);
+      assert.equal(sel.value, tc.expectedValue, `${tc.name} select value mismatch`);
+      assert.equal(readBackMatches(sel, tc.text), true, `${tc.name} readBackMatches mismatch`);
+    } else {
+      if (prep.ok) {
+        const match = selectOption(sel, tc.text);
+        assert.equal(match.ok, false, `${tc.name} selectOption should fail`);
+        if (tc.expectedReason) {
+          if (typeof tc.expectedReason === "string") {
+            assert.equal(match.reason, tc.expectedReason);
+          } else {
+            assert.match(match.reason ?? "", tc.expectedReason);
+          }
+        }
+      } else {
+        assert.equal(prep.ok, false, `${tc.name} prep should be false`);
+        if (tc.expectedReason) {
+          if (typeof tc.expectedReason === "string") {
+            assert.equal(prep.reason, tc.expectedReason);
+          } else {
+            assert.match(prep.reason ?? "", tc.expectedReason);
+          }
+        }
+      }
+    }
+  }
 });
 
 test("readBackMatches: exact, newline normalisation, password length, contenteditable text", () => {

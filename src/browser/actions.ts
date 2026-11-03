@@ -81,16 +81,45 @@ export async function checkActionable(el: Element): Promise<ActionableResult> {
     return { ok: true };
   }
 
-  const visible = (): boolean => {
-    const style = view.getComputedStyle(el);
+  const isCheckOrRadio =
+    el.localName === "input" && ["checkbox", "radio"].includes((el.getAttribute("type") ?? "").trim().toLowerCase());
+  const escapeCss = (val: string): string => {
+    const css = (view as unknown as { CSS?: { escape?: (s: string) => string } }).CSS;
+    if (typeof css?.escape === "function") return css.escape(val);
+    return val.replace(/["\\]/g, "\\$&");
+  };
+  const findAssociatedLabel = (): HTMLElement | null => {
+    const input = el as HTMLInputElement;
+    if (input.labels && input.labels.length > 0 && input.labels[0] !== undefined) return input.labels[0];
+    const parentLabel = el.closest<HTMLLabelElement>("label");
+    if (parentLabel) return parentLabel;
+    if (el.id) {
+      return el.ownerDocument.querySelector<HTMLLabelElement>(`label[for="${escapeCss(el.id)}"]`);
+    }
+    return null;
+  };
+
+  const isElementVisible = (node: Element): boolean => {
+    const style = view.getComputedStyle(node);
     if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return false;
-    const rect = el.getBoundingClientRect();
+    const rect = node.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
   };
-  if (!visible()) return { ok: false, reason: "element is not visible" };
 
-  if (typeof el.scrollIntoView === "function") {
-    el.scrollIntoView({ block: "center", inline: "center" });
+  let target = el;
+  let usingLabelDelegation = false;
+  if (isCheckOrRadio && !isElementVisible(el)) {
+    const assocLabel = findAssociatedLabel();
+    if (assocLabel && isElementVisible(assocLabel)) {
+      target = assocLabel;
+      usingLabelDelegation = true;
+    }
+  }
+
+  if (!isElementVisible(target)) return { ok: false, reason: "element is not visible" };
+
+  if (typeof target.scrollIntoView === "function") {
+    target.scrollIntoView({ block: "center", inline: "center" });
   }
 
   const frame = (): Promise<void> =>
@@ -109,37 +138,69 @@ export async function checkActionable(el: Element): Promise<ActionableResult> {
     });
   const sameRect = (a: DOMRect, b: DOMRect): boolean =>
     a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
-  const first = el.getBoundingClientRect();
+  const first = target.getBoundingClientRect();
   await frame();
-  const second = el.getBoundingClientRect();
+  const second = target.getBoundingClientRect();
   await frame();
-  const third = el.getBoundingClientRect();
+  const third = target.getBoundingClientRect();
   if (!sameRect(first, second) || !sameRect(second, third)) {
     return { ok: false, reason: "element is not stable (still moving)" };
   }
-  if (!visible()) return { ok: false, reason: "element is not visible" };
+  if (!isElementVisible(target)) return { ok: false, reason: "element is not visible" };
 
   const cx = third.left + third.width / 2;
   const cy = third.top + third.height / 2;
-  const root = el.getRootNode() as Document | ShadowRoot;
+  const root = target.getRootNode() as Document | ShadowRoot;
   const hit = root.elementFromPoint(cx, cy);
   if (hit === null) return { ok: false, reason: "element center is outside the viewport" };
   const label = hit.closest<HTMLLabelElement>("label");
-  const isLabelForEl = label?.control === el || (label !== null && label.contains(el));
-  const isAncestor = hit.contains(el);
-  if (hit !== el && !el.contains(hit) && !isAncestor && !isLabelForEl) {
+  const isLabelForEl =
+    label?.control === el ||
+    (label !== null && label.contains(el)) ||
+    (usingLabelDelegation && (hit === target || target.contains(hit)));
+  const isAncestor = hit.contains(target);
+  if (hit !== target && !target.contains(hit) && !isAncestor && !isLabelForEl) {
     return { ok: false, reason: `element is covered by <${hit.localName}>` };
   }
   return { ok: true };
 }
 
-type FillKind = "text" | "password" | "contenteditable";
+type FillKind = "text" | "password" | "contenteditable" | "select";
 interface FillTarget {
   ok: boolean;
   reason?: string;
   kind?: FillKind;
   /** Secret-like field: typed text and values are never read back or returned. */
   sensitive?: boolean;
+}
+
+/** Matches option in <select> by exact label, exact value, or substring, and dispatches events. */
+export function selectOption(sel: HTMLSelectElement, text: string): { ok: boolean; reason?: string } {
+  const norm = (s: string): string => s.trim().toLowerCase();
+  const search = norm(text);
+  const options = Array.from(sel.options);
+
+  // 1. Exact label match
+  let matched = options.find((o) => norm(o.label || o.text) === search);
+  // 2. Exact value match
+  if (!matched) {
+    matched = options.find((o) => norm(o.value) === search);
+  }
+  // 3. Case-insensitive substring match (label first, then value)
+  if (!matched && search !== "") {
+    matched = options.find((o) => norm(o.label || o.text).includes(search) || norm(o.value).includes(search));
+  }
+
+  if (!matched) {
+    return { ok: false, reason: `No option matches "${text}" in <select>` };
+  }
+
+  sel.value = matched.value;
+  const viewEvent = (sel.ownerDocument.defaultView as unknown as { Event?: typeof Event } | null)?.Event;
+  const EventCtor = viewEvent ?? Event;
+  sel.dispatchEvent(new EventCtor("input", { bubbles: true, cancelable: true }));
+  sel.dispatchEvent(new EventCtor("change", { bubbles: true, cancelable: true }));
+  return { ok: true };
 }
 
 /** Validates the target is typeable, then focuses it. Returns no values. */
@@ -160,7 +221,9 @@ export function prepareFill(el: Element): FillTarget {
     kind = "text";
     sensitive = /password|cc-|one-time-code/i.test(el.getAttribute("autocomplete") ?? "");
   } else if (tag === "select") {
-    return { ok: false, reason: "select is not supported by fill" };
+    const select = el as HTMLSelectElement;
+    if (select.disabled) return { ok: false, reason: "select is disabled" };
+    kind = "select";
   } else if ((el as HTMLElement).isContentEditable) {
     kind = "contenteditable";
   } else {
@@ -193,6 +256,17 @@ export function prepareFill(el: Element): FillTarget {
  * Returns a boolean only.
  */
 export function readBackMatches(el: Element, expected: string | number): boolean {
+  if (el.localName === "select") {
+    const sel = el as HTMLSelectElement;
+    const selected = sel.selectedOptions[0];
+    const exp = typeof expected === "string" ? expected.trim().toLowerCase() : "";
+    if (selected) {
+      const label = (selected.label || selected.text || "").trim().toLowerCase();
+      const val = selected.value.trim().toLowerCase();
+      return label === exp || val === exp || label.includes(exp) || val.includes(exp);
+    }
+    return sel.value.trim().toLowerCase() === exp;
+  }
   const actual =
     el.localName === "input" || el.localName === "textarea"
       ? (el as HTMLInputElement).value
@@ -261,16 +335,39 @@ const COLLECT_LIVE_SOURCE =
   `raw: (${COLLECTOR_SOURCE})(document, { includeAll }) })`;
 
 // Node handle for collected `index`; null when role/name at that index no longer match.
+// When an input is checkbox/radio and visually hidden (zero-sized or styled hidden), delegates to visible associated label.
 const LOCATE_NODE_SOURCE =
   `(index, role, name, includeAll) => { ` +
   `const options = { includeAll }; ` +
   `const items = (${COLLECTOR_SOURCE})(document, options); ` +
   `const nodes = (${COLLECT_NODES_SOURCE})(document, options); ` +
   `const item = items[index]; ` +
-  `return item !== undefined && item.role === role && item.name === name ? nodes[index] : null; }`;
+  `if (item === undefined || item.role !== role || item.name !== name) return null; ` +
+  `const node = nodes[index]; ` +
+  `if (node && node.localName === "input") { ` +
+  `  const type = (node.getAttribute("type") || "").toLowerCase().trim(); ` +
+  `  if (type === "checkbox" || type === "radio") { ` +
+  `    const style = window.getComputedStyle(node); ` +
+  `    const rect = node.getBoundingClientRect(); ` +
+  `    const isHidden = style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || rect.width === 0 || rect.height === 0; ` +
+  `    if (isHidden) { ` +
+  `      const esc = (window.CSS && typeof window.CSS.escape === "function") ? window.CSS.escape(node.id) : node.id.replace(/["\\\\]/g, "\\\\$&"); ` +
+  `      const assoc = (node.labels && node.labels.length > 0) ? node.labels[0] : (node.closest("label") || (node.id ? node.ownerDocument.querySelector('label[for="' + esc + '"]') : null)); ` +
+  `      if (assoc) { ` +
+  `        const lStyle = window.getComputedStyle(assoc); ` +
+  `        const lRect = assoc.getBoundingClientRect(); ` +
+  `        if (lStyle.display !== "none" && lStyle.visibility !== "hidden" && lRect.width > 0 && lRect.height > 0) { ` +
+  `          return assoc; ` +
+  `        } ` +
+  `      } ` +
+  `    } ` +
+  `  } ` +
+  `} ` +
+  `return node; }`;
 
 export const CHECK_ACTIONABLE_SOURCE = `(${checkActionable.toString()})`;
 const PREPARE_FILL_SOURCE = `(${prepareFill.toString()})`;
+const SELECT_OPTION_SOURCE = `(${selectOption.toString()})`;
 const READ_BACK_SOURCE = `(${readBackMatches.toString()})`;
 const WAIT_QUIET_SOURCE = `(${waitQuiet.toString()})`;
 const WAIT_FRAMES_SOURCE = `(${waitFrames.toString()})`;
@@ -550,13 +647,26 @@ export async function fillLocator(
       throw notActionable(
         locator,
         typeof prep["reason"] === "string" ? prep["reason"] : "unsupported target",
-        "fill supports text inputs, textareas and contenteditable; use click for other controls.",
+        "fill supports text inputs, textareas, contenteditable and select dropdowns; use click for other controls.",
       );
     }
+    const kind = prep["kind"];
     const sensitive = prep["sensitive"] === true;
 
-    await client.performActions(context, [{ type: "key", id: "keyboard", actions: keys }]);
-    await client.releaseActions(context);
+    if (kind === "select") {
+      const selectRes = await client.callFunction(context, SELECT_OPTION_SOURCE, [nodeArg(located.sharedId), str(text)]);
+      if (!isRecord(selectRes) || typeof selectRes["ok"] !== "boolean") throw protocolError("Malformed select result");
+      if (!selectRes["ok"]) {
+        throw notActionable(
+          locator,
+          typeof selectRes["reason"] === "string" ? selectRes["reason"] : "no matching option",
+          "Check the option labels and values in the select element.",
+        );
+      }
+    } else {
+      await client.performActions(context, [{ type: "key", id: "keyboard", actions: keys }]);
+      await client.releaseActions(context);
+    }
 
     // E2E (Firefox 156): a page that rewrites the value in requestAnimationFrame is only
     // visible ~1 frame after the keys; an immediate readback would pass a value that changes next.
