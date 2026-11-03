@@ -49,7 +49,7 @@ Both CLI and MCP delegate 100% of their operations to the unified Tools Service 
 | **Search elements / modals** | `browser-nav find [<query>] [--role <str>] [--dialog]` | `browser_find` (`query`, `role`, `inDialog`, `offset`, `limit`) | Fast targeted element search across name, role, placeholder, dialog, container, and value. |
 | **Multi-screen journey** | `browser-nav journey <name> [k=v] [--dry-run]` | `journey_<name>` (`params`) | Executes multi-route journeys with screen validation. |
 | **Single-screen flow** | `browser-nav act flow:<id> [k=v] [--dry-run]` | `flow_<screen>_<id>` (`params`) | Reusable parameterized screen flow. |
-| **Learn / update map** | `browser-nav snapshot --learn [--locale <code>]` | `screen_learn` / `browser_snapshot(learn: true)` | Generates/updates `screens/<app>.screens.json` with `@id` targets returned inline. |
+| **Learn / update map** | `browser-nav snapshot --learn [--locale <code>]` | `screen_learn` / `browser_snapshot(learn: true)` | Generates/updates `.agent/apps/<appSlug>/screens.json` with `@id` targets returned inline. |
 | **QA offline suite** | `browser-nav qa run <check-file>` | *CLI only* | Executes offline check suites against fixtures. |
 
 ---
@@ -77,7 +77,7 @@ Always follow this decision path to minimize token consumption and avoid breakin
        +----------------------------+  +----------------------------+
        | Fast Semantic Loop         |  | Autonomous Screen Learning |
        | - Use semantic '@id'       |  | - Run: snapshot --learn    |
-       | - Use journeys & flows     |  | - Persist screens/<app>    |
+       | - Use journeys & flows     |  | - Persist app screens.json |
        | - Output returns next view |  | - Yields stable '@id's     |
        +----------------------------+  +----------------------------+
                       |                             |
@@ -87,7 +87,7 @@ Always follow this decision path to minimize token consumption and avoid breakin
                      +-------------------------------+
                      | Continuous Screen Enrichment  |
                      | - Each snapshot/learn updates |
-                     |   screens/<app>.screens.json  |
+                     |   app screens.json            |
                      | - Captures modal trees (opens)|
                      | - ZERO loose snapshot/ref     |
                      |   files in workspace          |
@@ -96,8 +96,8 @@ Always follow this decision path to minimize token consumption and avoid breakin
 
 ### Loop A: Semantic Screen Map Loop (Mandatory First-Pass & Autonomous)
 1. **Initial Screen Check**: Upon opening or navigating to an app, run `browser_snapshot({ screen: true })` (or CLI `browser-nav snapshot --screen`) to inspect the screen map.
-2. **Autonomous Learning on Unmapped Route**: If the screen is new or the route changed (`unmapped_screen`), the agent autonomously calls `screen_learn()` (or CLI `browser-nav snapshot --learn`) to register `screens/<app>.screens.json` without asking the user.
-3. **Continuous Screen Map Enrichment & Zero Loose Files**: Every snapshot or learn step collaborates in enriching `screens/<app>.screens.json` with newly observed fields, actions, flows, and nested modal trees (`opens`). No loose snapshot or ref files are created in the workspace (raw session data is strictly confined to `.agent/apps/<appSlug>/snapshot.json`).
+2. **Autonomous Learning on Unmapped Route**: If the screen is new or the route changed (`unmapped_screen`), the agent autonomously calls `screen_learn()` (or CLI `browser-nav snapshot --learn`) to register `.agent/apps/<appSlug>/screens.json` without asking the user.
+3. **Continuous Screen Map Enrichment & Zero Loose Files**: Every snapshot or learn step collaborates in enriching `.agent/apps/<appSlug>/screens.json` with newly observed fields, actions, flows, and nested modal trees (`opens`). No loose snapshot or ref files are created in the workspace (raw session data is strictly confined to `.agent/snapshot.json`).
 4. **Plan & Execute Semantic Actions**: Plan actions using stable `'@id'` targets, dynamic patterns (`@pattern(query)>@scopedId[occurrence]`), or invoke journeys/flows:
    - In MCP: `browser_click({ target: "@submit-btn" })` or `browser_click({ target: "@contact(Fede)>@delete-btn" })`
    - In CLI: `browser-nav click '@submit-btn'` (or with refs: `browser-nav click --snapshot <id> e1`)
@@ -167,7 +167,7 @@ WebDriver BiDi automates in-page DOM operations (clicking buttons, typing, navig
 10. **Zero Arbitrary Sleep Delays & Zero Snapshot Shell Parsing (Hard Invariant)**: Never run shell pauses (`Start-Sleep 40s`, `sleep`). Use `browser_wait` (or CLI `browser-nav wait`) to wait for asynchronous updates (Fast Research, AI synthesis, video/audio render, button enabling). **NEVER write ad-hoc Python scripts or run shell commands (`Select-String`, `grep`, `Get-Content`, `cat`, `Read`) to inspect `.agent/snapshot.json`**. Use `browser_find` (or `browser-nav find`) for targeted element search or `browser_extract` for filtered lists.
 11. **Zero OS Window Manipulation Loops**: WebDriver BiDi automates within the web DOM, not OS windows. Never execute PowerShell/Win32 scripts attempting to manipulate OS window Z-order, focus, or visibility.
 12. **Windows Sandbox Awareness**: Never assume a browser spawned from within an agent sandbox on Windows is visible to the user. Prefer connecting to user-launched instances on port 9222.
-13. **Per-Application Storage Isolation & Zero Loose Files**: Snapshots and sessions are stored strictly segregated under `.agent/apps/<appSlug>/` (e.g. `.agent/apps/linkedin.com/snapshot.json`). Snapshots and learn passes enrich the persistent screen map (`screens/<app>.screens.json`) without scattering loose ref or snapshot files across the workspace. Ephemeral `eN` refs expire on mutation; agents operate on permanent `@id` targets. Agents must never read root `.agent/snapshot.json` files from prior sessions or user home directories. Always use `browser_find` and `browser_snapshot`.
+13. **Per-Application Storage Isolation & Zero Loose Files**: App profiles and screen maps are stored strictly segregated under `.agent/apps/<appSlug>/` (with active session snapshot at `.agent/snapshot.json`). Snapshots and learn passes enrich the persistent screen map (`.agent/apps/<appSlug>/screens.json`) without scattering loose ref or snapshot files across the workspace. Ephemeral `eN` refs expire on mutation; agents operate on permanent `@id` targets. Agents must never read root `.agent/snapshot.json` files from prior sessions or user home directories with shell scripts or file tools. Always use `browser_find` and `browser_snapshot`.
 14. **Zero Shell/Process/Port Inspection Loops (Wait For Browser Startup)**: Agents **MUST NEVER** execute shell or PowerShell commands (`Get-Process`, `Get-NetTCPConnection`, `Get-CimInstance`, `netstat`, `ps`, `kill`, `taskkill`) to check if the browser is running, what process owns port 9222, what flags were passed, or what sites are registered. When opening an app with `browser_open`, simply wait for the browser to launch and connect; `browser-nav` handles port checking and connection retries internally.
 15. **Target Resolution For Navigation**: Always pass a full HTTP(S) URL (e.g. `https://www.linkedin.com`), a recognizable domain (e.g. `linkedin.com`), or a registered app slug / alias (`notebook`, `linkedin`, `mercadona`). Bare search terms or typos (such as `linkeding`) are rejected fail-fast with `invalid_args` before spawning browser processes.
 
@@ -190,7 +190,7 @@ WebDriver BiDi automates in-page DOM operations (clicking buttons, typing, navig
 | **10** | `protocol` | Unexpected WebDriver BiDi protocol error. | Check Firefox console logs. Restart browser if WebDriver BiDi desynchronized. |
 | **11** | `sensitive_target`| Target is marked sensitive / humanOnly. | **Do not attempt to bypass.** Ask the user to perform this action manually in the browser. |
 | **12** | `unknown_target` | Semantic `@id`, flow, or journey not in map. | Run `browser-nav snapshot --screen` to inspect the available targets in the current screen map. |
-| **13** | `unmapped_screen` | Route is not covered by current screen map. | Autonomously call `screen_learn` (or CLI `snapshot --learn`) to learn and persist `screens/<app>.screens.json`, enriching the map with permanent `@id` targets without creating loose snapshot/ref files. |
+| **13** | `unmapped_screen` | Route is not covered by current screen map. | Autonomously call `screen_learn` (or CLI `snapshot --learn`) to learn and persist `.agent/apps/<appSlug>/screens.json`, enriching the map with permanent `@id` targets without creating loose snapshot/ref files. |
 | **14** | `journey_step_failed` | Multi-screen journey step assertion failed. | Check route transition, parameters, or if the application UI deviated from journey spec. |
 | **15** | `file_upload_blocked` | File upload outside safe directory or sensitive file. | Ensure uploaded file is within workspace root or `.agent/`, with no path traversal. |
 

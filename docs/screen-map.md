@@ -7,8 +7,8 @@ Per-app JSON file saying what each screen offers: fields, actions, links, named 
 - App-agnostic. The tool ships no app-specific map. `examples/screens/demo-app.screens.json` (derived from `checks/fixtures/login.html`) is the reference and test fixture.
 - Your maps live in the screens dir: `--screens-dir <dir>` > env `BROWSER_NAV_SCREENS_DIR` (or `PWA_NAV_SCREENS_DIR`) > `<cache-dir>/screens` (defaulting to `.agent/screens` inside a project or `~/.browser-nav/screens` outside).
 - Learned from live snapshots (`snapshot --learn` or `screen_learn`), never invented. Agents autonomously discover and enrich the screen map on unmapped routes, and operators can review and fine-tune it.
-- **Continuous Screen Map Enrichment**: Every snapshot and learn step collaborates in enriching `screens/<app>.screens.json` with discovered controls, flows, journeys, and nested modal branches (`action.opens`).
-- **Zero Loose Files in Workspace**: Raw snapshots and session caches are strictly isolated per application in `.agent/apps/<appSlug>/snapshot.json`. Screen maps remain the persistent, clean source of truth without scattering loose files in the repo.
+- **Continuous Screen Map Enrichment**: Every snapshot and learn step collaborates in enriching `.agent/apps/<appSlug>/screens.json` with discovered controls, flows, journeys, and nested modal branches (`action.opens`).
+- **Zero Loose Files in Workspace**: Raw snapshots and session caches are strictly isolated in `.agent/snapshot.json`. Screen maps remain the persistent, clean source of truth without scattering loose files in the repo.
 - Not a replacement for `eN` refs: refs stay valid for one snapshot only. `@id` is a semantic target resolved on a fresh snapshot.
 - Never stores field values, credentials, cookies or tokens.
 
@@ -96,7 +96,7 @@ When an action triggers a modal, dialog, or secondary view (for example, clickin
 
 - **Target Resolution**: Elements declared within `opens` branches are directly resolvable by name or `@id` (e.g., `@editor-post` or `@boton-publicar`).
 - **Dynamic Branch Expansion**: When `browser_click` or `browser_act` triggers an action that opens a modal, the response describes the opened branch and lists its available controls immediately.
-- **Per-Application Storage Isolation**: Sessions and raw snapshots are isolated under `.agent/apps/<appSlug>/` (e.g. `.agent/apps/linkedin.com/snapshot.json` and `.agent/apps/notebooklm.google.com/snapshot.json`) to prevent cross-contamination across different web apps.
+- **Per-Application Storage Isolation**: Sessions are isolated under `.agent/apps/<appSlug>/` (with `.agent/apps/<appSlug>/profile` and `.agent/apps/<appSlug>/screens.json`, while active snapshot resides in `.agent/snapshot.json`) to prevent cross-contamination across different web apps.
 
 ## Dynamic Entity Patterns
 
@@ -222,7 +222,7 @@ browser-nav click @nope                          # exit 12 unknown_target (lists
 browser-nav snapshot --learn --access public     # after a UI change: ~ renamed ... / DRIFT
 ```
 
-New map from scratch (live): `browser-nav snapshot --learn --locale es-ES --access public` prints `new screen` and `screen map: screens/<host-port>.screens.json (written)`; omitting `--locale` defaults `locale` to `en`.
+New map from scratch (live): `browser-nav snapshot --learn --locale es-ES --access public` prints `new screen` and `screen map: .agent/apps/<appSlug>/screens.json (written)`; omitting `--locale` defaults `locale` to `en`.
 
 ## Measured size
 
