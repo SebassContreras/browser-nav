@@ -80,7 +80,7 @@ Firefox allows ONE BiDi session. Closing a socket without `session.end` leaves i
 
 ## Prefs note: `remote.prefs.recommended`
 
-Attaching with `--remote-debugging-port` makes Firefox write ~100 automation prefs into the profile. An unclean exit makes them permanent. browser-nav itself never writes `user.js`/`prefs.js`. User opt-in mitigation, in the profile's `user.js`:
+Attaching with `--remote-debugging-port` makes Firefox write ~100 automation prefs into the profile. To protect user configuration and performance, `browser-nav` seeds and merges a managed `user.js` (including performance prefs and BiDi flags) into the standalone profile while preserving custom user preferences:
 
 ```js
 user_pref("remote.prefs.recommended", false);
